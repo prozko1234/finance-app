@@ -10,7 +10,9 @@
       "cwd": "${workspaceFolder}/backend/Api",
       "env": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "ASPNETCORE_URLS": "http://localhost:5099"
+        "ASPNETCORE_URLS": "http://localhost:5099",
+        "DOTNET_ROOT": "/opt/homebrew/opt/dotnet/libexec",
+        "PATH": "/opt/homebrew/bin:${env:PATH}"
       },
       "serverReadyAction": {
         "action": "openExternally",

@@ -1,0 +1,7 @@
+{
+  // Make the Homebrew-installed .NET visible to the integrated terminal and tasks.
+  "terminal.integrated.env.osx": {
+    "PATH": "/opt/homebrew/bin:${env:PATH}",
+    "DOTNET_ROOT": "/opt/homebrew/opt/dotnet/libexec"
+  }
+}
