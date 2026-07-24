@@ -1,4 +1,6 @@
-import type { Budget, Category, SafeToSpend, SaveTransaction, Transaction } from './types'
+import type {
+  Budget, Category, Recurring, SafeToSpend, SaveRecurring, SaveTransaction, Transaction,
+} from './types'
 
 async function http<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -33,4 +35,12 @@ export const api = {
     http<Budget>('/api/budget', { method: 'PUT', body: JSON.stringify({ amount }) }),
 
   getSafeToSpend: () => http<SafeToSpend>('/api/summary/safe-to-spend'),
+
+  getRecurring: () => http<Recurring[]>('/api/recurring'),
+  createRecurring: (r: SaveRecurring) =>
+    http<Recurring>('/api/recurring', { method: 'POST', body: JSON.stringify(r) }),
+  updateRecurring: (id: number, r: SaveRecurring) =>
+    http<Recurring>(`/api/recurring/${id}`, { method: 'PUT', body: JSON.stringify(r) }),
+  deleteRecurring: (id: number) =>
+    http<void>(`/api/recurring/${id}`, { method: 'DELETE' }),
 }

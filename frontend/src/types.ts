@@ -49,9 +49,30 @@ export interface SafeToSpend {
   budgetSet: boolean
   monthlyBudget: number | null
   spentThisMonth: number
+  reservedRecurring: number
   remainingThisMonth: number | null
   daysLeftInMonth: number
   safeToSpendToday: number | null
+}
+
+export interface Recurring {
+  id: number
+  amountOriginal: number
+  currencyOriginal: string
+  categoryId: number
+  categoryName: string
+  dayOfMonth: number
+  active: boolean
+  note?: string | null
+}
+
+export interface SaveRecurring {
+  amount: number
+  currency: string
+  categoryId: number
+  dayOfMonth: number
+  note?: string | null
+  active: boolean
 }
 
 export const BASE_CURRENCY = 'PLN'

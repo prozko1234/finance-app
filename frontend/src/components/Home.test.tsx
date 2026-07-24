@@ -6,7 +6,7 @@ import type { SafeToSpend } from '../types'
 function summary(over: Partial<SafeToSpend> = {}): SafeToSpend {
   return {
     date: '2026-07-24', currency: 'PLN', budgetSet: true, monthlyBudget: 3000,
-    spentThisMonth: 0, remainingThisMonth: 3000, daysLeftInMonth: 8, safeToSpendToday: 375,
+    spentThisMonth: 0, reservedRecurring: 0, remainingThisMonth: 3000, daysLeftInMonth: 8, safeToSpendToday: 375,
     ...over,
   }
 }

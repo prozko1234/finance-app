@@ -1,14 +1,16 @@
 import { useState } from 'react'
-import type { SaveTransaction } from './types'
+import type { Recurring as RecurringType, SaveTransaction } from './types'
 import {
-  useBudget, useCategories, useCreateTransaction, useDeleteTransaction,
-  useSafeToSpend, useSetBudget, useTransactions,
+  useBudget, useCategories, useCreateRecurring, useCreateTransaction, useDeleteRecurring,
+  useDeleteTransaction, useRecurring, useSafeToSpend, useSetBudget, useTransactions,
+  useUpdateRecurring,
 } from './hooks'
 import { Home } from './components/Home'
 import { AddTransaction } from './components/AddTransaction'
 import { Settings } from './components/Settings'
+import { Recurring } from './components/Recurring'
 
-type View = 'home' | 'add' | 'settings'
+type View = 'home' | 'add' | 'settings' | 'recurring'
 
 function App() {
   const [view, setView] = useState<View>('home')
@@ -17,16 +19,30 @@ function App() {
   const summary = useSafeToSpend()
   const transactions = useTransactions()
   const budget = useBudget()
+  const recurring = useRecurring()
 
   const createTx = useCreateTransaction()
   const deleteTx = useDeleteTransaction()
   const setBudget = useSetBudget()
+  const createRecurring = useCreateRecurring()
+  const updateRecurring = useUpdateRecurring()
+  const deleteRecurring = useDeleteRecurring()
 
   const loadError = summary.error ?? transactions.error ?? budget.error
 
   async function handleSave(tx: SaveTransaction) {
     await createTx.mutateAsync(tx)
     setView('home')
+  }
+
+  function toggleRecurring(r: RecurringType) {
+    updateRecurring.mutate({
+      id: r.id,
+      data: {
+        amount: r.amountOriginal, currency: r.currencyOriginal, categoryId: r.categoryId,
+        dayOfMonth: r.dayOfMonth, note: r.note ?? null, active: !r.active,
+      },
+    })
   }
 
   return (
@@ -59,7 +75,22 @@ function App() {
           <AddTransaction categories={categories.data ?? []} onSave={handleSave} onCancel={() => setView('home')} />
         )}
         {view === 'settings' && (
-          <Settings budget={budget.data ?? null} onSave={(amount) => setBudget.mutateAsync(amount).then(() => {})} onBack={() => setView('home')} />
+          <Settings
+            budget={budget.data ?? null}
+            onSave={(amount) => setBudget.mutateAsync(amount).then(() => {})}
+            onBack={() => setView('home')}
+            onGoRecurring={() => setView('recurring')}
+          />
+        )}
+        {view === 'recurring' && (
+          <Recurring
+            categories={categories.data ?? []}
+            items={recurring.data ?? []}
+            onCreate={(r) => createRecurring.mutateAsync(r).then(() => {})}
+            onToggle={toggleRecurring}
+            onDelete={(id) => deleteRecurring.mutate(id)}
+            onBack={() => setView('settings')}
+          />
         )}
       </div>
 

@@ -5,9 +5,10 @@ interface Props {
   budget: Budget | null
   onSave: (amount: number) => Promise<void>
   onBack: () => void
+  onGoRecurring: () => void
 }
 
-export function Settings({ budget, onSave, onBack }: Props) {
+export function Settings({ budget, onSave, onBack, onGoRecurring }: Props) {
   const [amount, setAmount] = useState(budget?.monthlyAmount != null ? String(budget.monthlyAmount) : '')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -61,6 +62,14 @@ export function Settings({ budget, onSave, onBack }: Props) {
         className="w-full rounded-2xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 py-4 font-semibold disabled:opacity-40"
       >
         {saving ? 'Зберігаю…' : 'Зберегти бюджет'}
+      </button>
+
+      <button
+        onClick={onGoRecurring}
+        className="w-full flex items-center justify-between rounded-2xl bg-white dark:bg-neutral-900 px-5 py-4 shadow-sm"
+      >
+        <span className="font-medium">Підписки й регулярні</span>
+        <span className="text-neutral-400">→</span>
       </button>
 
       <p className="text-xs text-neutral-400 text-center">

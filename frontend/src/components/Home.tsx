@@ -52,6 +52,11 @@ function SafeToSpendCard({ summary, onGoSettings }: { summary: SafeToSpend | nul
       <p className="text-xs text-neutral-400">
         Витрачено {money(summary.spentThisMonth, summary.currency)} з {money(summary.monthlyBudget ?? 0, summary.currency)}
       </p>
+      {summary.reservedRecurring > 0 && (
+        <p className="text-xs text-neutral-400">
+          Зарезервовано на фіксовані: {money(summary.reservedRecurring, summary.currency)}
+        </p>
+      )}
     </div>
   )
 }
