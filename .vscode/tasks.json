@@ -3,7 +3,7 @@
   "tasks": [
     {
       "label": "build",
-      "command": "dotnet",
+      "command": "/opt/homebrew/bin/dotnet",
       "type": "process",
       "args": [
         "build",
@@ -17,8 +17,11 @@
     {
       "label": "frontend: dev server",
       "type": "shell",
-      "command": "npm run dev",
-      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "command": "/opt/homebrew/bin/npm run dev",
+      "options": {
+        "cwd": "${workspaceFolder}/frontend",
+        "env": { "PATH": "/opt/homebrew/bin:${env:PATH}" }
+      },
       "isBackground": true,
       "problemMatcher": [],
       "presentation": { "reveal": "always", "panel": "dedicated" }
