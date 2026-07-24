@@ -7,6 +7,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 {
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<Category> Categories => Set<Category>();
+    public DbSet<FxRate> FxRates => Set<FxRate>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -34,6 +35,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .HasForeignKey(t => t.CategoryId)
                 .OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(t => t.Date);
+        });
+
+        b.Entity<FxRate>(e =>
+        {
+            e.HasKey(r => new { r.Currency, r.Date });
+            e.Property(r => r.Currency).HasMaxLength(3);
+            e.Property(r => r.PlnPerUnit).HasPrecision(18, 6);
+            e.Property(r => r.Source).HasMaxLength(10);
         });
     }
 
