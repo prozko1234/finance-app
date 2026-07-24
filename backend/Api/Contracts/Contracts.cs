@@ -32,3 +32,17 @@ public record TransactionResponse(
     DateTimeOffset CreatedAt);
 
 public record CategoryResponse(int Id, string Name, string? Icon);
+
+public record SetBudgetRequest(decimal Amount);
+
+public record BudgetResponse(bool Set, decimal? MonthlyAmount, string Currency, DateTimeOffset? UpdatedAt);
+
+public record SafeToSpendResponse(
+    DateOnly Date,
+    string Currency,
+    bool BudgetSet,
+    decimal? MonthlyBudget,
+    decimal SpentThisMonth,
+    decimal? RemainingThisMonth,
+    int DaysLeftInMonth,
+    decimal? SafeToSpendToday);

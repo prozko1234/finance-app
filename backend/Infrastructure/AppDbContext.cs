@@ -8,6 +8,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<FxRate> FxRates => Set<FxRate>();
+    public DbSet<Budget> Budgets => Set<Budget>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -43,6 +44,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(r => r.Currency).HasMaxLength(3);
             e.Property(r => r.PlnPerUnit).HasPrecision(18, 6);
             e.Property(r => r.Source).HasMaxLength(10);
+        });
+
+        b.Entity<Budget>(e =>
+        {
+            e.Property(x => x.MonthlyAmount).HasPrecision(18, 2);
         });
     }
 

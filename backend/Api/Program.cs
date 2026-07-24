@@ -42,6 +42,8 @@ app.UseCors(DevCors);
 app.MapGet("/", () => Results.Ok(new { app = "finance-app", status = "ok" }));
 app.MapCategoryEndpoints();
 app.MapTransactionEndpoints();
+app.MapBudgetEndpoints();
+app.MapSummaryEndpoints();
 
 app.Run();
 
