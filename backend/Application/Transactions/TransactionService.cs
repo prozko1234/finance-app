@@ -1,6 +1,7 @@
 using FinanceApp.Application.Abstractions;
 using FinanceApp.Application.Contracts;
 using FinanceApp.Application.Mapping;
+using FinanceApp.Application.Recurring;
 using FinanceApp.Domain;
 using FinanceApp.Domain.Common;
 using FinanceApp.Domain.Fx;
@@ -8,10 +9,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FinanceApp.Application.Transactions;
 
-public sealed class TransactionService(IAppDbContext db, IFxConverter fx) : ITransactionService
+public sealed class TransactionService(
+    IAppDbContext db, IFxConverter fx, IRecurringMaterializer materializer) : ITransactionService
 {
     public async Task<IReadOnlyList<TransactionResponse>> GetRecentAsync(int take, CancellationToken ct = default)
     {
+        await materializer.MaterializeDueAsync(ct); // reflect any due recurring in the list
+
         var items = await db.Transactions
             .Include(t => t.Category)
             .OrderByDescending(t => t.Date).ThenByDescending(t => t.Id)

@@ -1,6 +1,7 @@
 using System.Reflection;
 using FinanceApp.Application.Budgets;
 using FinanceApp.Application.Categories;
+using FinanceApp.Application.Recurring;
 using FinanceApp.Application.Summaries;
 using FinanceApp.Application.Transactions;
 using FluentValidation;
@@ -16,6 +17,8 @@ public static class DependencyInjection
         services.AddScoped<IBudgetService, BudgetService>();
         services.AddScoped<ISummaryService, SummaryService>();
         services.AddScoped<ICategoryService, CategoryService>();
+        services.AddScoped<IRecurringService, RecurringService>();
+        services.AddScoped<IRecurringMaterializer, RecurringMaterializer>();
 
         // Register every AbstractValidator<T> found in this assembly.
         services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());

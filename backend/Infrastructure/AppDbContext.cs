@@ -10,6 +10,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<FxRate> FxRates => Set<FxRate>();
     public DbSet<Budget> Budgets => Set<Budget>();
+    public DbSet<RecurringExpense> RecurringExpenses => Set<RecurringExpense>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -37,6 +38,25 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .HasForeignKey(t => t.CategoryId)
                 .OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(t => t.Date);
+            // One materialized transaction per recurring expense per due date (idempotency).
+            e.HasIndex(t => new { t.RecurringExpenseId, t.Date })
+                .IsUnique()
+                .HasFilter("\"RecurringExpenseId\" IS NOT NULL");
+            e.HasOne(t => t.RecurringExpense)
+                .WithMany()
+                .HasForeignKey(t => t.RecurringExpenseId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        b.Entity<RecurringExpense>(e =>
+        {
+            e.Property(r => r.AmountOriginal).HasPrecision(18, 2);
+            e.Property(r => r.CurrencyOriginal).HasMaxLength(3).IsRequired();
+            e.Property(r => r.Note).HasMaxLength(500);
+            e.HasOne(r => r.Category)
+                .WithMany()
+                .HasForeignKey(r => r.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         b.Entity<FxRate>(e =>

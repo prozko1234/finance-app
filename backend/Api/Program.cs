@@ -53,6 +53,7 @@ app.MapCategoryEndpoints();
 app.MapTransactionEndpoints();
 app.MapBudgetEndpoints();
 app.MapSummaryEndpoints();
+app.MapRecurringEndpoints();
 
 app.Run();
 

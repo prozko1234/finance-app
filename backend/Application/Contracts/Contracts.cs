@@ -43,6 +43,25 @@ public record SafeToSpendResponse(
     bool BudgetSet,
     decimal? MonthlyBudget,
     decimal SpentThisMonth,
+    decimal ReservedRecurring,
     decimal? RemainingThisMonth,
     int DaysLeftInMonth,
     decimal? SafeToSpendToday);
+
+public record SaveRecurringRequest(
+    decimal Amount,
+    string Currency,
+    int CategoryId,
+    int DayOfMonth,
+    string? Note,
+    bool Active);
+
+public record RecurringResponse(
+    int Id,
+    decimal AmountOriginal,
+    string CurrencyOriginal,
+    int CategoryId,
+    string CategoryName,
+    int DayOfMonth,
+    bool Active,
+    string? Note);

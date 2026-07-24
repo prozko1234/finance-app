@@ -16,6 +16,11 @@ public class Transaction
     public int CategoryId { get; set; }
     public Category? Category { get; set; }
 
+    // Set when this transaction was auto-generated from a recurring expense.
+    // Together with Date it makes materialization idempotent (one per month).
+    public int? RecurringExpenseId { get; set; }
+    public RecurringExpense? RecurringExpense { get; set; }
+
     public Priority Priority { get; set; }
     public Frequency Frequency { get; set; }
     public TxSource Source { get; set; }

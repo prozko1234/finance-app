@@ -17,4 +17,8 @@ public static class DomainMapping
     public static BudgetResponse ToResponse(this Budget? b) => b is null
         ? new BudgetResponse(false, null, Money.BaseCurrency, null)
         : new BudgetResponse(true, b.MonthlyAmount, Money.BaseCurrency, b.UpdatedAt);
+
+    public static RecurringResponse ToResponse(this RecurringExpense r) => new(
+        r.Id, r.AmountOriginal, r.CurrencyOriginal, r.CategoryId, r.Category?.Name ?? "",
+        r.DayOfMonth, r.Active, r.Note);
 }
