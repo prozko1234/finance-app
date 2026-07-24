@@ -8,6 +8,12 @@ Rules for writing code in this repo. Read before adding or changing code.
   user (the app's language is Ukrainian). Only comments are English.
 - Identifiers, file names, commit messages: English.
 
+## Git
+- Commit messages contain **no tool/assistant attribution** — no `Co-Authored-By`
+  trailer, no "Generated with" lines, no AI/assistant mentions. Plain conventional
+  commits only (`feat:`, `fix:`, `chore:` …).
+- Same for PR descriptions and any other git artifact.
+
 ## Architecture (Clean Architecture, dependencies point inward)
 ```
 Api  →  Infrastructure  →  Application  →  Domain
