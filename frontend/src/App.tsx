@@ -1,121 +1,101 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useCallback, useEffect, useState } from 'react'
+import { api } from './api'
+import type { Budget, Category, SafeToSpend, SaveTransaction, Transaction } from './types'
+import { Home } from './components/Home'
+import { AddTransaction } from './components/AddTransaction'
+import { Settings } from './components/Settings'
+
+type View = 'home' | 'add' | 'settings'
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [view, setView] = useState<View>('home')
+  const [categories, setCategories] = useState<Category[]>([])
+  const [summary, setSummary] = useState<SafeToSpend | null>(null)
+  const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [budget, setBudget] = useState<Budget | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const reload = useCallback(async () => {
+    try {
+      const [s, t, b] = await Promise.all([
+        api.getSafeToSpend(),
+        api.getTransactions(),
+        api.getBudget(),
+      ])
+      setSummary(s)
+      setTransactions(t)
+      setBudget(b)
+      setError(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Немає зв\'язку з бекендом')
+    }
+  }, [])
+
+  useEffect(() => {
+    api.getCategories().then(setCategories).catch(() => {})
+    reload()
+  }, [reload])
+
+  async function handleSave(tx: SaveTransaction) {
+    await api.createTransaction(tx)
+    await reload()
+    setView('home')
+  }
+
+  async function handleDelete(id: number) {
+    await api.deleteTransaction(id)
+    await reload()
+  }
+
+  async function handleBudget(amount: number) {
+    await api.setBudget(amount)
+    await reload()
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
+    <div className="min-h-screen">
+      <div className="mx-auto max-w-md px-4 py-6 pb-28">
+        <header className="flex items-center justify-between mb-6">
+          <h1 className="text-xl font-bold">finance</h1>
+          {view === 'home' && (
+            <button onClick={() => setView('settings')} className="text-neutral-400 text-xl" aria-label="Налаштування">
+              ⚙
+            </button>
+          )}
+        </header>
+
+        {error && (
+          <div className="mb-4 rounded-xl bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 px-4 py-3 text-sm">
+            {error}
+          </div>
+        )}
+
+        {view === 'home' && (
+          <Home
+            summary={summary}
+            transactions={transactions}
+            onDelete={handleDelete}
+            onGoSettings={() => setView('settings')}
+          />
+        )}
+        {view === 'add' && (
+          <AddTransaction categories={categories} onSave={handleSave} onCancel={() => setView('home')} />
+        )}
+        {view === 'settings' && (
+          <Settings budget={budget} onSave={handleBudget} onBack={() => setView('home')} />
+        )}
+      </div>
+
+      {view === 'home' && (
         <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
+          onClick={() => setView('add')}
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 h-14 w-14 rounded-full bg-emerald-600 text-white text-3xl shadow-lg flex items-center justify-center"
+          aria-label="Додати транзакцію"
         >
-          Count is {count}
+          +
         </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      )}
+    </div>
   )
 }
 
