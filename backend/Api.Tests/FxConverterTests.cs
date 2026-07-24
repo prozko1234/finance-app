@@ -1,3 +1,4 @@
+using FinanceApp.Domain.Common;
 using FinanceApp.Domain.Fx;
 using FinanceApp.Infrastructure.Fx;
 
@@ -16,8 +17,9 @@ public class FxConverterTests
 
         var r = await sut.ConvertToBaseAsync(123.45m, "PLN", D);
 
-        Assert.Equal(123.45m, r.AmountBase);
-        Assert.Equal(1m, r.Rate);
+        Assert.True(r.IsSuccess);
+        Assert.Equal(123.45m, r.Value!.AmountBase);
+        Assert.Equal(1m, r.Value.Rate);
         Assert.Equal(0, fake.Calls);
     }
 
@@ -30,9 +32,10 @@ public class FxConverterTests
 
         var r = await sut.ConvertToBaseAsync(10m, "USD", D);
 
-        Assert.Equal(39.50m, r.AmountBase);
-        Assert.Equal(3.95m, r.Rate);
-        Assert.Equal(D, r.RateDate);
+        Assert.True(r.IsSuccess);
+        Assert.Equal(39.50m, r.Value!.AmountBase);
+        Assert.Equal(3.95m, r.Value.Rate);
+        Assert.Equal(D, r.Value.RateDate);
     }
 
     [Fact]
@@ -44,7 +47,8 @@ public class FxConverterTests
 
         var r = await sut.ConvertToBaseAsync(1m, "UAH", D);
 
-        Assert.Equal(0.13m, r.AmountBase);
+        Assert.True(r.IsSuccess);
+        Assert.Equal(0.13m, r.Value!.AmountBase);
     }
 
     [Fact]
@@ -57,7 +61,7 @@ public class FxConverterTests
         await sut.ConvertToBaseAsync(10m, "USD", D);
         await sut.ConvertToBaseAsync(20m, "USD", D);
 
-        Assert.Equal(1, fake.Calls); // друге звернення — з кешу
+        Assert.Equal(1, fake.Calls); // second lookup comes from cache
     }
 
     [Fact]
@@ -70,18 +74,21 @@ public class FxConverterTests
 
         var r = await sut.ConvertToBaseAsync(10m, "EUR", D);
 
-        Assert.Equal(43.00m, r.AmountBase);
+        Assert.True(r.IsSuccess);
+        Assert.Equal(43.00m, r.Value!.AmountBase);
         Assert.Equal(1, nbp.Calls);
         Assert.Equal(1, ecb.Calls);
     }
 
     [Fact]
-    public async Task Throws_when_no_provider_returns_a_rate()
+    public async Task Fails_as_unsupported_when_no_provider_returns_a_rate()
     {
         using var mem = new SqliteInMemory();
         var sut = new CachingFxConverter(mem.Db, new[] { new FakeRateProvider(null) });
 
-        await Assert.ThrowsAsync<NotSupportedException>(
-            () => sut.ConvertToBaseAsync(10m, "USD", D));
+        var r = await sut.ConvertToBaseAsync(10m, "USD", D);
+
+        Assert.False(r.IsSuccess);
+        Assert.Equal(ErrorType.Unsupported, r.Error.Type);
     }
 }

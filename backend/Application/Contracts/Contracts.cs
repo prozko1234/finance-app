@@ -1,9 +1,9 @@
 using FinanceApp.Domain;
 
-namespace FinanceApp.Api.Contracts;
+namespace FinanceApp.Application.Contracts;
 
-/// Запит на створення/оновлення транзакції. Валюта — 3-літерний ISO-код.
-/// Date опційна (дефолт — сьогодні). Base-сума і курс рахуються на сервері.
+/// Create/update transaction request. Currency is a 3-letter ISO code.
+/// Date is optional (defaults to today). Base amount and rate are computed on the server.
 public record SaveTransactionRequest(
     decimal Amount,
     string Currency,

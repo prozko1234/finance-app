@@ -1,13 +1,13 @@
 namespace FinanceApp.Domain;
 
-/// Кеш курсів: скільки PLN за 1 одиницю валюти на запитану дату.
-/// Щоб не смикати зовнішнє API повторно для тієї ж пари (валюта, дата).
+/// Rate cache: how many PLN per 1 unit of currency for a requested date.
+/// Avoids hitting the external API again for the same (currency, date) pair.
 public class FxRate
 {
-    public required string Currency { get; set; }   // ISO-код, напр. USD
-    public DateOnly Date { get; set; }               // запитана дата транзакції
+    public required string Currency { get; set; }   // ISO code, e.g. USD
+    public DateOnly Date { get; set; }               // requested transaction date
     public decimal PlnPerUnit { get; set; }
-    public DateOnly EffectiveDate { get; set; }      // фактична дата курсу (може бути раніше)
+    public DateOnly EffectiveDate { get; set; }      // actual rate date (may be earlier)
     public required string Source { get; set; }      // NBP / ECB
     public DateTimeOffset FetchedAt { get; set; }
 }

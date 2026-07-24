@@ -3,8 +3,8 @@ using Microsoft.EntityFrameworkCore.Design;
 
 namespace FinanceApp.Infrastructure;
 
-/// Використовується лише інструментом `dotnet ef` (design-time), щоб створювати
-/// міграції без запуску всього застосунку.
+/// Used only by the `dotnet ef` tool (design-time) to create migrations without
+/// starting the whole application.
 public sealed class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
 {
     public AppDbContext CreateDbContext(string[] args)

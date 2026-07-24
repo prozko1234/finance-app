@@ -4,11 +4,11 @@ public class Transaction
 {
     public int Id { get; set; }
 
-    // --- Сума як введено ---
+    // --- Amount as entered ---
     public decimal AmountOriginal { get; set; }
     public required string CurrencyOriginal { get; set; }
 
-    // --- Сума в базовій валюті (PLN). Фіксується при створенні, НІКОЛИ не перераховується. ---
+    // --- Amount in base currency (PLN). Fixed at creation, NEVER recomputed. ---
     public decimal AmountBase { get; set; }
     public decimal FxRate { get; set; }
     public DateOnly FxDate { get; set; }

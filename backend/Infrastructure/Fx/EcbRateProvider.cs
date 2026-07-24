@@ -4,9 +4,9 @@ using FinanceApp.Domain.Fx;
 
 namespace FinanceApp.Infrastructure.Fx;
 
-/// Фолбек — European Central Bank (90-денний історичний файл). ECB дає units-per-EUR,
-/// тож PLN за 1 одиницю = rate_PLN / rate_currency. Увага: ECB НЕ містить UAH —
-/// для гривні фолбек не спрацює, її покриває лише NBP.
+/// Fallback — European Central Bank (90-day history file). ECB gives units-per-EUR,
+/// so PLN per 1 unit = rate_PLN / rate_currency. Note: ECB does NOT include UAH —
+/// the fallback won't work for hryvnia, which only NBP covers.
 public sealed class EcbRateProvider(HttpClient http) : IFxRateProvider
 {
     private static readonly XNamespace Ns = "http://www.ecb.int/vocabulary/2002-08-01/eurofxref";
@@ -20,7 +20,7 @@ public sealed class EcbRateProvider(HttpClient http) : IFxRateProvider
         var xml = await http.GetStringAsync("stats/eurofxref/eurofxref-hist-90d.xml", ct);
         var doc = XDocument.Parse(xml);
 
-        // Дні (Cube time=...), найближчий <= запитаної дати.
+        // Days (Cube time=...), nearest one <= the requested date.
         var days = doc.Descendants(Ns + "Cube")
             .Where(c => c.Attribute("time") is not null)
             .Select(c => (Date: DateOnly.Parse(c.Attribute("time")!.Value), Node: c))
@@ -41,7 +41,7 @@ public sealed class EcbRateProvider(HttpClient http) : IFxRateProvider
             if (rates.TryGetValue(currency, out var cPerEur) && cPerEur > 0)
                 return new FxQuote(plnPerEur / cPerEur, day.Date);
 
-            return null; // валюта не в списку ECB (напр. UAH)
+            return null; // currency not in the ECB list (e.g. UAH)
         }
 
         return null;

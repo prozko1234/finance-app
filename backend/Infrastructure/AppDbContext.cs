@@ -1,9 +1,10 @@
+using FinanceApp.Application.Abstractions;
 using FinanceApp.Domain;
 using Microsoft.EntityFrameworkCore;
 
 namespace FinanceApp.Infrastructure;
 
-public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
+public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options), IAppDbContext
 {
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<Category> Categories => Set<Category>();
@@ -27,7 +28,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(t => t.CurrencyOriginal).HasMaxLength(3).IsRequired();
             e.Property(t => t.MerchantRaw).HasMaxLength(200);
             e.Property(t => t.Note).HasMaxLength(500);
-            // Enum-и зберігаємо як текст — читабельно в БД, стабільно при зміні порядку.
+            // Store enums as text — readable in the DB and stable if the order changes.
             e.Property(t => t.Priority).HasConversion<string>().HasMaxLength(10);
             e.Property(t => t.Frequency).HasConversion<string>().HasMaxLength(10);
             e.Property(t => t.Source).HasConversion<string>().HasMaxLength(15);

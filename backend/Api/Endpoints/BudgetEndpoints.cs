@@ -1,7 +1,6 @@
-using FinanceApp.Api.Contracts;
-using FinanceApp.Domain;
-using FinanceApp.Infrastructure;
-using Microsoft.EntityFrameworkCore;
+using FinanceApp.Api.Common;
+using FinanceApp.Application.Budgets;
+using FinanceApp.Application.Contracts;
 
 namespace FinanceApp.Api.Endpoints;
 
@@ -11,34 +10,12 @@ public static class BudgetEndpoints
     {
         var g = app.MapGroup("/api/budget").WithTags("Budget");
 
-        g.MapGet("/", async (AppDbContext db) =>
-        {
-            var b = await db.Budgets.OrderBy(x => x.Id).FirstOrDefaultAsync();
-            return Results.Ok(b is null
-                ? new BudgetResponse(false, null, Money.BaseCurrency, null)
-                : new BudgetResponse(true, b.MonthlyAmount, Money.BaseCurrency, b.UpdatedAt));
-        });
+        g.MapGet("/", async (IBudgetService svc, CancellationToken ct) =>
+            Results.Ok(await svc.GetAsync(ct)));
 
-        g.MapPut("/", async (SetBudgetRequest req, AppDbContext db) =>
-        {
-            if (req.Amount < 0)
-                return Results.BadRequest(new { error = "Бюджет не може бути від'ємним." });
-
-            // MVP: один активний бюджет — upsert першого запису.
-            var b = await db.Budgets.OrderBy(x => x.Id).FirstOrDefaultAsync();
-            if (b is null)
-            {
-                b = new Budget { MonthlyAmount = req.Amount, UpdatedAt = DateTimeOffset.UtcNow };
-                db.Budgets.Add(b);
-            }
-            else
-            {
-                b.MonthlyAmount = req.Amount;
-                b.UpdatedAt = DateTimeOffset.UtcNow;
-            }
-            await db.SaveChangesAsync();
-            return Results.Ok(new BudgetResponse(true, b.MonthlyAmount, Money.BaseCurrency, b.UpdatedAt));
-        });
+        g.MapPut("/", async (SetBudgetRequest req, IBudgetService svc, CancellationToken ct) =>
+            Results.Ok(await svc.SetAsync(req.Amount, ct)))
+            .AddEndpointFilter<ValidationFilter<SetBudgetRequest>>();
 
         return app;
     }

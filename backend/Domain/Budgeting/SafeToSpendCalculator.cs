@@ -8,15 +8,15 @@ public record SafeToSpendResult(
     int DaysLeftInMonth,
     decimal? SafeToSpendToday);
 
-/// Ядро продукту: «скільки безпечно витратити сьогодні».
-/// Формула v1: (місячний бюджет − витрачено за місяць) / кількість днів до кінця місяця (включно з сьогодні).
-/// Чиста функція без БД — тому легко й повно тестується.
+/// The core of the product: "how much is safe to spend today".
+/// v1 formula: (monthly budget - spent this month) / days left in month (including today).
+/// Pure function without a DB — so it is easy and fully testable.
 public static class SafeToSpendCalculator
 {
     public static SafeToSpendResult Calculate(decimal? monthlyBudget, decimal spentThisMonth, DateOnly today)
     {
         var daysInMonth = DateTime.DaysInMonth(today.Year, today.Month);
-        var daysLeft = daysInMonth - today.Day + 1; // включно з сьогодні
+        var daysLeft = daysInMonth - today.Day + 1; // including today
 
         if (monthlyBudget is null)
             return new SafeToSpendResult(false, null, spentThisMonth, null, daysLeft, null);
@@ -26,6 +26,6 @@ public static class SafeToSpendCalculator
         return new SafeToSpendResult(true, monthlyBudget, spentThisMonth, remaining, daysLeft, perDay);
     }
 
-    // Округлюємо ВНИЗ до 2 знаків — «безпечна» цифра не має обіцяти зайвого.
+    // Round money DOWN to 2 decimals — a "safe" figure must not promise too much.
     private static decimal FloorTo2(decimal v) => Math.Floor(v * 100m) / 100m;
 }

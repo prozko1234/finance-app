@@ -2,6 +2,6 @@ namespace FinanceApp.Domain;
 
 public static class Money
 {
-    /// Базова валюта, у якій рахуються бюджет і safe-to-spend.
+    /// Base currency in which budget and safe-to-spend are computed.
     public const string BaseCurrency = "PLN";
 }

@@ -1,10 +1,10 @@
 namespace FinanceApp.Domain;
 
-/// Наскільки витрата обов'язкова (для майбутнього safe-to-spend і аналітики).
+/// How necessary the expense is (for future safe-to-spend and analytics).
 public enum Priority { Must, Should, Want }
 
-/// Разова чи повторювана витрата.
+/// One-off vs recurring expense.
 public enum Frequency { OneOff, Recurring }
 
-/// Звідки з'явилась транзакція. У фазі 1 — лише Manual.
+/// Where the transaction came from. Phase 1 — Manual only.
 public enum TxSource { Manual, Bank, Notification }

@@ -1,28 +1,34 @@
 using FinanceApp.Domain;
+using FinanceApp.Domain.Common;
 using FinanceApp.Domain.Fx;
 using Microsoft.EntityFrameworkCore;
 
 namespace FinanceApp.Infrastructure.Fx;
 
-/// Конвертує в базову валюту (PLN): PLN → 1:1; інакше бере курс із кешу, а якщо нема —
-/// по черзі питає провайдерів (NBP → ECB) і кешує результат. Курс і дата фіксуються
-/// на транзакції — заднім числом не перераховуємо.
+/// Converts to base currency (PLN): PLN → 1:1; otherwise takes the rate from cache, and if
+/// missing, asks providers in order (NBP → ECB) and caches the result. Rate and date are
+/// fixed on the transaction — never recomputed retroactively.
 public sealed class CachingFxConverter(AppDbContext db, IEnumerable<IFxRateProvider> providers) : IFxConverter
 {
     private readonly IReadOnlyList<IFxRateProvider> _providers = providers.ToList();
 
-    public async Task<FxConversion> ConvertToBaseAsync(
+    public async Task<Result<FxConversion>> ConvertToBaseAsync(
         decimal amount, string currency, DateOnly date, CancellationToken ct = default)
     {
         currency = currency.ToUpperInvariant();
         if (currency == Money.BaseCurrency)
-            return new FxConversion(Round(amount), 1m, date);
+            return Result<FxConversion>.Ok(new FxConversion(Round(amount), 1m, date));
 
-        var (rate, effectiveDate) = await GetRateAsync(currency, date, ct);
-        return new FxConversion(Round(amount * rate), rate, effectiveDate);
+        var rate = await GetRateAsync(currency, date, ct);
+        if (rate is null)
+            return Error.Unsupported(
+                $"Не вдалося отримати курс {currency}→PLN на {date:yyyy-MM-dd} (джерела недоступні або валюта не підтримується).");
+
+        var (plnPerUnit, effectiveDate) = rate.Value;
+        return Result<FxConversion>.Ok(new FxConversion(Round(amount * plnPerUnit), plnPerUnit, effectiveDate));
     }
 
-    private async Task<(decimal rate, DateOnly effectiveDate)> GetRateAsync(
+    private async Task<(decimal rate, DateOnly effectiveDate)?> GetRateAsync(
         string currency, DateOnly date, CancellationToken ct)
     {
         var cached = await db.FxRates
@@ -34,7 +40,7 @@ public sealed class CachingFxConverter(AppDbContext db, IEnumerable<IFxRateProvi
         {
             FxQuote? quote;
             try { quote = await provider.GetPlnPerUnitAsync(currency, date, ct); }
-            catch { quote = null; } // мережевий збій одного джерела не валить запис — пробуємо наступне
+            catch { quote = null; } // one source failing must not break the entry — try the next
 
             if (quote is { PlnPerUnit: > 0 })
             {
@@ -52,10 +58,9 @@ public sealed class CachingFxConverter(AppDbContext db, IEnumerable<IFxRateProvi
             }
         }
 
-        throw new NotSupportedException(
-            $"Не вдалося отримати курс {currency}→PLN на {date:yyyy-MM-dd} (джерела недоступні або валюта не підтримується).");
+        return null;
     }
 
-    // Гроші округлюємо до 2 знаків, half-up (AwayFromZero) — як у касовому чеку.
+    // Round money to 2 decimals, half-up (AwayFromZero) — like a cash receipt.
     private static decimal Round(decimal v) => Math.Round(v, 2, MidpointRounding.AwayFromZero);
 }

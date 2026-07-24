@@ -54,4 +54,5 @@ export interface SafeToSpend {
   safeToSpendToday: number | null
 }
 
+export const BASE_CURRENCY = 'PLN'
 export const CURRENCIES = ['PLN', 'UAH', 'USD', 'EUR'] as const

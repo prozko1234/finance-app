@@ -6,7 +6,7 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
-    // Проксі на бекенд — фронт звертається до відносного /api, CORS у розробці не потрібен.
+    // Proxy to the backend — the frontend calls a relative /api, no CORS needed in dev.
     proxy: {
       '/api': 'http://localhost:5099',
     },

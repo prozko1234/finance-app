@@ -1,11 +1,11 @@
 namespace FinanceApp.Domain.Fx;
 
-/// Курс на дату: скільки PLN коштує 1 одиниця валюти (mid rate), і за яку дату він чинний
-/// (може бути раніше запитаної — вихідні/свята).
+/// Rate for a date: how many PLN per 1 unit of currency (mid rate), and which date it is
+/// effective for (may be earlier than requested — weekends/holidays).
 public record FxQuote(decimal PlnPerUnit, DateOnly EffectiveDate);
 
-/// Зовнішнє джерело курсів (NBP, ECB...). Повертає null, якщо курсу нема
-/// (валюта не підтримується джерелом або дані недоступні).
+/// External rate source (NBP, ECB...). Returns null when no rate is available
+/// (currency not covered by the source, or data unavailable).
 public interface IFxRateProvider
 {
     string Name { get; }

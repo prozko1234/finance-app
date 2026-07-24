@@ -1,3 +1,4 @@
+using FinanceApp.Application.Abstractions;
 using FinanceApp.Domain.Fx;
 using FinanceApp.Infrastructure.Fx;
 using Microsoft.EntityFrameworkCore;
@@ -11,8 +12,9 @@ public static class DependencyInjection
         this IServiceCollection services, string connectionString)
     {
         services.AddDbContext<AppDbContext>(o => o.UseSqlite(connectionString));
+        services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
 
-        // Джерела курсів як typed HttpClient-и (короткий таймаут — не вішаємо ввід транзакції).
+        // Rate sources as typed HttpClients (short timeout — never block a transaction entry).
         services.AddHttpClient<NbpRateProvider>(c =>
         {
             c.BaseAddress = new Uri("https://api.nbp.pl/api/");
@@ -24,7 +26,7 @@ public static class DependencyInjection
             c.Timeout = TimeSpan.FromSeconds(5);
         });
 
-        // Порядок реєстрації = порядок фолбеку: спершу NBP, потім ECB.
+        // Registration order = fallback order: NBP first, then ECB.
         services.AddScoped<IFxRateProvider>(sp => sp.GetRequiredService<NbpRateProvider>());
         services.AddScoped<IFxRateProvider>(sp => sp.GetRequiredService<EcbRateProvider>());
         services.AddScoped<IFxConverter, CachingFxConverter>();

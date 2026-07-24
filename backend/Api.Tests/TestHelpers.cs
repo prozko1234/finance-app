@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FinanceApp.Api.Tests;
 
-/// AppDbContext на in-memory SQLite (з'єднання тримаємо відкритим, поки живе тест).
+/// AppDbContext on in-memory SQLite (the connection is kept open for the test's lifetime).
 public sealed class SqliteInMemory : IDisposable
 {
     private readonly SqliteConnection _conn;
@@ -27,7 +27,7 @@ public sealed class SqliteInMemory : IDisposable
     }
 }
 
-/// Підставний провайдер курсів: повертає заданий quote і рахує виклики.
+/// Stub rate provider: returns a given quote and counts calls.
 public sealed class FakeRateProvider(FxQuote? quote, string name = "FAKE") : IFxRateProvider
 {
     public int Calls { get; private set; }

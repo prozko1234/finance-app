@@ -1,6 +1,6 @@
 namespace FinanceApp.Domain;
 
-/// Місячний бюджет (allowance) у базовій валюті (PLN). У MVP — один активний запис.
+/// Monthly budget (allowance) in base currency (PLN). MVP — a single active row.
 public class Budget
 {
     public int Id { get; set; }

@@ -50,7 +50,7 @@ export function AddTransaction({ categories, onSave, onCancel }: Props) {
       </div>
 
       <div className="rounded-2xl bg-white dark:bg-neutral-900 p-5 shadow-sm space-y-4">
-        {/* Сума + валюта */}
+        {/* Amount + currency */}
         <div className="flex gap-2">
           <input
             type="text"
@@ -70,7 +70,7 @@ export function AddTransaction({ categories, onSave, onCancel }: Props) {
           </select>
         </div>
 
-        {/* Категорія */}
+        {/* Category */}
         <div>
           <label className="text-xs text-neutral-400">Категорія</label>
           <div className="mt-1 flex flex-wrap gap-2">
@@ -110,7 +110,7 @@ export function AddTransaction({ categories, onSave, onCancel }: Props) {
           </div>
         </div>
 
-        {/* Нотатка */}
+        {/* Note */}
         <input
           type="text"
           placeholder="Нотатка (необов'язково)"

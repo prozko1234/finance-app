@@ -11,7 +11,7 @@ async function http<T>(url: string, options?: RequestInit): Promise<T> {
       const body = await res.json()
       if (body?.error) message = body.error
     } catch {
-      /* тіло не JSON — лишаємо статус */
+      /* body is not JSON — keep the status message */
     }
     throw new Error(message)
   }

@@ -19,7 +19,7 @@ public class SafeToSpendTests
     [Fact]
     public void Mid_month_divides_remaining_by_days_left_floored()
     {
-        // 3000 - 0 = 3000, липень: 31 - 15 + 1 = 17 днів. 3000/17 = 176.4705... -> 176.47
+        // 3000 - 0 = 3000, July: 31 - 15 + 1 = 17 days. 3000/17 = 176.4705... -> 176.47
         var r = SafeToSpendCalculator.Calculate(3000m, 0m, new DateOnly(2026, 7, 15));
 
         Assert.True(r.BudgetSet);
@@ -69,7 +69,7 @@ public class SafeToSpendTests
     [Fact]
     public void February_leap_year_day_count()
     {
-        // 2028 — високосний, лютий 29 днів. today 2028-02-20 -> 29 - 20 + 1 = 10
+        // 2028 is a leap year, February has 29 days. today 2028-02-20 -> 29 - 20 + 1 = 10
         var r = SafeToSpendCalculator.Calculate(1000m, 0m, new DateOnly(2028, 2, 20));
 
         Assert.Equal(10, r.DaysLeftInMonth);

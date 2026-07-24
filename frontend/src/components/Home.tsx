@@ -1,4 +1,5 @@
 import type { SafeToSpend, Transaction } from '../types'
+import { BASE_CURRENCY } from '../types'
 import { money } from '../format'
 
 interface Props {
@@ -78,8 +79,8 @@ function RecentList({ transactions, onDelete }: { transactions: Transaction[]; o
             </div>
             <div className="text-right">
               <p className="font-semibold tabular-nums">{money(t.amountOriginal, t.currencyOriginal)}</p>
-              {t.currencyOriginal !== summaryCurrency(t) && (
-                <p className="text-xs text-neutral-400 tabular-nums">≈ {money(t.amountBase, 'PLN')}</p>
+              {t.currencyOriginal !== BASE_CURRENCY && (
+                <p className="text-xs text-neutral-400 tabular-nums">≈ {money(t.amountBase, BASE_CURRENCY)}</p>
               )}
             </div>
             <button
@@ -101,9 +102,4 @@ function iconFor(t: Transaction): string {
     Їжа: '🍽', Транспорт: '🚌', Житло: '🏠', "Здоров'я": '💊', Розваги: '🎮', Інше: '📦',
   }
   return map[t.categoryName] ?? '📦'
-}
-
-// PLN-транзакції не дублюємо ≈PLN.
-function summaryCurrency(_t: Transaction): string {
-  return 'PLN'
 }
