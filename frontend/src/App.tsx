@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
-import { api } from './api'
-import type { Budget, Category, SafeToSpend, SaveTransaction, Transaction } from './types'
+import { useState } from 'react'
+import type { SaveTransaction } from './types'
+import {
+  useBudget, useCategories, useCreateTransaction, useDeleteTransaction,
+  useSafeToSpend, useSetBudget, useTransactions,
+} from './hooks'
 import { Home } from './components/Home'
 import { AddTransaction } from './components/AddTransaction'
 import { Settings } from './components/Settings'
@@ -9,47 +12,21 @@ type View = 'home' | 'add' | 'settings'
 
 function App() {
   const [view, setView] = useState<View>('home')
-  const [categories, setCategories] = useState<Category[]>([])
-  const [summary, setSummary] = useState<SafeToSpend | null>(null)
-  const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [budget, setBudget] = useState<Budget | null>(null)
-  const [error, setError] = useState<string | null>(null)
 
-  const reload = useCallback(async () => {
-    try {
-      const [s, t, b] = await Promise.all([
-        api.getSafeToSpend(),
-        api.getTransactions(),
-        api.getBudget(),
-      ])
-      setSummary(s)
-      setTransactions(t)
-      setBudget(b)
-      setError(null)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Немає зв\'язку з бекендом')
-    }
-  }, [])
+  const categories = useCategories()
+  const summary = useSafeToSpend()
+  const transactions = useTransactions()
+  const budget = useBudget()
 
-  useEffect(() => {
-    api.getCategories().then(setCategories).catch(() => {})
-    reload()
-  }, [reload])
+  const createTx = useCreateTransaction()
+  const deleteTx = useDeleteTransaction()
+  const setBudget = useSetBudget()
+
+  const loadError = summary.error ?? transactions.error ?? budget.error
 
   async function handleSave(tx: SaveTransaction) {
-    await api.createTransaction(tx)
-    await reload()
+    await createTx.mutateAsync(tx)
     setView('home')
-  }
-
-  async function handleDelete(id: number) {
-    await api.deleteTransaction(id)
-    await reload()
-  }
-
-  async function handleBudget(amount: number) {
-    await api.setBudget(amount)
-    await reload()
   }
 
   return (
@@ -64,25 +41,25 @@ function App() {
           )}
         </header>
 
-        {error && (
+        {loadError && (
           <div className="mb-4 rounded-xl bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 px-4 py-3 text-sm">
-            {error}
+            Немає зв'язку з бекендом. Запусти сервер і онови сторінку.
           </div>
         )}
 
         {view === 'home' && (
           <Home
-            summary={summary}
-            transactions={transactions}
-            onDelete={handleDelete}
+            summary={summary.data ?? null}
+            transactions={transactions.data ?? []}
+            onDelete={(id) => deleteTx.mutate(id)}
             onGoSettings={() => setView('settings')}
           />
         )}
         {view === 'add' && (
-          <AddTransaction categories={categories} onSave={handleSave} onCancel={() => setView('home')} />
+          <AddTransaction categories={categories.data ?? []} onSave={handleSave} onCancel={() => setView('home')} />
         )}
         {view === 'settings' && (
-          <Settings budget={budget} onSave={handleBudget} onBack={() => setView('home')} />
+          <Settings budget={budget.data ?? null} onSave={(amount) => setBudget.mutateAsync(amount).then(() => {})} onBack={() => setView('home')} />
         )}
       </div>
 
