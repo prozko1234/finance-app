@@ -1,0 +1,33 @@
+# ---------- .NET ----------
+bin/
+obj/
+*.user
+*.suo
+.vs/
+[Dd]ebug/
+[Rr]elease/
+project.assets.json
+*.nupkg
+
+# ---------- SQLite (local dev data) ----------
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+
+# ---------- Node / frontend ----------
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.local
+
+# ---------- Secrets / env ----------
+.env
+.env.*
+!.env.example
+secrets.json
+
+# ---------- OS / editor ----------
+.DS_Store
+.idea/
+*.swp
