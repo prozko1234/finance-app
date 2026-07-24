@@ -1,0 +1,101 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+
+namespace FinanceApp.Api.Tests.Integration;
+
+public class EndpointsTests(TestApiFactory factory) : IClassFixture<TestApiFactory>
+{
+    private readonly HttpClient _client = factory.CreateClient();
+
+    [Fact]
+    public async Task Categories_are_seeded()
+    {
+        var res = await _client.GetAsync("/api/categories");
+        res.EnsureSuccessStatusCode();
+
+        var json = await res.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(6, json.GetArrayLength());
+    }
+
+    [Fact]
+    public async Task Create_valid_pln_transaction_returns_201_with_base_amount()
+    {
+        var res = await _client.PostAsJsonAsync("/api/transactions", new
+        {
+            amount = 49.90m, currency = "PLN", categoryId = 1,
+            priority = "Must", frequency = "OneOff",
+        });
+
+        Assert.Equal(HttpStatusCode.Created, res.StatusCode);
+        var body = await res.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(49.90m, body.GetProperty("amountBase").GetDecimal());
+    }
+
+    [Fact]
+    public async Task Create_usd_transaction_converts_via_fx()
+    {
+        var res = await _client.PostAsJsonAsync("/api/transactions", new
+        {
+            amount = 10m, currency = "USD", categoryId = 1,
+            priority = "Should", frequency = "OneOff",
+        });
+
+        Assert.Equal(HttpStatusCode.Created, res.StatusCode);
+        var body = await res.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(40.00m, body.GetProperty("amountBase").GetDecimal()); // 10 * 4.0
+    }
+
+    [Fact]
+    public async Task Create_with_zero_amount_returns_400_validation_problem()
+    {
+        var res = await _client.PostAsJsonAsync("/api/transactions", new
+        {
+            amount = 0m, currency = "PLN", categoryId = 1,
+            priority = "Must", frequency = "OneOff",
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+        Assert.Contains("application/problem+json", res.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task Create_with_unsupported_currency_returns_422()
+    {
+        var res = await _client.PostAsJsonAsync("/api/transactions", new
+        {
+            amount = 10m, currency = "GBP", categoryId = 1,
+            priority = "Want", frequency = "OneOff",
+        });
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, res.StatusCode);
+    }
+
+    [Fact]
+    public async Task Get_missing_transaction_returns_404()
+    {
+        var res = await _client.GetAsync("/api/transactions/999999");
+        Assert.Equal(HttpStatusCode.NotFound, res.StatusCode);
+    }
+
+    [Fact]
+    public async Task Budget_and_safe_to_spend_flow()
+    {
+        var put = await _client.PutAsJsonAsync("/api/budget", new { amount = 3000m });
+        put.EnsureSuccessStatusCode();
+
+        var res = await _client.GetAsync("/api/summary/safe-to-spend");
+        res.EnsureSuccessStatusCode();
+
+        var body = await res.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(body.GetProperty("budgetSet").GetBoolean());
+        Assert.Equal(3000m, body.GetProperty("monthlyBudget").GetDecimal());
+    }
+
+    [Fact]
+    public async Task Negative_budget_returns_400()
+    {
+        var res = await _client.PutAsJsonAsync("/api/budget", new { amount = -5m });
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+    }
+}
