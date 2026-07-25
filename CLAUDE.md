@@ -8,6 +8,19 @@ Rules for writing code in this repo. Read before adding or changing code.
   user (the app's language is Ukrainian). Only comments are English.
 - Identifiers, file names, commit messages: English.
 
+## Token discipline (keep sessions cheap)
+Everything below stays in context for the rest of the session, so noisy output is
+paid for on every later turn.
+- **Filter command output**: pipe through `tail`/`grep`/`head`. Never dump full
+  `dotnet build`, `dotnet test`, package-search or server startup logs — grep for
+  `error|Passed!|Build succeeded` instead.
+- **Prefer targeted `Edit`** over rewriting or re-reading whole files. Never read a
+  file twice; never read a file just written.
+- **Redirect server logs to a file** (`> /tmp/x.log 2>&1`) and grep only what matters.
+- **No screenshots unless asked** or unless visual layout is the thing under test —
+  verify via JS/`curl` assertions, which are cheaper and more precise.
+- **One migration/verification pass**, not repeated exploratory runs.
+
 ## Git
 - Commit messages contain **no tool/assistant attribution** — no `Co-Authored-By`
   trailer, no "Generated with" lines, no AI/assistant mentions. Plain conventional
