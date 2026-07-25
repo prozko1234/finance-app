@@ -9,16 +9,17 @@ interface Props {
   onDelete: (id: number) => void
   onGoSettings: () => void
   onQuickRepeat: (a: QuickAction) => void
+  onEdit: (t: Transaction) => void
 }
 
-export function Home({ summary, transactions, onDelete, onGoSettings, onQuickRepeat }: Props) {
+export function Home({ summary, transactions, onDelete, onGoSettings, onQuickRepeat, onEdit }: Props) {
   const quick = buildQuickActions(transactions, (name) => ICONS[name] ?? '📦')
 
   return (
     <div className="space-y-6">
       <SafeToSpendCard summary={summary} onGoSettings={onGoSettings} />
       {quick.length > 0 && <QuickRow actions={quick} onPick={onQuickRepeat} />}
-      <RecentList transactions={transactions} onDelete={onDelete} />
+      <RecentList transactions={transactions} onDelete={onDelete} onEdit={onEdit} />
     </div>
   )
 }
@@ -88,7 +89,7 @@ function SafeToSpendCard({ summary, onGoSettings }: { summary: SafeToSpend | nul
   )
 }
 
-function RecentList({ transactions, onDelete }: { transactions: Transaction[]; onDelete: (id: number) => void }) {
+function RecentList({ transactions, onDelete, onEdit }: { transactions: Transaction[]; onDelete: (id: number) => void; onEdit: (t: Transaction) => void }) {
   if (transactions.length === 0) {
     return <p className="text-center text-neutral-400 text-sm">Ще немає транзакцій. Додай першу кнопкою +</p>
   }
@@ -103,14 +104,18 @@ function RecentList({ transactions, onDelete }: { transactions: Transaction[]; o
             className="flex items-center gap-3 rounded-xl bg-white dark:bg-neutral-900 px-4 py-3 shadow-sm"
           >
             <span className="text-xl">{t.kind === 'Income' ? '💰' : iconFor(t)}</span>
-            <div className="flex-1 min-w-0">
+            <button
+              onClick={() => t.kind === 'Expense' && onEdit(t)}
+              disabled={t.kind !== 'Expense'}
+              className="flex-1 min-w-0 text-left disabled:cursor-default"
+            >
               <p className="font-medium truncate">
                 {t.kind === 'Income' ? 'Дохід' : t.categoryName}
               </p>
               <p className="text-xs text-neutral-400 truncate">
                 {t.note || t.merchant || t.date}
               </p>
-            </div>
+            </button>
             <div className="text-right">
               <p className={`font-semibold tabular-nums ${t.kind === 'Income' ? 'text-emerald-600' : ''}`}>
                 {t.kind === 'Income' ? '+' : ''}{money(t.amountOriginal, t.currencyOriginal)}

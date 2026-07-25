@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import type { Recurring as RecurringType, SaveCategory, SaveIncome, SaveTransaction } from './types'
+import type { Recurring as RecurringType, SaveCategory, SaveIncome, SaveTransaction, Transaction } from './types'
 import {
   useBudget, useCategories, useCreateRecurring, useCreateTransaction, useDeleteRecurring,
-  useCreateCategory, useCreateIncome, useDeleteCategory, useDeleteTransaction, useRecurring, useUpdateCategory, useSafeToSpend, useSetBudget, useTransactions,
+  useCreateCategory, useCreateIncome, useUpdateTransaction, useDeleteCategory, useDeleteTransaction, useRecurring, useUpdateCategory, useSafeToSpend, useSetBudget, useTransactions,
   useUpdateRecurring, useTaxProfile, useTaxDefaults, useSaveTaxProfile, useCalculateTakeHome,
 } from './hooks'
 import { Home } from './components/Home'
@@ -17,6 +17,7 @@ type View = 'home' | 'add' | 'settings' | 'recurring' | 'tax' | 'categories'
 
 function App() {
   const [view, setView] = useState<View>('home')
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null)
 
   const categories = useCategories()
   const summary = useSafeToSpend()
@@ -30,6 +31,7 @@ function App() {
 
   const createTx = useCreateTransaction()
   const createIncome = useCreateIncome()
+  const updateTx = useUpdateTransaction()
   const createCategory = useCreateCategory()
   const updateCategory = useUpdateCategory()
   const deleteCategory = useDeleteCategory()
@@ -42,8 +44,18 @@ function App() {
   const loadError = summary.error ?? transactions.error ?? budget.error
 
   async function handleSave(tx: SaveTransaction) {
-    await createTx.mutateAsync(tx)
+    if (editingTx) {
+      await updateTx.mutateAsync({ id: editingTx.id, data: tx })
+      setEditingTx(null)
+    } else {
+      await createTx.mutateAsync(tx)
+    }
     setView('home')
+  }
+
+  function startEdit(t: Transaction) {
+    setEditingTx(t)
+    setView('add')
   }
 
   function toggleRecurring(r: RecurringType) {
@@ -88,6 +100,7 @@ function App() {
               frequency: 'OneOff',
               note: null,
             })}
+            onEdit={startEdit}
           />
         )}
         {view === 'add' && (
@@ -96,7 +109,8 @@ function App() {
             onSave={handleSave}
             onSaveIncome={async (i: SaveIncome) => { await createIncome.mutateAsync(i); setView('home') }}
             onCreateCategory={(c: SaveCategory) => createCategory.mutateAsync(c)}
-            onCancel={() => setView('home')}
+            onCancel={() => { setEditingTx(null); setView('home') }}
+            editing={editingTx}
           />
         )}
         {view === 'settings' && (
@@ -142,7 +156,7 @@ function App() {
 
       {view === 'home' && (
         <button
-          onClick={() => setView('add')}
+          onClick={() => { setEditingTx(null); setView('add') }}
           className="fixed bottom-6 left-1/2 -translate-x-1/2 h-14 w-14 rounded-full bg-emerald-600 text-white text-3xl shadow-lg flex items-center justify-center"
           aria-label="Додати транзакцію"
         >

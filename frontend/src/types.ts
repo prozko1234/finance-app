@@ -48,6 +48,20 @@ export interface SaveTransaction {
   note?: string | null
 }
 
+/// Local YYYY-MM-DD (never UTC — a late-evening entry must not jump to tomorrow).
+export function todayIso(): string {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+export function shiftIso(iso: string, days: number): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  const dt = new Date(y, m - 1, d + days)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`
+}
+
 export interface SaveIncome {
   amount: number
   amountIncludesVat: boolean

@@ -13,7 +13,7 @@ function summary(over: Partial<SafeToSpend> = {}): SafeToSpend {
 
 describe('Home', () => {
   it('shows the safe-to-spend number when a budget is set', () => {
-    render(<Home summary={summary()} transactions={[]} onDelete={vi.fn()} onGoSettings={vi.fn()} onQuickRepeat={vi.fn()} />)
+    render(<Home summary={summary()} transactions={[]} onDelete={vi.fn()} onGoSettings={vi.fn()} onQuickRepeat={vi.fn()} onEdit={vi.fn()} />)
     expect(screen.getByText(/375,00/)).toBeInTheDocument()
   })
 
@@ -25,6 +25,7 @@ describe('Home', () => {
         onDelete={vi.fn()}
         onGoSettings={vi.fn()}
         onQuickRepeat={vi.fn()}
+        onEdit={vi.fn()}
       />,
     )
     expect(screen.getByText(/Задати місячний бюджет/)).toBeInTheDocument()
