@@ -27,6 +27,14 @@ public static class TransactionEndpoints
                 : r.Error.ToProblem();
         }).AddEndpointFilter<ValidationFilter<SaveTransactionRequest>>();
 
+        g.MapPost("/income", async (SaveIncomeRequest req, ITransactionService svc, CancellationToken ct) =>
+        {
+            var r = await svc.CreateIncomeAsync(req, ct);
+            return r.IsSuccess
+                ? Results.Created($"/api/transactions/{r.Value!.Id}", r.Value)
+                : r.Error.ToProblem();
+        });
+
         g.MapPut("/{id:int}", async (int id, SaveTransactionRequest req, ITransactionService svc, CancellationToken ct) =>
         {
             var r = await svc.UpdateAsync(id, req, ct);

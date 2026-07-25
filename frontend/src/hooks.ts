@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api'
-import type { SaveRecurring, SaveTaxProfile, SaveTransaction } from './types'
+import type { SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction } from './types'
 
 export const queryKeys = {
   categories: ['categories'] as const,
@@ -46,6 +46,11 @@ function useInvalidate() {
 export function useCreateTransaction() {
   const invalidate = useInvalidate()
   return useMutation({ mutationFn: (tx: SaveTransaction) => api.createTransaction(tx), onSuccess: invalidate })
+}
+
+export function useCreateIncome() {
+  const invalidate = useInvalidate()
+  return useMutation({ mutationFn: (i: SaveIncome) => api.createIncome(i), onSuccess: invalidate })
 }
 
 export function useDeleteTransaction() {

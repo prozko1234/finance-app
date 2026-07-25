@@ -4,6 +4,7 @@ using FinanceApp.Application.Recurring;
 using FinanceApp.Domain;
 using FinanceApp.Domain.Budgeting;
 using FinanceApp.Domain.Fx;
+using FinanceApp.Domain.Tax;
 using Microsoft.EntityFrameworkCore;
 
 namespace FinanceApp.Application.Summaries;
@@ -25,18 +26,46 @@ public sealed class SummaryService(
         var first = new DateOnly(today.Year, today.Month, 1);
         var last = new DateOnly(today.Year, today.Month, DateTime.DaysInMonth(today.Year, today.Month));
 
-        var spent = await db.Transactions
-            .Where(t => t.Date >= first && t.Date <= last)
+        var monthRows = db.Transactions.Where(t => t.Date >= first && t.Date <= last);
+
+        var spent = await monthRows
+            .Where(t => t.Kind == TransactionKind.Expense)
+            .SumAsync(t => (decimal?)t.AmountBase, ct) ?? 0m;
+
+        // Income rows store revenue (przychód, VAT excluded) in AmountBase.
+        var revenue = await monthRows
+            .Where(t => t.Kind == TransactionKind.Income)
             .SumAsync(t => (decimal?)t.AmountBase, ct) ?? 0m;
 
         var reserved = await ReservedRecurringAsync(today, ct);
+        var budget = await ResolveBudgetAsync(revenue, ct);
 
-        var budget = await db.Budgets.OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
-        var r = SafeToSpendCalculator.Calculate(budget?.MonthlyAmount, spent, reserved, today);
+        var r = SafeToSpendCalculator.Calculate(budget, spent, reserved, today);
 
         return new SafeToSpendResponse(
             today, Money.BaseCurrency, r.BudgetSet, r.MonthlyBudget, r.SpentThisMonth,
             r.ReservedRecurring, r.RemainingThisMonth, r.DaysLeftInMonth, r.SafeToSpendToday);
+    }
+
+    /// Budget comes from this month's income after tax. Taxes (ZUS, health, ryczalt) are
+    /// MONTHLY in Poland, so they are applied once to the month's total revenue — never
+    /// per invoice, which would double-count contributions on multi-invoice months.
+    /// Falls back to the manually set budget when there is no income recorded yet.
+    private async Task<decimal?> ResolveBudgetAsync(decimal monthlyRevenue, CancellationToken ct)
+    {
+        if (monthlyRevenue > 0)
+        {
+            var profile = await db.TaxProfiles.OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
+            if (profile is not null)
+            {
+                var take = TakeHomeCalculator.Calculate(profile, monthlyRevenue, amountIncludesVat: false);
+                if (take.IsSuccess) return take.Value!.TakeHome;
+            }
+            return monthlyRevenue; // no usable tax profile — better than showing nothing
+        }
+
+        var manual = await db.Budgets.OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
+        return manual?.MonthlyAmount;
     }
 
     /// Active recurring whose this-month charge is still in the future = not yet spent.

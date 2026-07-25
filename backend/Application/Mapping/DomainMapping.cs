@@ -8,7 +8,7 @@ namespace FinanceApp.Application.Mapping;
 public static class DomainMapping
 {
     public static TransactionResponse ToResponse(this Transaction t) => new(
-        t.Id, t.AmountOriginal, t.CurrencyOriginal, t.AmountBase, t.FxRate, t.FxDate,
+        t.Id, t.Kind.ToString(), t.GrossWithVat, t.VatAmount, t.AmountOriginal, t.CurrencyOriginal, t.AmountBase, t.FxRate, t.FxDate,
         t.CategoryId, t.Category?.Name ?? "", t.Priority, t.Frequency, t.Source.ToString(),
         t.Date, t.MerchantRaw, t.Note, t.CreatedAt);
 

@@ -14,8 +14,18 @@ public record SaveTransactionRequest(
     string? Merchant,
     string? Note);
 
+public record SaveIncomeRequest(
+    decimal Amount,
+    bool AmountIncludesVat,
+    string Currency,
+    DateOnly? Date,
+    string? Note);
+
 public record TransactionResponse(
     int Id,
+    string Kind,
+    decimal? GrossWithVat,
+    decimal? VatAmount,
     decimal AmountOriginal,
     string CurrencyOriginal,
     decimal AmountBase,

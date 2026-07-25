@@ -1,5 +1,5 @@
 import type {
-  Budget, Category, Recurring, SafeToSpend, SaveRecurring, SaveTaxProfile, SaveTransaction,
+  Budget, Category, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
   TakeHome, TaxDefaults, TaxProfile, Transaction,
 } from './types'
 
@@ -28,6 +28,8 @@ export const api = {
   getTransactions: (take = 20) => http<Transaction[]>(`/api/transactions?take=${take}`),
   createTransaction: (tx: SaveTransaction) =>
     http<Transaction>('/api/transactions', { method: 'POST', body: JSON.stringify(tx) }),
+  createIncome: (i: SaveIncome) =>
+    http<Transaction>('/api/transactions/income', { method: 'POST', body: JSON.stringify(i) }),
   deleteTransaction: (id: number) =>
     http<void>(`/api/transactions/${id}`, { method: 'DELETE' }),
 

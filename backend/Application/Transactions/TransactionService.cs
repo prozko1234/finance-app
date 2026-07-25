@@ -5,6 +5,7 @@ using FinanceApp.Application.Recurring;
 using FinanceApp.Domain;
 using FinanceApp.Domain.Common;
 using FinanceApp.Domain.Fx;
+using FinanceApp.Domain.Tax;
 using Microsoft.EntityFrameworkCore;
 
 namespace FinanceApp.Application.Transactions;
@@ -39,6 +40,58 @@ public sealed class TransactionService(
         if (!applied.IsSuccess) return applied.Error;
 
         tx.CreatedAt = DateTimeOffset.UtcNow;
+        db.Transactions.Add(tx);
+        await db.SaveChangesAsync(ct);
+        await LoadCategoryAsync(tx, ct);
+        return Result<TransactionResponse>.Ok(tx.ToResponse());
+    }
+
+    /// Income entry: the user types what arrived (gross with VAT, or net), we split VAT out
+    /// and store the revenue. Monthly taxes are applied later over the month's total revenue,
+    /// never per invoice — see SummaryService.
+    public async Task<Result<TransactionResponse>> CreateIncomeAsync(
+        SaveIncomeRequest req, CancellationToken ct = default)
+    {
+        var date = req.Date ?? DateOnly.FromDateTime(DateTime.Now);
+
+        var conv = await fx.ConvertToBaseAsync(req.Amount, req.Currency, date, ct);
+        if (!conv.IsSuccess) return conv.Error;
+        var enteredBase = conv.Value!.AmountBase;
+
+        var profile = await db.TaxProfiles.OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
+        var vatRate = profile is { VatPayer: true } ? profile.VatRate : 0m;
+
+        decimal grossWithVat, revenue;
+        if (req.AmountIncludesVat)
+        {
+            grossWithVat = enteredBase;
+            revenue = Math.Round(enteredBase / (1 + vatRate), 2, MidpointRounding.AwayFromZero);
+        }
+        else
+        {
+            revenue = enteredBase;
+            grossWithVat = Math.Round(enteredBase * (1 + vatRate), 2, MidpointRounding.AwayFromZero);
+        }
+
+        var category = await db.Categories.OrderBy(c => c.Id).FirstAsync(ct);
+        var tx = new Transaction
+        {
+            Kind = TransactionKind.Income,
+            AmountOriginal = req.Amount,
+            CurrencyOriginal = req.Currency.ToUpperInvariant(),
+            AmountBase = revenue,          // revenue (VAT excluded) is what taxes build on
+            GrossWithVat = grossWithVat,
+            VatAmount = Math.Round(grossWithVat - revenue, 2, MidpointRounding.AwayFromZero),
+            FxRate = conv.Value.Rate,
+            FxDate = conv.Value.RateDate,
+            CategoryId = category.Id,
+            Priority = Priority.Must,
+            Frequency = Frequency.OneOff,
+            Source = TxSource.Manual,
+            Date = date,
+            Note = req.Note,
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
         db.Transactions.Add(tx);
         await db.SaveChangesAsync(ct);
         await LoadCategoryAsync(tx, ct);

@@ -4,6 +4,13 @@ public class Transaction
 {
     public int Id { get; set; }
 
+    public TransactionKind Kind { get; set; } = TransactionKind.Expense;
+
+    // --- Income only: VAT is transit money, never part of income ---
+    // AmountBase for an income row holds the revenue (przychód, VAT excluded) in PLN.
+    public decimal? GrossWithVat { get; set; }
+    public decimal? VatAmount { get; set; }
+
     // --- Amount as entered ---
     public decimal AmountOriginal { get; set; }
     public required string CurrencyOriginal { get; set; }

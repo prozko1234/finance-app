@@ -75,15 +75,19 @@ function RecentList({ transactions, onDelete }: { transactions: Transaction[]; o
             key={t.id}
             className="flex items-center gap-3 rounded-xl bg-white dark:bg-neutral-900 px-4 py-3 shadow-sm"
           >
-            <span className="text-xl">{iconFor(t)}</span>
+            <span className="text-xl">{t.kind === 'Income' ? '💰' : iconFor(t)}</span>
             <div className="flex-1 min-w-0">
-              <p className="font-medium truncate">{t.categoryName}</p>
+              <p className="font-medium truncate">
+                {t.kind === 'Income' ? 'Дохід' : t.categoryName}
+              </p>
               <p className="text-xs text-neutral-400 truncate">
                 {t.note || t.merchant || t.date}
               </p>
             </div>
             <div className="text-right">
-              <p className="font-semibold tabular-nums">{money(t.amountOriginal, t.currencyOriginal)}</p>
+              <p className={`font-semibold tabular-nums ${t.kind === 'Income' ? 'text-emerald-600' : ''}`}>
+                {t.kind === 'Income' ? '+' : ''}{money(t.amountOriginal, t.currencyOriginal)}
+              </p>
               {t.currencyOriginal !== BASE_CURRENCY && (
                 <p className="text-xs text-neutral-400 tabular-nums">≈ {money(t.amountBase, BASE_CURRENCY)}</p>
               )}

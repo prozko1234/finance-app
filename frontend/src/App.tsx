@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import type { Recurring as RecurringType, SaveTransaction } from './types'
+import type { Recurring as RecurringType, SaveIncome, SaveTransaction } from './types'
 import {
   useBudget, useCategories, useCreateRecurring, useCreateTransaction, useDeleteRecurring,
-  useDeleteTransaction, useRecurring, useSafeToSpend, useSetBudget, useTransactions,
+  useCreateIncome, useDeleteTransaction, useRecurring, useSafeToSpend, useSetBudget, useTransactions,
   useUpdateRecurring, useTaxProfile, useTaxDefaults, useSaveTaxProfile, useCalculateTakeHome,
 } from './hooks'
 import { Home } from './components/Home'
@@ -27,6 +27,7 @@ function App() {
   const takeHome = useCalculateTakeHome()
 
   const createTx = useCreateTransaction()
+  const createIncome = useCreateIncome()
   const deleteTx = useDeleteTransaction()
   const setBudget = useSetBudget()
   const createRecurring = useCreateRecurring()
@@ -77,7 +78,12 @@ function App() {
           />
         )}
         {view === 'add' && (
-          <AddTransaction categories={categories.data ?? []} onSave={handleSave} onCancel={() => setView('home')} />
+          <AddTransaction
+            categories={categories.data ?? []}
+            onSave={handleSave}
+            onSaveIncome={async (i: SaveIncome) => { await createIncome.mutateAsync(i); setView('home') }}
+            onCancel={() => setView('home')}
+          />
         )}
         {view === 'settings' && (
           <Settings

@@ -9,6 +9,9 @@ export interface Category {
 
 export interface Transaction {
   id: number
+  kind: 'Expense' | 'Income'
+  grossWithVat?: number | null
+  vatAmount?: number | null
   amountOriginal: number
   currencyOriginal: string
   amountBase: number
@@ -33,6 +36,14 @@ export interface SaveTransaction {
   frequency: Frequency
   date?: string | null
   merchant?: string | null
+  note?: string | null
+}
+
+export interface SaveIncome {
+  amount: number
+  amountIncludesVat: boolean
+  currency: string
+  date?: string | null
   note?: string | null
 }
 
