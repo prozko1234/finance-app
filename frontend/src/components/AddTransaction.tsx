@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Category, Priority, SaveCategory, SaveIncome, SaveTransaction } from '../types'
 import { CURRENCIES } from '../types'
+import { readLastUsed, writeLastUsed } from '../lastUsed'
 
 interface Props {
   categories: Category[]
@@ -17,10 +18,14 @@ export function AddTransaction({ categories, onSave, onSaveIncome, onCreateCateg
   const [newCatOpen, setNewCatOpen] = useState(false)
   const [newCatName, setNewCatName] = useState('')
   const [newCatIcon, setNewCatIcon] = useState('')
+  const last = readLastUsed()
   const [isIncome, setIsIncome] = useState(false)
   const [amount, setAmount] = useState('')
-  const [currency, setCurrency] = useState('PLN')
-  const [categoryId, setCategoryId] = useState<number | null>(categories[0]?.id ?? null)
+  // Open pre-filled with what was used last time — fewer taps per entry.
+  const [currency, setCurrency] = useState(last.currency ?? 'PLN')
+  const [categoryId, setCategoryId] = useState<number | null>(
+    categories.find((c) => c.id === last.categoryId)?.id ?? categories[0]?.id ?? null,
+  )
   const [priority, setPriority] = useState<Priority>('Should')
   const [includesVat, setIncludesVat] = useState(true)
   const [note, setNote] = useState('')
@@ -51,6 +56,7 @@ export function AddTransaction({ categories, onSave, onSaveIncome, onCreateCateg
           frequency: 'OneOff',
           note: note.trim() || null,
         })
+        writeLastUsed({ categoryId: categoryId!, currency })
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Не вдалося зберегти')

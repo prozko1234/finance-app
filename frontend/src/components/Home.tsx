@@ -1,19 +1,46 @@
 import type { SafeToSpend, Transaction } from '../types'
 import { BASE_CURRENCY } from '../types'
 import { money } from '../format'
+import { buildQuickActions, type QuickAction } from '../quickRepeat'
 
 interface Props {
   summary: SafeToSpend | null
   transactions: Transaction[]
   onDelete: (id: number) => void
   onGoSettings: () => void
+  onQuickRepeat: (a: QuickAction) => void
 }
 
-export function Home({ summary, transactions, onDelete, onGoSettings }: Props) {
+export function Home({ summary, transactions, onDelete, onGoSettings, onQuickRepeat }: Props) {
+  const quick = buildQuickActions(transactions, (name) => ICONS[name] ?? '📦')
+
   return (
     <div className="space-y-6">
       <SafeToSpendCard summary={summary} onGoSettings={onGoSettings} />
+      {quick.length > 0 && <QuickRow actions={quick} onPick={onQuickRepeat} />}
       <RecentList transactions={transactions} onDelete={onDelete} />
+    </div>
+  )
+}
+
+/// One-tap repeat of a recent expense — the cheapest possible way to log something.
+function QuickRow({ actions, onPick }: { actions: QuickAction[]; onPick: (a: QuickAction) => void }) {
+  return (
+    <div>
+      <h2 className="text-sm font-medium text-neutral-400 mb-2 px-1">Швидко — один дотик</h2>
+      <div className="flex gap-2 flex-wrap">
+        {actions.map((a) => (
+          <button
+            key={a.key}
+            onClick={() => onPick(a)}
+            className="flex-1 min-w-[30%] rounded-xl bg-white dark:bg-neutral-900 px-3 py-3 shadow-sm text-left"
+          >
+            <span className="text-lg">{a.icon}</span>
+            <p className="text-xs text-neutral-400 truncate">{a.categoryName}</p>
+            <p className="font-semibold tabular-nums text-sm">{money(a.amount, a.currency)}</p>
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
@@ -106,9 +133,10 @@ function RecentList({ transactions, onDelete }: { transactions: Transaction[]; o
   )
 }
 
+const ICONS: Record<string, string> = {
+  Їжа: '🍽', Транспорт: '🚌', Житло: '🏠', "Здоров'я": '💊', Розваги: '🎮', Інше: '📦',
+}
+
 function iconFor(t: Transaction): string {
-  const map: Record<string, string> = {
-    Їжа: '🍽', Транспорт: '🚌', Житло: '🏠', "Здоров'я": '💊', Розваги: '🎮', Інше: '📦',
-  }
-  return map[t.categoryName] ?? '📦'
+  return ICONS[t.categoryName] ?? '📦'
 }

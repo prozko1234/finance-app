@@ -11,6 +11,7 @@ import { Settings } from './components/Settings'
 import { Recurring } from './components/Recurring'
 import { Tax } from './components/Tax'
 import { Categories } from './components/Categories'
+import type { QuickAction } from './quickRepeat'
 
 type View = 'home' | 'add' | 'settings' | 'recurring' | 'tax' | 'categories'
 
@@ -79,6 +80,14 @@ function App() {
             transactions={transactions.data ?? []}
             onDelete={(id) => deleteTx.mutate(id)}
             onGoSettings={() => setView('settings')}
+            onQuickRepeat={(a: QuickAction) => createTx.mutate({
+              amount: a.amount,
+              currency: a.currency,
+              categoryId: a.categoryId,
+              priority: 'Should',
+              frequency: 'OneOff',
+              note: null,
+            })}
           />
         )}
         {view === 'add' && (
