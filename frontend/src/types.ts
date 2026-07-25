@@ -77,3 +77,42 @@ export interface SaveRecurring {
 
 export const BASE_CURRENCY = 'PLN'
 export const CURRENCIES = ['PLN', 'UAH', 'USD', 'EUR'] as const
+
+export interface TaxProfile {
+  regime: string
+  ryczaltRate: number
+  vatPayer: boolean
+  vatRate: number
+  zusType: string
+  zusSocial: number
+  healthContribution: number
+  chorobowe: boolean
+  validFrom: string
+  monthlyContributionsTotal: number
+}
+
+export type SaveTaxProfile = Omit<TaxProfile, 'validFrom' | 'monthlyContributionsTotal'>
+
+export interface TaxDefaults {
+  year: number
+  duzyWithChorobowe: number
+  duzyWithoutChorobowe: number
+  preferencyjnyWithChorobowe: number
+  preferencyjnyWithoutChorobowe: number
+  healthUnder60k: number
+  health60kTo300k: number
+  healthOver300k: number
+}
+
+export interface TakeHome {
+  grossWithVat: number
+  vatAmount: number
+  revenue: number
+  zusSocial: number
+  healthContribution: number
+  healthDeducted: number
+  taxBase: number
+  tax: number
+  takeHome: number
+  currency: string
+}

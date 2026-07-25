@@ -19,11 +19,22 @@ frontend/    React + TS + Vite PWA
 ```
 
 ## Локальний запуск
-Бекенд:
+
+Одна команда піднімає бекенд + фронтенд (Ctrl+C зупиняє обидва):
+```bash
+./dev.sh
+```
+Далі відкрий http://localhost:5173 (бекенд: http://localhost:5099/scalar).
+Vite стартує з `--host`, тож застосунок доступний і з телефона по IP цього Mac
+у тій самій Wi-Fi.
+
+У VS Code: Run and Debug → **Run all (backend + frontend)** — те саме, але з
+брейкпойнтами в C#.
+
+Окремо, якщо треба:
 ```bash
 cd backend && dotnet run --project Api
 ```
-Фронтенд (окремий термінал):
 ```bash
 cd frontend && npm install && npm run dev
 ```

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api'
-import type { SaveRecurring, SaveTransaction } from './types'
+import type { SaveRecurring, SaveTaxProfile, SaveTransaction } from './types'
 
 export const queryKeys = {
   categories: ['categories'] as const,
@@ -8,6 +8,8 @@ export const queryKeys = {
   budget: ['budget'] as const,
   summary: ['summary'] as const,
   recurring: ['recurring'] as const,
+  taxProfile: ['taxProfile'] as const,
+  taxDefaults: ['taxDefaults'] as const,
 }
 
 export function useCategories() {
@@ -72,4 +74,27 @@ export function useUpdateRecurring() {
 export function useDeleteRecurring() {
   const invalidate = useInvalidate()
   return useMutation({ mutationFn: (id: number) => api.deleteRecurring(id), onSuccess: invalidate })
+}
+
+export function useTaxProfile() {
+  return useQuery({ queryKey: queryKeys.taxProfile, queryFn: () => api.getTaxProfile() })
+}
+
+export function useTaxDefaults() {
+  return useQuery({ queryKey: queryKeys.taxDefaults, queryFn: () => api.getTaxDefaults(), staleTime: Infinity })
+}
+
+export function useSaveTaxProfile() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (p: SaveTaxProfile) => api.saveTaxProfile(p),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.taxProfile }),
+  })
+}
+
+export function useCalculateTakeHome() {
+  return useMutation({
+    mutationFn: ({ amount, includesVat }: { amount: number; includesVat: boolean }) =>
+      api.calculateTakeHome(amount, includesVat),
+  })
 }

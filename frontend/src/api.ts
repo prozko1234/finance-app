@@ -1,5 +1,6 @@
 import type {
-  Budget, Category, Recurring, SafeToSpend, SaveRecurring, SaveTransaction, Transaction,
+  Budget, Category, Recurring, SafeToSpend, SaveRecurring, SaveTaxProfile, SaveTransaction,
+  TakeHome, TaxDefaults, TaxProfile, Transaction,
 } from './types'
 
 async function http<T>(url: string, options?: RequestInit): Promise<T> {
@@ -43,4 +44,14 @@ export const api = {
     http<Recurring>(`/api/recurring/${id}`, { method: 'PUT', body: JSON.stringify(r) }),
   deleteRecurring: (id: number) =>
     http<void>(`/api/recurring/${id}`, { method: 'DELETE' }),
+
+  getTaxProfile: () => http<TaxProfile>('/api/tax/profile'),
+  saveTaxProfile: (p: SaveTaxProfile) =>
+    http<TaxProfile>('/api/tax/profile', { method: 'PUT', body: JSON.stringify(p) }),
+  getTaxDefaults: () => http<TaxDefaults>('/api/tax/defaults'),
+  calculateTakeHome: (amount: number, amountIncludesVat: boolean) =>
+    http<TakeHome>('/api/tax/take-home', {
+      method: 'POST',
+      body: JSON.stringify({ amount, amountIncludesVat }),
+    }),
 }

@@ -26,6 +26,12 @@ frontend/.vite/
 .env.*
 !.env.example
 secrets.json
+# Local-only settings overrides (never commit real connection strings / keys)
+appsettings.Local.json
+appsettings.*.Local.json
+**/appsettings.Production.json
+*.pfx
+*.p12
 
 # ---------- OS / editor ----------
 .DS_Store

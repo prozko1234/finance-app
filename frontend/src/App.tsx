@@ -3,14 +3,15 @@ import type { Recurring as RecurringType, SaveTransaction } from './types'
 import {
   useBudget, useCategories, useCreateRecurring, useCreateTransaction, useDeleteRecurring,
   useDeleteTransaction, useRecurring, useSafeToSpend, useSetBudget, useTransactions,
-  useUpdateRecurring,
+  useUpdateRecurring, useTaxProfile, useTaxDefaults, useSaveTaxProfile, useCalculateTakeHome,
 } from './hooks'
 import { Home } from './components/Home'
 import { AddTransaction } from './components/AddTransaction'
 import { Settings } from './components/Settings'
 import { Recurring } from './components/Recurring'
+import { Tax } from './components/Tax'
 
-type View = 'home' | 'add' | 'settings' | 'recurring'
+type View = 'home' | 'add' | 'settings' | 'recurring' | 'tax'
 
 function App() {
   const [view, setView] = useState<View>('home')
@@ -20,6 +21,10 @@ function App() {
   const transactions = useTransactions()
   const budget = useBudget()
   const recurring = useRecurring()
+  const taxProfile = useTaxProfile()
+  const taxDefaults = useTaxDefaults()
+  const saveTaxProfile = useSaveTaxProfile()
+  const takeHome = useCalculateTakeHome()
 
   const createTx = useCreateTransaction()
   const deleteTx = useDeleteTransaction()
@@ -80,6 +85,7 @@ function App() {
             onSave={(amount) => setBudget.mutateAsync(amount).then(() => {})}
             onBack={() => setView('home')}
             onGoRecurring={() => setView('recurring')}
+            onGoTax={() => setView('tax')}
           />
         )}
         {view === 'recurring' && (
@@ -89,6 +95,16 @@ function App() {
             onCreate={(r) => createRecurring.mutateAsync(r).then(() => {})}
             onToggle={toggleRecurring}
             onDelete={(id) => deleteRecurring.mutate(id)}
+            onBack={() => setView('settings')}
+          />
+        )}
+        {view === 'tax' && (
+          <Tax
+            profile={taxProfile.data ?? null}
+            defaults={taxDefaults.data ?? null}
+            result={takeHome.data ?? null}
+            onSaveProfile={(p) => saveTaxProfile.mutateAsync(p).then(() => {})}
+            onCalculate={(amount, includesVat) => takeHome.mutate({ amount, includesVat })}
             onBack={() => setView('settings')}
           />
         )}
