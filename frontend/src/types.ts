@@ -77,6 +77,18 @@ export interface Budget {
   updatedAt: string | null
 }
 
+/// Explains the gap between what landed on the account and the month's budget.
+export interface MonthTaxes {
+  gross: number
+  revenue: number
+  vat: number
+  zusSocial: number
+  health: number
+  tax: number
+  setAside: number
+  takeHome: number
+}
+
 export interface SafeToSpend {
   date: string
   currency: string
@@ -87,6 +99,7 @@ export interface SafeToSpend {
   remainingThisMonth: number | null
   daysLeftInMonth: number
   safeToSpendToday: number | null
+  monthTaxes: MonthTaxes | null
 }
 
 export interface Recurring {

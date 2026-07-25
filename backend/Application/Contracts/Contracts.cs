@@ -49,6 +49,19 @@ public record SetBudgetRequest(decimal Amount);
 
 public record BudgetResponse(bool Set, decimal? MonthlyAmount, string Currency, DateTimeOffset? UpdatedAt);
 
+/// Where this month's income went before it became a budget. Explains the gap between
+/// "money on the account" and "money you may actually spend". Null when there is no
+/// income this month (or no usable tax profile) — then the budget is just the manual one.
+public record MonthTaxBreakdown(
+    decimal Gross,        // скільки реально прийшло на рахунок (з VAT)
+    decimal Revenue,      // przychód — без VAT, база для податків
+    decimal Vat,
+    decimal ZusSocial,
+    decimal Health,
+    decimal Tax,
+    decimal SetAside,     // VAT + ZUS + здоровотна + податок
+    decimal TakeHome);    // = MonthlyBudget
+
 public record SafeToSpendResponse(
     DateOnly Date,
     string Currency,
@@ -58,7 +71,8 @@ public record SafeToSpendResponse(
     decimal ReservedRecurring,
     decimal? RemainingThisMonth,
     int DaysLeftInMonth,
-    decimal? SafeToSpendToday);
+    decimal? SafeToSpendToday,
+    MonthTaxBreakdown? MonthTaxes);
 
 public record SaveRecurringRequest(
     decimal Amount,

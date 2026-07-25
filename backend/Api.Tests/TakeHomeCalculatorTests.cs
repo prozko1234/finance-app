@@ -87,6 +87,16 @@ public class TakeHomeCalculatorTests
         Assert.True(b.TakeHome < 0); // honest: that month costs more than it earns
     }
 
+    /// The number the home screen shows to explain "why is the budget less than the balance".
+    [Fact]
+    public void Set_aside_accounts_for_the_whole_gap_between_account_and_budget()
+    {
+        var b = TakeHomeCalculator.Calculate(Profile(), 20_000m, amountIncludesVat: false).Value!;
+
+        Assert.Equal(b.VatAmount + b.ZusSocial + b.HealthContribution + b.Tax, b.SetAside);
+        Assert.Equal(b.TakeHome, b.GrossWithVat - b.SetAside);
+    }
+
     [Fact]
     public void Unsupported_regime_fails_explicitly()
     {

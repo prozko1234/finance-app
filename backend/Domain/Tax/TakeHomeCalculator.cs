@@ -12,7 +12,12 @@ public record TakeHomeBreakdown(
     decimal HealthDeducted,   // part of health deductible from the tax base (50% on ryczalt)
     decimal TaxBase,
     decimal Tax,
-    decimal TakeHome);        // what actually stays with you
+    decimal TakeHome)         // what actually stays with you
+{
+    /// Everything that lands on the account but is owed to the state.
+    /// Invariant: GrossWithVat - SetAside == TakeHome.
+    public decimal SetAside => VatAmount + ZusSocial + HealthContribution + Tax;
+}
 
 /// The heart of the product for B2B: turns an invoice into real take-home pay.
 /// Pure function — no DB, no clock — so it is fully testable.

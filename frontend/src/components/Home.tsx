@@ -1,4 +1,4 @@
-import type { SafeToSpend, Transaction } from '../types'
+import type { MonthTaxes, SafeToSpend, Transaction } from '../types'
 import { BASE_CURRENCY } from '../types'
 import { money } from '../format'
 import { buildQuickActions, type QuickAction } from '../quickRepeat'
@@ -18,6 +18,7 @@ export function Home({ summary, transactions, onDelete, onGoSettings, onQuickRep
   return (
     <div className="space-y-6">
       <SafeToSpendCard summary={summary} onGoSettings={onGoSettings} />
+      {summary?.monthTaxes && <MonthSummary summary={summary} taxes={summary.monthTaxes} />}
       {quick.length > 0 && <QuickRow actions={quick} onPick={onQuickRepeat} />}
       <RecentList transactions={transactions} onDelete={onDelete} onEdit={onEdit} />
     </div>
@@ -80,11 +81,55 @@ function SafeToSpendCard({ summary, onGoSettings }: { summary: SafeToSpend | nul
       <p className="text-xs text-neutral-400">
         Витрачено {money(summary.spentThisMonth, summary.currency)} з {money(summary.monthlyBudget ?? 0, summary.currency)}
       </p>
-      {summary.reservedRecurring > 0 && (
+      {summary.reservedRecurring > 0 && !summary.monthTaxes && (
         <p className="text-xs text-neutral-400">
           Зарезервовано на фіксовані: {money(summary.reservedRecurring, summary.currency)}
         </p>
       )}
+    </div>
+  )
+}
+
+/// Answers "чому на рахунку більше, ніж бюджет": every row between what landed on the
+/// account and what is left is spelled out, so the column actually adds up.
+function MonthSummary({ summary, taxes }: { summary: SafeToSpend; taxes: MonthTaxes }) {
+  const c = summary.currency
+
+  return (
+    <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm">
+      <h2 className="text-sm font-medium text-neutral-400 mb-3">Підсумок місяця</h2>
+      <dl className="space-y-1.5 text-sm">
+        <Row label="Прийшло на рахунок" value={money(taxes.gross, c)} />
+        <Row label="Відкладено на податки" value={`− ${money(taxes.setAside, c)}`} muted />
+        <details className="group">
+          <summary className="cursor-pointer list-none text-xs text-neutral-400 pl-3 py-1">
+            з чого · VAT, ZUS, здоровотна, податок
+          </summary>
+          <div className="pl-3 pt-1 space-y-1 text-xs text-neutral-400">
+            <Row label="VAT" value={money(taxes.vat, c)} small />
+            <Row label="ZUS соціальний" value={money(taxes.zusSocial, c)} small />
+            <Row label="Здоровотна" value={money(taxes.health, c)} small />
+            <Row label="Податок (ryczałt)" value={money(taxes.tax, c)} small />
+          </div>
+        </details>
+        <Row label="Бюджет місяця" value={money(taxes.takeHome, c)} strong />
+        <Row label="Витрачено" value={`− ${money(summary.spentThisMonth, c)}`} muted />
+        {summary.reservedRecurring > 0 && (
+          <Row label="Зарезервовано на фіксовані" value={`− ${money(summary.reservedRecurring, c)}`} muted />
+        )}
+        <Row label="Лишилось" value={money(summary.remainingThisMonth ?? 0, c)} strong />
+      </dl>
+    </div>
+  )
+}
+
+function Row({ label, value, muted, strong, small }: {
+  label: string; value: string; muted?: boolean; strong?: boolean; small?: boolean
+}) {
+  return (
+    <div className={`flex justify-between gap-3 ${strong ? 'border-t border-neutral-100 dark:border-neutral-800 pt-1.5 font-semibold' : ''}`}>
+      <dt className={muted || small ? 'text-neutral-400' : ''}>{label}</dt>
+      <dd className={`tabular-nums shrink-0 ${muted ? 'text-neutral-400' : ''}`}>{value}</dd>
     </div>
   )
 }
