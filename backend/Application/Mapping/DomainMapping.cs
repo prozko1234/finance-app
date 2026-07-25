@@ -12,7 +12,8 @@ public static class DomainMapping
         t.CategoryId, t.Category?.Name ?? "", t.Priority, t.Frequency, t.Source.ToString(),
         t.Date, t.MerchantRaw, t.Note, t.CreatedAt);
 
-    public static CategoryResponse ToResponse(this Category c) => new(c.Id, c.Name, c.Icon);
+    public static CategoryResponse ToResponse(this Category c) =>
+        new(c.Id, c.Name, c.Icon, c.Color, c.SortOrder, c.IsSystem);
 
     public static BudgetResponse ToResponse(this Budget? b) => b is null
         ? new BudgetResponse(false, null, Money.BaseCurrency, null)

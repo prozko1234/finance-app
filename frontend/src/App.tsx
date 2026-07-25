@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import type { Recurring as RecurringType, SaveIncome, SaveTransaction } from './types'
+import type { Recurring as RecurringType, SaveCategory, SaveIncome, SaveTransaction } from './types'
 import {
   useBudget, useCategories, useCreateRecurring, useCreateTransaction, useDeleteRecurring,
-  useCreateIncome, useDeleteTransaction, useRecurring, useSafeToSpend, useSetBudget, useTransactions,
+  useCreateCategory, useCreateIncome, useDeleteCategory, useDeleteTransaction, useRecurring, useUpdateCategory, useSafeToSpend, useSetBudget, useTransactions,
   useUpdateRecurring, useTaxProfile, useTaxDefaults, useSaveTaxProfile, useCalculateTakeHome,
 } from './hooks'
 import { Home } from './components/Home'
@@ -10,8 +10,9 @@ import { AddTransaction } from './components/AddTransaction'
 import { Settings } from './components/Settings'
 import { Recurring } from './components/Recurring'
 import { Tax } from './components/Tax'
+import { Categories } from './components/Categories'
 
-type View = 'home' | 'add' | 'settings' | 'recurring' | 'tax'
+type View = 'home' | 'add' | 'settings' | 'recurring' | 'tax' | 'categories'
 
 function App() {
   const [view, setView] = useState<View>('home')
@@ -28,6 +29,9 @@ function App() {
 
   const createTx = useCreateTransaction()
   const createIncome = useCreateIncome()
+  const createCategory = useCreateCategory()
+  const updateCategory = useUpdateCategory()
+  const deleteCategory = useDeleteCategory()
   const deleteTx = useDeleteTransaction()
   const setBudget = useSetBudget()
   const createRecurring = useCreateRecurring()
@@ -82,6 +86,7 @@ function App() {
             categories={categories.data ?? []}
             onSave={handleSave}
             onSaveIncome={async (i: SaveIncome) => { await createIncome.mutateAsync(i); setView('home') }}
+            onCreateCategory={(c: SaveCategory) => createCategory.mutateAsync(c)}
             onCancel={() => setView('home')}
           />
         )}
@@ -92,6 +97,7 @@ function App() {
             onBack={() => setView('home')}
             onGoRecurring={() => setView('recurring')}
             onGoTax={() => setView('tax')}
+            onGoCategories={() => setView('categories')}
           />
         )}
         {view === 'recurring' && (
@@ -101,6 +107,15 @@ function App() {
             onCreate={(r) => createRecurring.mutateAsync(r).then(() => {})}
             onToggle={toggleRecurring}
             onDelete={(id) => deleteRecurring.mutate(id)}
+            onBack={() => setView('settings')}
+          />
+        )}
+        {view === 'categories' && (
+          <Categories
+            categories={categories.data ?? []}
+            onCreate={(c) => createCategory.mutateAsync(c)}
+            onUpdate={(id, data) => updateCategory.mutateAsync({ id, data }).then(() => {})}
+            onDelete={(id) => deleteCategory.mutateAsync(id).then(() => {})}
             onBack={() => setView('settings')}
           />
         )}

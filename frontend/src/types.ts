@@ -5,6 +5,15 @@ export interface Category {
   id: number
   name: string
   icon?: string | null
+  color?: string | null
+  sortOrder: number
+  isSystem: boolean
+}
+
+export interface SaveCategory {
+  name: string
+  icon?: string | null
+  color?: string | null
 }
 
 export interface Transaction {

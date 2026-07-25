@@ -19,6 +19,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             e.Property(c => c.Name).HasMaxLength(60).IsRequired();
             e.Property(c => c.Icon).HasMaxLength(16);
+            e.Property(c => c.Color).HasMaxLength(9);
             e.HasData(SeedCategories);
         });
 
@@ -89,11 +90,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     private static readonly Category[] SeedCategories =
     [
-        new() { Id = 1, Name = "Їжа", Icon = "🍽" },
-        new() { Id = 2, Name = "Транспорт", Icon = "🚌" },
-        new() { Id = 3, Name = "Житло", Icon = "🏠" },
-        new() { Id = 4, Name = "Здоров'я", Icon = "💊" },
-        new() { Id = 5, Name = "Розваги", Icon = "🎮" },
-        new() { Id = 6, Name = "Інше", Icon = "📦" },
+        new() { Id = 1, Name = "Їжа", Icon = "🍽", SortOrder = 1 },
+        new() { Id = 2, Name = "Транспорт", Icon = "🚌", SortOrder = 2 },
+        new() { Id = 3, Name = "Житло", Icon = "🏠", SortOrder = 3 },
+        new() { Id = 4, Name = "Здоров'я", Icon = "💊", SortOrder = 4 },
+        new() { Id = 5, Name = "Розваги", Icon = "🎮", SortOrder = 5 },
+        // Fallback category: orphaned transactions land here, so it cannot be deleted.
+        new() { Id = 6, Name = "Інше", Icon = "📦", SortOrder = 99, IsSystem = true },
     ];
 }

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api'
-import type { SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction } from './types'
+import type { SaveCategory, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction } from './types'
 
 export const queryKeys = {
   categories: ['categories'] as const,
@@ -14,6 +14,33 @@ export const queryKeys = {
 
 export function useCategories() {
   return useQuery({ queryKey: queryKeys.categories, queryFn: () => api.getCategories() })
+}
+
+function useInvalidateCategories() {
+  const qc = useQueryClient()
+  return () => {
+    qc.invalidateQueries({ queryKey: queryKeys.categories })
+    qc.invalidateQueries({ queryKey: queryKeys.transactions })
+    qc.invalidateQueries({ queryKey: queryKeys.recurring })
+  }
+}
+
+export function useCreateCategory() {
+  const invalidate = useInvalidateCategories()
+  return useMutation({ mutationFn: (c: SaveCategory) => api.createCategory(c), onSuccess: invalidate })
+}
+
+export function useUpdateCategory() {
+  const invalidate = useInvalidateCategories()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: SaveCategory }) => api.updateCategory(id, data),
+    onSuccess: invalidate,
+  })
+}
+
+export function useDeleteCategory() {
+  const invalidate = useInvalidateCategories()
+  return useMutation({ mutationFn: (id: number) => api.deleteCategory(id), onSuccess: invalidate })
 }
 
 export function useTransactions() {

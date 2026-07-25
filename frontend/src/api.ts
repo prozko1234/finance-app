@@ -1,5 +1,5 @@
 import type {
-  Budget, Category, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
+  Budget, Category, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
   TakeHome, TaxDefaults, TaxProfile, Transaction,
 } from './types'
 
@@ -24,6 +24,12 @@ async function http<T>(url: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   getCategories: () => http<Category[]>('/api/categories'),
+  createCategory: (c: SaveCategory) =>
+    http<Category>('/api/categories', { method: 'POST', body: JSON.stringify(c) }),
+  updateCategory: (id: number, c: SaveCategory) =>
+    http<Category>(`/api/categories/${id}`, { method: 'PUT', body: JSON.stringify(c) }),
+  deleteCategory: (id: number) =>
+    http<void>(`/api/categories/${id}`, { method: 'DELETE' }),
 
   getTransactions: (take = 20) => http<Transaction[]>(`/api/transactions?take=${take}`),
   createTransaction: (tx: SaveTransaction) =>

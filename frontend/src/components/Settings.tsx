@@ -7,9 +7,10 @@ interface Props {
   onBack: () => void
   onGoRecurring: () => void
   onGoTax: () => void
+  onGoCategories: () => void
 }
 
-export function Settings({ budget, onSave, onBack, onGoRecurring, onGoTax }: Props) {
+export function Settings({ budget, onSave, onBack, onGoRecurring, onGoTax, onGoCategories }: Props) {
   const [amount, setAmount] = useState(budget?.monthlyAmount != null ? String(budget.monthlyAmount) : '')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -70,6 +71,14 @@ export function Settings({ budget, onSave, onBack, onGoRecurring, onGoTax }: Pro
         className="w-full flex items-center justify-between rounded-2xl bg-white dark:bg-neutral-900 px-5 py-4 shadow-sm"
       >
         <span className="font-medium">Підписки й регулярні</span>
+        <span className="text-neutral-400">→</span>
+      </button>
+
+      <button
+        onClick={onGoCategories}
+        className="w-full flex items-center justify-between rounded-2xl bg-white dark:bg-neutral-900 px-5 py-4 shadow-sm"
+      >
+        <span className="font-medium">Категорії</span>
         <span className="text-neutral-400">→</span>
       </button>
 

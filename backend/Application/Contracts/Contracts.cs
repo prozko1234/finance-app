@@ -41,7 +41,9 @@ public record TransactionResponse(
     string? Note,
     DateTimeOffset CreatedAt);
 
-public record CategoryResponse(int Id, string Name, string? Icon);
+public record CategoryResponse(int Id, string Name, string? Icon, string? Color, int SortOrder, bool IsSystem);
+
+public record SaveCategoryRequest(string Name, string? Icon, string? Color);
 
 public record SetBudgetRequest(decimal Amount);
 

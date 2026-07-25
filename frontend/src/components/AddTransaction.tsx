@@ -1,18 +1,22 @@
 import { useState } from 'react'
-import type { Category, Priority, SaveIncome, SaveTransaction } from '../types'
+import type { Category, Priority, SaveCategory, SaveIncome, SaveTransaction } from '../types'
 import { CURRENCIES } from '../types'
 
 interface Props {
   categories: Category[]
   onSave: (tx: SaveTransaction) => Promise<void>
   onSaveIncome: (income: SaveIncome) => Promise<void>
+  onCreateCategory: (c: SaveCategory) => Promise<Category>
   onCancel: () => void
 }
 
 const PRIORITIES: Priority[] = ['Must', 'Should', 'Want']
 const PRIORITY_LABEL: Record<Priority, string> = { Must: 'Треба', Should: 'Варто', Want: 'Хочу' }
 
-export function AddTransaction({ categories, onSave, onSaveIncome, onCancel }: Props) {
+export function AddTransaction({ categories, onSave, onSaveIncome, onCreateCategory, onCancel }: Props) {
+  const [newCatOpen, setNewCatOpen] = useState(false)
+  const [newCatName, setNewCatName] = useState('')
+  const [newCatIcon, setNewCatIcon] = useState('')
   const [isIncome, setIsIncome] = useState(false)
   const [amount, setAmount] = useState('')
   const [currency, setCurrency] = useState('PLN')
@@ -145,7 +149,51 @@ export function AddTransaction({ categories, onSave, onSaveIncome, onCancel }: P
                     {c.icon} {c.name}
                   </button>
                 ))}
+                <button
+                  onClick={() => setNewCatOpen((o) => !o)}
+                  className="rounded-xl px-3 py-2 text-sm border border-dashed border-neutral-300 dark:border-neutral-700 text-neutral-500"
+                >
+                  + Нова
+                </button>
               </div>
+
+              {newCatOpen && (
+                <div className="mt-2 flex gap-2">
+                  <input
+                    autoFocus
+                    placeholder="🍕"
+                    value={newCatIcon}
+                    onChange={(e) => setNewCatIcon(e.target.value)}
+                    className="w-14 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-2 py-2 text-center text-sm outline-none"
+                  />
+                  <input
+                    placeholder="Назва категорії"
+                    value={newCatName}
+                    onChange={(e) => setNewCatName(e.target.value)}
+                    className="flex-1 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-sm outline-none"
+                  />
+                  <button
+                    disabled={!newCatName.trim()}
+                    onClick={async () => {
+                      try {
+                        const created = await onCreateCategory({
+                          name: newCatName.trim(),
+                          icon: newCatIcon.trim() || null,
+                        })
+                        setCategoryId(created.id)   // pick it right away — zero extra taps
+                        setNewCatName('')
+                        setNewCatIcon('')
+                        setNewCatOpen(false)
+                      } catch (e) {
+                        setError(e instanceof Error ? e.message : 'Не вдалося створити')
+                      }
+                    }}
+                    className="rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 px-4 text-sm font-medium disabled:opacity-40"
+                  >
+                    OK
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Priority */}
