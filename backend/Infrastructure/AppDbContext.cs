@@ -11,6 +11,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<FxRate> FxRates => Set<FxRate>();
     public DbSet<Budget> Budgets => Set<Budget>();
     public DbSet<RecurringExpense> RecurringExpenses => Set<RecurringExpense>();
+    public DbSet<TaxProfile> TaxProfiles => Set<TaxProfile>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -46,6 +47,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .WithMany()
                 .HasForeignKey(t => t.RecurringExpenseId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        b.Entity<TaxProfile>(e =>
+        {
+            e.Property(x => x.RyczaltRate).HasPrecision(6, 4);
+            e.Property(x => x.VatRate).HasPrecision(6, 4);
+            e.Property(x => x.ZusSocial).HasPrecision(18, 2);
+            e.Property(x => x.HealthContribution).HasPrecision(18, 2);
+            e.Property(x => x.Regime).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.ZusType).HasConversion<string>().HasMaxLength(20);
         });
 
         b.Entity<RecurringExpense>(e =>

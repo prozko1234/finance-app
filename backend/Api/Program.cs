@@ -54,6 +54,7 @@ app.MapTransactionEndpoints();
 app.MapBudgetEndpoints();
 app.MapSummaryEndpoints();
 app.MapRecurringEndpoints();
+app.MapTaxEndpoints();
 
 app.Run();
 

@@ -56,6 +56,52 @@ public record SaveRecurringRequest(
     string? Note,
     bool Active);
 
+public record TaxProfileResponse(
+    string Regime,
+    decimal RyczaltRate,
+    bool VatPayer,
+    decimal VatRate,
+    string ZusType,
+    decimal ZusSocial,
+    decimal HealthContribution,
+    bool Chorobowe,
+    DateOnly ValidFrom,
+    decimal MonthlyContributionsTotal);
+
+public record SaveTaxProfileRequest(
+    string Regime,
+    decimal RyczaltRate,
+    bool VatPayer,
+    decimal VatRate,
+    string ZusType,
+    decimal ZusSocial,
+    decimal HealthContribution,
+    bool Chorobowe);
+
+public record TaxDefaultsResponse(
+    int Year,
+    decimal DuzyWithChorobowe,
+    decimal DuzyWithoutChorobowe,
+    decimal PreferencyjnyWithChorobowe,
+    decimal PreferencyjnyWithoutChorobowe,
+    decimal HealthUnder60k,
+    decimal Health60kTo300k,
+    decimal HealthOver300k);
+
+public record CalculateTakeHomeRequest(decimal Amount, bool AmountIncludesVat);
+
+public record TakeHomeResponse(
+    decimal GrossWithVat,
+    decimal VatAmount,
+    decimal Revenue,
+    decimal ZusSocial,
+    decimal HealthContribution,
+    decimal HealthDeducted,
+    decimal TaxBase,
+    decimal Tax,
+    decimal TakeHome,
+    string Currency);
+
 public record RecurringResponse(
     int Id,
     decimal AmountOriginal,
