@@ -1,47 +1,49 @@
 import type { MonthTaxes, SafeToSpend, SavingsSummary, Transaction } from '../types'
 import { BASE_CURRENCY } from '../types'
 import { money } from '../format'
-import { buildQuickActions, type QuickAction } from '../quickRepeat'
+import { buildQuickCategories, type QuickCategory } from '../quickCategories'
 
 interface Props {
   summary: SafeToSpend | null
   transactions: Transaction[]
   onDelete: (id: number) => void
   onGoSettings: () => void
-  onQuickRepeat: (a: QuickAction) => void
+  onQuickCategory: (categoryId: number) => void
   onEdit: (t: Transaction) => void
   onGoSavings: () => void
 }
 
-export function Home({ summary, transactions, onDelete, onGoSettings, onQuickRepeat, onEdit, onGoSavings }: Props) {
-  const quick = buildQuickActions(transactions, (name) => ICONS[name] ?? '📦')
+export function Home({ summary, transactions, onDelete, onGoSettings, onQuickCategory, onEdit, onGoSavings }: Props) {
+  const quick = buildQuickCategories(transactions, (name) => ICONS[name] ?? '📦')
 
   return (
     <div className="space-y-6">
       <SafeToSpendCard summary={summary} onGoSettings={onGoSettings} />
       {summary?.monthTaxes && <MonthSummary summary={summary} taxes={summary.monthTaxes} />}
       {summary && <SavingsCard savings={summary.savings} currency={summary.currency} onOpen={onGoSavings} />}
-      {quick.length > 0 && <QuickRow actions={quick} onPick={onQuickRepeat} />}
+      {quick.length > 0 && <QuickRow categories={quick} onPick={onQuickCategory} />}
       <RecentList transactions={transactions} onDelete={onDelete} onEdit={onEdit} />
     </div>
   )
 }
 
-/// One-tap repeat of a recent expense — the cheapest possible way to log something.
-function QuickRow({ actions, onPick }: { actions: QuickAction[]; onPick: (a: QuickAction) => void }) {
+/// A tap opens the form with the category already chosen — only the amount is left.
+/// The amount is deliberately not guessed: the category repeats, the exact sum does not.
+function QuickRow({ categories, onPick }: {
+  categories: QuickCategory[]; onPick: (categoryId: number) => void
+}) {
   return (
     <div>
-      <h2 className="text-sm font-medium text-neutral-400 mb-2 px-1">Швидко — один дотик</h2>
+      <h2 className="text-sm font-medium text-neutral-400 mb-2 px-1">Часті категорії</h2>
       <div className="flex gap-2 flex-wrap">
-        {actions.map((a) => (
+        {categories.map((c) => (
           <button
-            key={a.key}
-            onClick={() => onPick(a)}
+            key={c.categoryId}
+            onClick={() => onPick(c.categoryId)}
             className="flex-1 min-w-[30%] rounded-xl bg-white dark:bg-neutral-900 px-3 py-3 shadow-sm text-left"
           >
-            <span className="text-lg">{a.icon}</span>
-            <p className="text-xs text-neutral-400 truncate">{a.categoryName}</p>
-            <p className="font-semibold tabular-nums text-sm">{money(a.amount, a.currency)}</p>
+            <span className="text-lg">{c.icon}</span>
+            <p className="text-sm font-medium truncate">{c.categoryName}</p>
           </button>
         ))}
       </div>

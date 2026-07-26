@@ -13,12 +13,16 @@ interface Props {
   onCancel: () => void
   /// When set, the form edits this transaction instead of creating a new one.
   editing?: Transaction | null
+  /// Preselected category from a quick-category tap — only the amount is left to type.
+  presetCategoryId?: number | null
 }
 
 const PRIORITIES: Priority[] = ['Must', 'Should', 'Want']
 const PRIORITY_LABEL: Record<Priority, string> = { Must: 'Треба', Should: 'Варто', Want: 'Хочу' }
 
-export function AddTransaction({ categories, onSave, onSaveIncome, onCreateCategory, onCancel, editing }: Props) {
+export function AddTransaction({
+  categories, onSave, onSaveIncome, onCreateCategory, onCancel, editing, presetCategoryId,
+}: Props) {
   const [newCatOpen, setNewCatOpen] = useState(false)
   const [newCatName, setNewCatName] = useState('')
   const [newCatIcon, setNewCatIcon] = useState('')
@@ -28,7 +32,11 @@ export function AddTransaction({ categories, onSave, onSaveIncome, onCreateCateg
   // Open pre-filled with what was used last time — fewer taps per entry.
   const [currency, setCurrency] = useState(editing?.currencyOriginal ?? last.currency ?? 'PLN')
   const [categoryId, setCategoryId] = useState<number | null>(
-    editing?.categoryId ?? categories.find((c) => c.id === last.categoryId)?.id ?? categories[0]?.id ?? null,
+    editing?.categoryId
+      ?? categories.find((c) => c.id === presetCategoryId)?.id
+      ?? categories.find((c) => c.id === last.categoryId)?.id
+      ?? categories[0]?.id
+      ?? null,
   )
   const [date, setDate] = useState(editing?.date ?? todayIso())
   const [priority, setPriority] = useState<Priority>(editing?.priority ?? 'Should')

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { Home } from './Home'
-import type { SafeToSpend } from '../types'
+import type { SafeToSpend, Transaction } from '../types'
 
 function summary(over: Partial<SafeToSpend> = {}): SafeToSpend {
   return {
@@ -15,7 +15,7 @@ function summary(over: Partial<SafeToSpend> = {}): SafeToSpend {
 }
 
 const props = {
-  transactions: [], onDelete: vi.fn(), onGoSettings: vi.fn(), onQuickRepeat: vi.fn(), onEdit: vi.fn(),
+  transactions: [], onDelete: vi.fn(), onGoSettings: vi.fn(), onQuickCategory: vi.fn(), onEdit: vi.fn(),
   onGoSavings: vi.fn(),
 }
 
@@ -100,6 +100,27 @@ describe('Home', () => {
     render(<Home {...props} summary={summary()} />)
     expect(screen.queryByText(/Завтра/)).not.toBeInTheDocument()
     expect(screen.getByText('Ще сьогодні')).toBeInTheDocument()
+  })
+
+  it('offers frequent categories without guessing an amount', () => {
+    const expense = (id: number, categoryId: number, categoryName: string, amount: number): Transaction => ({
+      id, kind: 'Expense', amountOriginal: amount, currencyOriginal: 'PLN', amountBase: amount,
+      fxRate: 1, fxDate: '2026-07-24', categoryId, categoryName, priority: 'Should',
+      frequency: 'OneOff', source: 'Manual', date: '2026-07-24', createdAt: '',
+    })
+
+    render(
+      <Home
+        {...props}
+        summary={summary()}
+        transactions={[expense(1, 1, 'Їжа', 25), expense(2, 1, 'Їжа', 12), expense(3, 2, 'Транспорт', 8)]}
+      />,
+    )
+
+    expect(screen.getByText('Часті категорії')).toBeInTheDocument()
+    // The category is offered; the past amounts are not proposed as buttons.
+    expect(screen.getAllByText('Їжа').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: /25,00/ })).not.toBeInTheDocument()
   })
 
   it('hides the month summary when there is no income to explain', () => {

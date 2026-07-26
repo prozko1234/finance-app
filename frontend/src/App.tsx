@@ -13,13 +13,15 @@ import { Recurring } from './components/Recurring'
 import { Tax } from './components/Tax'
 import { Categories } from './components/Categories'
 import { Savings } from './components/Savings'
-import type { QuickAction } from './quickRepeat'
+
 
 type View = 'home' | 'add' | 'settings' | 'recurring' | 'tax' | 'categories' | 'savings'
 
 function App() {
   const [view, setView] = useState<View>('home')
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
+  // Set when a quick-category tap opens the form; cleared as soon as the form closes.
+  const [presetCategoryId, setPresetCategoryId] = useState<number | null>(null)
 
   const categories = useCategories()
   const summary = useSafeToSpend()
@@ -99,14 +101,7 @@ function App() {
             onDelete={(id) => deleteTx.mutate(id)}
             onGoSettings={() => setView('settings')}
             onGoSavings={() => setView('savings')}
-            onQuickRepeat={(a: QuickAction) => createTx.mutate({
-              amount: a.amount,
-              currency: a.currency,
-              categoryId: a.categoryId,
-              priority: 'Should',
-              frequency: 'OneOff',
-              note: null,
-            })}
+            onQuickCategory={(categoryId) => { setPresetCategoryId(categoryId); setView('add') }}
             onEdit={startEdit}
           />
         )}
@@ -116,8 +111,9 @@ function App() {
             onSave={handleSave}
             onSaveIncome={async (i: SaveIncome) => { await createIncome.mutateAsync(i); setView('home') }}
             onCreateCategory={(c: SaveCategory) => createCategory.mutateAsync(c)}
-            onCancel={() => { setEditingTx(null); setView('home') }}
+            onCancel={() => { setEditingTx(null); setPresetCategoryId(null); setView('home') }}
             editing={editingTx}
+            presetCategoryId={presetCategoryId}
           />
         )}
         {view === 'settings' && (
