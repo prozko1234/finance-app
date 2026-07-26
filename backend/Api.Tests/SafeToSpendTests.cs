@@ -4,13 +4,17 @@ namespace FinanceApp.Api.Tests;
 
 public class SafeToSpendTests
 {
+    private static readonly DateOnly MidJuly = new(2026, 7, 15); // 17 days left, incl. today
+
     [Fact]
-    public void No_budget_returns_not_set_and_null_figure()
+    public void No_budget_returns_not_set_and_null_figures()
     {
-        var r = SafeToSpendCalculator.Calculate(null, spentThisMonth: 120m, reservedRecurring: 0m, today: new DateOnly(2026, 7, 15));
+        var r = SafeToSpendCalculator.Calculate(null, spentThisMonth: 120m, spentToday: 20m,
+            reservedRecurring: 0m, today: MidJuly);
 
         Assert.False(r.BudgetSet);
-        Assert.Null(r.SafeToSpendToday);
+        Assert.Null(r.DailyNorm);
+        Assert.Null(r.LeftToday);
         Assert.Null(r.RemainingThisMonth);
         Assert.Equal(120m, r.SpentThisMonth);
         Assert.Equal(17, r.DaysLeftInMonth); // 31 - 15 + 1
@@ -19,74 +23,117 @@ public class SafeToSpendTests
     [Fact]
     public void Mid_month_divides_remaining_by_days_left_floored()
     {
-        // 3000 - 0 - 0 = 3000, July: 31 - 15 + 1 = 17 days. 3000/17 = 176.4705... -> 176.47
-        var r = SafeToSpendCalculator.Calculate(3000m, 0m, 0m, new DateOnly(2026, 7, 15));
+        // 3000 / 17 = 176.4705... -> 176.47
+        var r = SafeToSpendCalculator.Calculate(3000m, 0m, 0m, 0m, MidJuly);
 
         Assert.True(r.BudgetSet);
         Assert.Equal(3000m, r.RemainingThisMonth);
-        Assert.Equal(17, r.DaysLeftInMonth);
-        Assert.Equal(176.47m, r.SafeToSpendToday);
+        Assert.Equal(176.47m, r.DailyNorm);
+        Assert.Equal(176.47m, r.LeftToday); // nothing spent today yet
     }
 
     [Fact]
     public void Reserved_recurring_reduces_remaining()
     {
-        // (3000 - 0 - 500) / 17 = 2500/17 = 147.05... -> 147.05
-        var r = SafeToSpendCalculator.Calculate(3000m, 0m, 500m, new DateOnly(2026, 7, 15));
+        // (3000 - 500) / 17 = 147.05...
+        var r = SafeToSpendCalculator.Calculate(3000m, 0m, 0m, 500m, MidJuly);
 
-        Assert.Equal(500m, r.ReservedRecurring);
         Assert.Equal(2500m, r.RemainingThisMonth);
-        Assert.Equal(147.05m, r.SafeToSpendToday);
+        Assert.Equal(147.05m, r.DailyNorm);
     }
 
     [Fact]
     public void Number_is_stable_whether_amount_is_reserved_or_spent()
     {
-        // Key property: when a reserved recurring charges, it moves reserved -> spent.
-        // The remaining (and thus the figure) must not change.
-        var beforeCharge = SafeToSpendCalculator.Calculate(3000m, 200m, 500m, new DateOnly(2026, 7, 15));
-        var afterCharge = SafeToSpendCalculator.Calculate(3000m, 700m, 0m, new DateOnly(2026, 7, 15));
+        // When a reserved recurring charges, it moves reserved -> spent (on an earlier day).
+        var beforeCharge = SafeToSpendCalculator.Calculate(3000m, 200m, 0m, 500m, MidJuly);
+        var afterCharge = SafeToSpendCalculator.Calculate(3000m, 700m, 0m, 0m, MidJuly);
 
         Assert.Equal(beforeCharge.RemainingThisMonth, afterCharge.RemainingThisMonth);
-        Assert.Equal(beforeCharge.SafeToSpendToday, afterCharge.SafeToSpendToday);
+        Assert.Equal(beforeCharge.DailyNorm, afterCharge.DailyNorm);
+    }
+
+    /// The heart of M15: the norm must NOT move when money is spent today, otherwise
+    /// "over the norm" is unsayable — the target would always slide to match the spending.
+    [Fact]
+    public void Todays_norm_is_fixed_at_the_start_of_the_day()
+    {
+        var morning = SafeToSpendCalculator.Calculate(3000m, 0m, spentToday: 0m, 0m, MidJuly);
+        var evening = SafeToSpendCalculator.Calculate(3000m, 500m, spentToday: 500m, 0m, MidJuly);
+
+        Assert.Equal(morning.DailyNorm, evening.DailyNorm);
+        Assert.Equal(500m, evening.SpentToday);
+    }
+
+    [Fact]
+    public void Overspending_today_shows_a_negative_left_today()
+    {
+        // Norm 176.47, spent 300 -> 123.53 over.
+        var r = SafeToSpendCalculator.Calculate(3000m, 300m, 300m, 0m, MidJuly);
+
+        Assert.Equal(176.47m, r.DailyNorm);
+        Assert.Equal(-123.53m, r.LeftToday);
+    }
+
+    [Fact]
+    public void Overspending_today_lowers_tomorrow_and_the_gap_is_visible()
+    {
+        var r = SafeToSpendCalculator.Calculate(3000m, 300m, 300m, 0m, MidJuly);
+
+        // Had today stayed on plan: (3000 - 176.47) / 16 = 176.47
+        // Having spent 300 instead: (3000 - 300)    / 16 = 168.75
+        Assert.Equal(176.47m, r.TomorrowIfOnPlan);
+        Assert.Equal(168.75m, r.TomorrowIfStop);
+        Assert.True(r.TomorrowIfStop < r.TomorrowIfOnPlan); // the consequence, stated plainly
+    }
+
+    [Fact]
+    public void Underspending_today_raises_tomorrow()
+    {
+        var r = SafeToSpendCalculator.Calculate(3000m, 50m, 50m, 0m, MidJuly);
+
+        Assert.Equal(126.47m, r.LeftToday); // 176.47 - 50
+        Assert.True(r.TomorrowIfStop > r.TomorrowIfOnPlan);
+    }
+
+    [Fact]
+    public void Last_day_of_month_has_no_tomorrow_to_project()
+    {
+        var r = SafeToSpendCalculator.Calculate(1000m, 700m, 0m, 0m, new DateOnly(2026, 7, 31));
+
+        Assert.Equal(1, r.DaysLeftInMonth);
+        Assert.Equal(300m, r.DailyNorm); // the whole rest of the budget is today's
+        Assert.Null(r.TomorrowIfStop);
+        Assert.Null(r.TomorrowIfOnPlan);
     }
 
     [Fact]
     public void Subtracts_spending_from_budget()
     {
-        // (2000 - 500 - 0) / (31 - 1 + 1 = 31) = 1500/31 = 48.387 -> 48.38
-        var r = SafeToSpendCalculator.Calculate(2000m, 500m, 0m, new DateOnly(2026, 7, 1));
+        // Spent on earlier days: (2000 - 500) / 31 = 48.387 -> 48.38
+        var r = SafeToSpendCalculator.Calculate(2000m, 500m, 0m, 0m, new DateOnly(2026, 7, 1));
 
         Assert.Equal(1500m, r.RemainingThisMonth);
         Assert.Equal(31, r.DaysLeftInMonth);
-        Assert.Equal(48.38m, r.SafeToSpendToday);
-    }
-
-    [Fact]
-    public void Last_day_of_month_gives_whole_remaining()
-    {
-        var r = SafeToSpendCalculator.Calculate(1000m, 700m, 0m, new DateOnly(2026, 7, 31));
-
-        Assert.Equal(1, r.DaysLeftInMonth);
-        Assert.Equal(300m, r.SafeToSpendToday);
+        Assert.Equal(48.38m, r.DailyNorm);
     }
 
     [Fact]
     public void Overspent_shows_negative_honestly()
     {
-        var r = SafeToSpendCalculator.Calculate(1000m, 1200m, 0m, new DateOnly(2026, 7, 31));
+        var r = SafeToSpendCalculator.Calculate(1000m, 1200m, 0m, 0m, new DateOnly(2026, 7, 31));
 
         Assert.Equal(-200m, r.RemainingThisMonth);
-        Assert.Equal(-200m, r.SafeToSpendToday);
+        Assert.Equal(-200m, r.DailyNorm);
     }
 
     [Fact]
     public void February_leap_year_day_count()
     {
         // 2028 is a leap year, February has 29 days. today 2028-02-20 -> 29 - 20 + 1 = 10
-        var r = SafeToSpendCalculator.Calculate(1000m, 0m, 0m, new DateOnly(2028, 2, 20));
+        var r = SafeToSpendCalculator.Calculate(1000m, 0m, 0m, 0m, new DateOnly(2028, 2, 20));
 
         Assert.Equal(10, r.DaysLeftInMonth);
-        Assert.Equal(100m, r.SafeToSpendToday);
+        Assert.Equal(100m, r.DailyNorm);
     }
 }

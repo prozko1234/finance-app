@@ -35,6 +35,10 @@ public sealed class SummaryService(
             .Where(t => t.Kind == TransactionKind.Expense)
             .SumAsync(t => (decimal?)t.AmountBase, ct) ?? 0m;
 
+        var spentToday = await monthRows
+            .Where(t => t.Kind == TransactionKind.Expense && t.Date == today)
+            .SumAsync(t => (decimal?)t.AmountBase, ct) ?? 0m;
+
         var (budget, taxes) = await monthlyBudget.ResolveAsync(ct);
 
         // Savings the user has committed to but not yet moved: hidden from safe-to-spend,
@@ -43,13 +47,14 @@ public sealed class SummaryService(
         var recurring = await ReservedRecurringAsync(today, ct);
 
         var r = SafeToSpendCalculator.Calculate(
-            budget, spent, recurring + savingsStatus.StillToReserve, today);
+            budget, spent, spentToday, recurring + savingsStatus.StillToReserve, today);
 
         // Reported separately from the recurring reserve: the month summary shows them as
         // two different rows, and lumping them together would make the column unreadable.
         return new SafeToSpendResponse(
             today, Money.BaseCurrency, r.BudgetSet, r.MonthlyBudget, r.SpentThisMonth,
-            recurring, r.RemainingThisMonth, r.DaysLeftInMonth, r.SafeToSpendToday,
+            recurring, r.RemainingThisMonth, r.DaysLeftInMonth,
+            r.DailyNorm, r.SpentToday, r.LeftToday, r.TomorrowIfStop, r.TomorrowIfOnPlan,
             taxes?.ToMonthBreakdown(),
             new SavingsSummary(
                 savingsStatus.Balance, savingsStatus.MonthGoal,

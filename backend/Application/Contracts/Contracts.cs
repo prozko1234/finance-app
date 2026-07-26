@@ -71,7 +71,11 @@ public record SafeToSpendResponse(
     decimal ReservedRecurring,
     decimal? RemainingThisMonth,
     int DaysLeftInMonth,
-    decimal? SafeToSpendToday,
+    decimal? DailyNorm,
+    decimal SpentToday,
+    decimal? LeftToday,
+    decimal? TomorrowIfStop,
+    decimal? TomorrowIfOnPlan,
     MonthTaxBreakdown? MonthTaxes,
     SavingsSummary Savings);
 

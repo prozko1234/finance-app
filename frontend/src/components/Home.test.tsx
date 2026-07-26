@@ -6,7 +6,8 @@ import type { SafeToSpend } from '../types'
 function summary(over: Partial<SafeToSpend> = {}): SafeToSpend {
   return {
     date: '2026-07-24', currency: 'PLN', budgetSet: true, monthlyBudget: 3000,
-    spentThisMonth: 0, reservedRecurring: 0, remainingThisMonth: 3000, daysLeftInMonth: 8, safeToSpendToday: 375,
+    spentThisMonth: 0, reservedRecurring: 0, remainingThisMonth: 3000, daysLeftInMonth: 8,
+    dailyNorm: 375, spentToday: 0, leftToday: 375, tomorrowIfStop: 375, tomorrowIfOnPlan: 375,
     monthTaxes: null,
     savings: { balance: 0, monthGoal: 0, depositedThisMonth: 0, stillToReserve: 0 },
     ...over,
@@ -21,14 +22,15 @@ const props = {
 describe('Home', () => {
   it('shows the safe-to-spend number when a budget is set', () => {
     render(<Home {...props} summary={summary()} />)
-    expect(screen.getByText(/375,00/)).toBeInTheDocument()
+    expect(screen.getByText('Ще сьогодні')).toBeInTheDocument()
+    expect(screen.getByText(/^375,00/)).toBeInTheDocument() // the headline figure itself
   })
 
   it('prompts to set a budget when none is set', () => {
     render(
       <Home
         {...props}
-        summary={summary({ budgetSet: false, monthlyBudget: null, remainingThisMonth: null, safeToSpendToday: null })}
+        summary={summary({ budgetSet: false, monthlyBudget: null, remainingThisMonth: null, dailyNorm: null, leftToday: null })}
       />,
     )
     expect(screen.getByText(/Задати місячний бюджет/)).toBeInTheDocument()
@@ -76,6 +78,28 @@ describe('Home', () => {
   it('offers to set up saving when the envelope is empty', () => {
     render(<Home {...props} summary={summary()} />)
     expect(screen.getByText(/Відкладати щомісяця/)).toBeInTheDocument()
+  })
+
+  it('names today\'s overspending and what it costs tomorrow', () => {
+    render(
+      <Home
+        {...props}
+        summary={summary({
+          spentThisMonth: 300, spentToday: 300, dailyNorm: 176.47, leftToday: -123.53,
+          tomorrowIfStop: 168.75, tomorrowIfOnPlan: 176.47,
+        })}
+      />,
+    )
+
+    expect(screen.getByText('Понад норму сьогодні')).toBeInTheDocument()
+    expect(screen.getByText(/123,53/)).toBeInTheDocument() // shown as a positive overshoot
+    expect(screen.getByText(/Завтра 168,75/)).toBeInTheDocument()
+  })
+
+  it('stays quiet about tomorrow when nothing was spent today', () => {
+    render(<Home {...props} summary={summary()} />)
+    expect(screen.queryByText(/Завтра/)).not.toBeInTheDocument()
+    expect(screen.getByText('Ще сьогодні')).toBeInTheDocument()
   })
 
   it('hides the month summary when there is no income to explain', () => {

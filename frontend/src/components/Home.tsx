@@ -68,17 +68,25 @@ function SafeToSpendCard({ summary, onGoSettings }: { summary: SafeToSpend | nul
     )
   }
 
-  const value = summary.safeToSpendToday ?? 0
-  const positive = value >= 0
+  const left = summary.leftToday ?? 0
+  const positive = left >= 0
+  const c = summary.currency
 
   return (
     <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm text-center">
-      <p className="text-sm uppercase tracking-wide text-neutral-400">Безпечно сьогодні</p>
-      <p className={`mt-1 text-5xl font-bold tabular-nums ${positive ? 'text-emerald-600' : 'text-red-600'}`}>
-        {money(value, summary.currency)}
+      <p className="text-sm uppercase tracking-wide text-neutral-400">
+        {positive ? 'Ще сьогодні' : 'Понад норму сьогодні'}
       </p>
+      <p className={`mt-1 text-5xl font-bold tabular-nums ${positive ? 'text-emerald-600' : 'text-red-600'}`}>
+        {money(positive ? left : -left, c)}
+      </p>
+      <p className="mt-2 text-xs text-neutral-400">
+        Норма на сьогодні {money(summary.dailyNorm ?? 0, c)}
+        {summary.spentToday > 0 && ` · витрачено ${money(summary.spentToday, c)}`}
+      </p>
+      <TomorrowNote summary={summary} />
       <p className="mt-3 text-sm text-neutral-500">
-        Залишок {money(summary.remainingThisMonth ?? 0, summary.currency)} · {summary.daysLeftInMonth} дн.
+        Залишок {money(summary.remainingThisMonth ?? 0, c)} · {summary.daysLeftInMonth} дн.
       </p>
       <p className="text-xs text-neutral-400">
         Витрачено {money(summary.spentThisMonth, summary.currency)} з {money(summary.monthlyBudget ?? 0, summary.currency)}
@@ -89,6 +97,22 @@ function SafeToSpendCard({ summary, onGoSettings }: { summary: SafeToSpend | nul
         </p>
       )}
     </div>
+  )
+}
+
+/// The point of M15: today's spending already changes tomorrow's number — say it out loud
+/// instead of letting the figure quietly slide. Statement of fact, never a scolding.
+function TomorrowNote({ summary }: { summary: SafeToSpend }) {
+  const { tomorrowIfStop, tomorrowIfOnPlan, currency: c } = summary
+  if (tomorrowIfStop === null || tomorrowIfOnPlan === null || summary.spentToday === 0) return null
+
+  const diff = tomorrowIfStop - tomorrowIfOnPlan
+  if (Math.abs(diff) < 0.01) return null
+
+  return (
+    <p className={`mt-2 text-xs ${diff < 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+      Завтра {money(tomorrowIfStop, c)} замість {money(tomorrowIfOnPlan, c)}
+    </p>
   )
 }
 

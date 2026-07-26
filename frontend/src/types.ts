@@ -152,7 +152,11 @@ export interface SafeToSpend {
   reservedRecurring: number
   remainingThisMonth: number | null
   daysLeftInMonth: number
-  safeToSpendToday: number | null
+  dailyNorm: number | null
+  spentToday: number
+  leftToday: number | null
+  tomorrowIfStop: number | null
+  tomorrowIfOnPlan: number | null
   monthTaxes: MonthTaxes | null
   savings: SavingsSummary
 }
