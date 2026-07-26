@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api'
-import type { SaveCategory, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction } from './types'
+import type {
+  SaveCategory, SaveIncome, SaveRecurring, SaveSavingsEntry, SaveSavingsPlan, SaveTaxProfile, SaveTransaction,
+} from './types'
 
 export const queryKeys = {
   categories: ['categories'] as const,
@@ -11,6 +13,7 @@ export const queryKeys = {
   recurring: ['recurring'] as const,
   taxProfile: ['taxProfile'] as const,
   taxDefaults: ['taxDefaults'] as const,
+  savings: ['savings'] as const,
 }
 
 export function useCategories() {
@@ -159,4 +162,32 @@ function useDebounced<T>(value: T, ms: number): T {
     return () => clearTimeout(id)
   }, [value, ms])
   return settled
+}
+
+export function useSavings() {
+  return useQuery({ queryKey: queryKeys.savings, queryFn: api.getSavings })
+}
+
+/// Both the plan and manual entries change safe-to-spend, so the summary must refetch too.
+function useSavingsMutation<T>(fn: (v: T) => Promise<unknown>) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.savings })
+      qc.invalidateQueries({ queryKey: queryKeys.summary })
+    },
+  })
+}
+
+export function useSaveSavingsPlan() {
+  return useSavingsMutation((p: SaveSavingsPlan) => api.saveSavingsPlan(p))
+}
+
+export function useAddSavingsEntry() {
+  return useSavingsMutation((e: SaveSavingsEntry) => api.addSavingsEntry(e))
+}
+
+export function useDeleteSavingsEntry() {
+  return useSavingsMutation((id: number) => api.deleteSavingsEntry(id))
 }

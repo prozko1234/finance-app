@@ -1,4 +1,4 @@
-import type { MonthTaxes, SafeToSpend, Transaction } from '../types'
+import type { MonthTaxes, SafeToSpend, SavingsSummary, Transaction } from '../types'
 import { BASE_CURRENCY } from '../types'
 import { money } from '../format'
 import { buildQuickActions, type QuickAction } from '../quickRepeat'
@@ -10,15 +10,17 @@ interface Props {
   onGoSettings: () => void
   onQuickRepeat: (a: QuickAction) => void
   onEdit: (t: Transaction) => void
+  onGoSavings: () => void
 }
 
-export function Home({ summary, transactions, onDelete, onGoSettings, onQuickRepeat, onEdit }: Props) {
+export function Home({ summary, transactions, onDelete, onGoSettings, onQuickRepeat, onEdit, onGoSavings }: Props) {
   const quick = buildQuickActions(transactions, (name) => ICONS[name] ?? '📦')
 
   return (
     <div className="space-y-6">
       <SafeToSpendCard summary={summary} onGoSettings={onGoSettings} />
       {summary?.monthTaxes && <MonthSummary summary={summary} taxes={summary.monthTaxes} />}
+      {summary && <SavingsCard savings={summary.savings} currency={summary.currency} onOpen={onGoSavings} />}
       {quick.length > 0 && <QuickRow actions={quick} onPick={onQuickRepeat} />}
       <RecentList transactions={transactions} onDelete={onDelete} onEdit={onEdit} />
     </div>
@@ -117,9 +119,49 @@ function MonthSummary({ summary, taxes }: { summary: SafeToSpend; taxes: MonthTa
         {summary.reservedRecurring > 0 && (
           <Row label="Зарезервовано на фіксовані" value={`− ${money(summary.reservedRecurring, c)}`} muted />
         )}
+        {summary.savings.stillToReserve > 0 && (
+          <Row label="Ще відкласти цього місяця" value={`− ${money(summary.savings.stillToReserve, c)}`} muted />
+        )}
         <Row label="Лишилось" value={money(summary.remainingThisMonth ?? 0, c)} strong />
       </dl>
     </div>
+  )
+}
+
+/// The envelope gets its own card, not a line in the summary: Bohdan asked to see it
+/// separately, and a balance that survives across months is a different kind of number
+/// from this month's arithmetic.
+function SavingsCard({ savings, currency, onOpen }: {
+  savings: SavingsSummary; currency: string; onOpen: () => void
+}) {
+  const nothingSetUp = savings.balance === 0 && savings.monthGoal === 0
+  if (nothingSetUp) {
+    return (
+      <button
+        onClick={onOpen}
+        className="w-full rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700 p-4 text-sm text-neutral-500"
+      >
+        + Відкладати щомісяця
+      </button>
+    )
+  }
+
+  const goalMet = savings.monthGoal > 0 && savings.stillToReserve === 0
+
+  return (
+    <button onClick={onOpen} className="w-full rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm text-left">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-sm text-neutral-400">Відкладено</span>
+        <span className="text-2xl font-bold tabular-nums">{money(savings.balance, currency)}</span>
+      </div>
+      {savings.monthGoal > 0 && (
+        <p className="mt-1 text-xs text-neutral-400">
+          {goalMet
+            ? `Ціль місяця ${money(savings.monthGoal, currency)} — виконано ✓`
+            : `Цього місяця ${money(savings.depositedThisMonth, currency)} з ${money(savings.monthGoal, currency)}`}
+        </p>
+      )}
+    </button>
   )
 }
 

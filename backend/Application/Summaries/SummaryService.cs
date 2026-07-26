@@ -3,6 +3,7 @@ using FinanceApp.Application.Common;
 using FinanceApp.Application.Contracts;
 using FinanceApp.Application.Mapping;
 using FinanceApp.Application.Recurring;
+using FinanceApp.Application.Savings;
 using FinanceApp.Domain;
 using FinanceApp.Domain.Budgeting;
 using FinanceApp.Domain.Fx;
@@ -17,7 +18,8 @@ public interface ISummaryService
 }
 
 public sealed class SummaryService(
-    IAppDbContext db, IFxConverter fx, IRecurringMaterializer materializer) : ISummaryService
+    IAppDbContext db, IFxConverter fx, IRecurringMaterializer materializer,
+    IMonthlyBudget monthlyBudget, ISavingsService savings) : ISummaryService
 {
     public async Task<SafeToSpendResponse> GetSafeToSpendAsync(CancellationToken ct = default)
     {
@@ -33,44 +35,25 @@ public sealed class SummaryService(
             .Where(t => t.Kind == TransactionKind.Expense)
             .SumAsync(t => (decimal?)t.AmountBase, ct) ?? 0m;
 
-        // Income rows store revenue (przychód, VAT excluded) in AmountBase.
-        var revenue = await monthRows
-            .Where(t => t.Kind == TransactionKind.Income)
-            .SumAsync(t => (decimal?)t.AmountBase, ct) ?? 0m;
+        var (budget, taxes) = await monthlyBudget.ResolveAsync(ct);
 
-        var reserved = await ReservedRecurringAsync(today, ct);
-        var (budget, taxes) = await ResolveBudgetAsync(revenue, ct);
+        // Savings the user has committed to but not yet moved: hidden from safe-to-spend,
+        // exactly like a not-yet-charged subscription.
+        var savingsStatus = await savings.StatusAsync(budget ?? 0m, ct);
+        var recurring = await ReservedRecurringAsync(today, ct);
 
-        var r = SafeToSpendCalculator.Calculate(budget, spent, reserved, today);
+        var r = SafeToSpendCalculator.Calculate(
+            budget, spent, recurring + savingsStatus.StillToReserve, today);
 
+        // Reported separately from the recurring reserve: the month summary shows them as
+        // two different rows, and lumping them together would make the column unreadable.
         return new SafeToSpendResponse(
             today, Money.BaseCurrency, r.BudgetSet, r.MonthlyBudget, r.SpentThisMonth,
-            r.ReservedRecurring, r.RemainingThisMonth, r.DaysLeftInMonth, r.SafeToSpendToday,
-            taxes?.ToMonthBreakdown());
-    }
-
-    /// Budget comes from this month's income after tax. Taxes (ZUS, health, ryczalt) are
-    /// MONTHLY in Poland, so they are applied once to the month's total revenue — never
-    /// per invoice, which would double-count contributions on multi-invoice months.
-    /// Falls back to the manually set budget when there is no income recorded yet.
-    /// Also returns the tax breakdown behind the budget, so the UI can explain the gap
-    /// between what landed on the account and what is safe to spend.
-    private async Task<(decimal? Budget, TakeHomeBreakdown? Taxes)> ResolveBudgetAsync(
-        decimal monthlyRevenue, CancellationToken ct)
-    {
-        if (monthlyRevenue > 0)
-        {
-            var profile = await db.TaxProfiles.OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
-            if (profile is not null)
-            {
-                var take = TakeHomeCalculator.Calculate(profile, monthlyRevenue, amountIncludesVat: false);
-                if (take.IsSuccess) return (take.Value!.TakeHome, take.Value);
-            }
-            return (monthlyRevenue, null); // no usable tax profile — better than showing nothing
-        }
-
-        var manual = await db.Budgets.OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
-        return (manual?.MonthlyAmount, null);
+            recurring, r.RemainingThisMonth, r.DaysLeftInMonth, r.SafeToSpendToday,
+            taxes?.ToMonthBreakdown(),
+            new SavingsSummary(
+                savingsStatus.Balance, savingsStatus.MonthGoal,
+                savingsStatus.DepositedThisMonth, savingsStatus.StillToReserve));
     }
 
     /// Active recurring whose this-month charge is still in the future = not yet spent.

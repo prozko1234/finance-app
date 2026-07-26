@@ -103,6 +103,46 @@ export interface IncomePreview {
   currency: string
 }
 
+export interface SavingsSummary {
+  balance: number
+  monthGoal: number
+  depositedThisMonth: number
+  stillToReserve: number
+}
+
+export interface SavingsEntry {
+  id: number
+  date: string
+  kind: 'Deposit' | 'Withdrawal'
+  amount: number
+  note: string | null
+}
+
+export interface Savings {
+  mode: 'Fixed' | 'Percent'
+  value: number
+  active: boolean
+  balance: number
+  monthGoal: number
+  depositedThisMonth: number
+  stillToReserve: number
+  currency: string
+  recent: SavingsEntry[]
+}
+
+export interface SaveSavingsPlan {
+  mode: 'Fixed' | 'Percent'
+  value: number
+  active: boolean
+}
+
+export interface SaveSavingsEntry {
+  kind: 'Deposit' | 'Withdrawal'
+  amount: number
+  date?: string | null
+  note?: string | null
+}
+
 export interface SafeToSpend {
   date: string
   currency: string
@@ -114,6 +154,7 @@ export interface SafeToSpend {
   daysLeftInMonth: number
   safeToSpendToday: number | null
   monthTaxes: MonthTaxes | null
+  savings: SavingsSummary
 }
 
 export interface Recurring {

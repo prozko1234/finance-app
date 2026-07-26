@@ -4,6 +4,7 @@ import {
   useBudget, useCategories, useCreateRecurring, useCreateTransaction, useDeleteRecurring,
   useCreateCategory, useCreateIncome, useUpdateTransaction, useDeleteCategory, useDeleteTransaction, useRecurring, useUpdateCategory, useSafeToSpend, useSetBudget, useTransactions,
   useUpdateRecurring, useTaxProfile, useTaxDefaults, useSaveTaxProfile, useCalculateTakeHome,
+  useSavings, useSaveSavingsPlan, useAddSavingsEntry, useDeleteSavingsEntry,
 } from './hooks'
 import { Home } from './components/Home'
 import { AddTransaction } from './components/AddTransaction'
@@ -11,9 +12,10 @@ import { Settings } from './components/Settings'
 import { Recurring } from './components/Recurring'
 import { Tax } from './components/Tax'
 import { Categories } from './components/Categories'
+import { Savings } from './components/Savings'
 import type { QuickAction } from './quickRepeat'
 
-type View = 'home' | 'add' | 'settings' | 'recurring' | 'tax' | 'categories'
+type View = 'home' | 'add' | 'settings' | 'recurring' | 'tax' | 'categories' | 'savings'
 
 function App() {
   const [view, setView] = useState<View>('home')
@@ -24,6 +26,10 @@ function App() {
   const transactions = useTransactions()
   const budget = useBudget()
   const recurring = useRecurring()
+  const savings = useSavings()
+  const saveSavingsPlan = useSaveSavingsPlan()
+  const addSavingsEntry = useAddSavingsEntry()
+  const deleteSavingsEntry = useDeleteSavingsEntry()
   const taxProfile = useTaxProfile()
   const taxDefaults = useTaxDefaults()
   const saveTaxProfile = useSaveTaxProfile()
@@ -92,6 +98,7 @@ function App() {
             transactions={transactions.data ?? []}
             onDelete={(id) => deleteTx.mutate(id)}
             onGoSettings={() => setView('settings')}
+            onGoSavings={() => setView('savings')}
             onQuickRepeat={(a: QuickAction) => createTx.mutate({
               amount: a.amount,
               currency: a.currency,
@@ -121,6 +128,15 @@ function App() {
             onGoRecurring={() => setView('recurring')}
             onGoTax={() => setView('tax')}
             onGoCategories={() => setView('categories')}
+          />
+        )}
+        {view === 'savings' && (
+          <Savings
+            data={savings.data ?? null}
+            onSavePlan={(p) => saveSavingsPlan.mutateAsync(p).then(() => {})}
+            onAddEntry={(kind, amount, note) => addSavingsEntry.mutateAsync({ kind, amount, note }).then(() => {})}
+            onDeleteEntry={(id) => deleteSavingsEntry.mutateAsync(id).then(() => {})}
+            onBack={() => setView('home')}
           />
         )}
         {view === 'recurring' && (

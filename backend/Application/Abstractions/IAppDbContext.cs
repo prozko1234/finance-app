@@ -1,4 +1,5 @@
 using FinanceApp.Domain;
+using FinanceApp.Domain.Savings;
 using Microsoft.EntityFrameworkCore;
 
 namespace FinanceApp.Application.Abstractions;
@@ -14,6 +15,8 @@ public interface IAppDbContext
     DbSet<FxRate> FxRates { get; }
     DbSet<RecurringExpense> RecurringExpenses { get; }
     DbSet<TaxProfile> TaxProfiles { get; }
+    DbSet<SavingsPlan> SavingsPlans { get; }
+    DbSet<SavingsEntry> SavingsEntries { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

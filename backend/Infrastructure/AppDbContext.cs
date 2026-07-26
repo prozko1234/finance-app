@@ -1,5 +1,6 @@
 using FinanceApp.Application.Abstractions;
 using FinanceApp.Domain;
+using FinanceApp.Domain.Savings;
 using Microsoft.EntityFrameworkCore;
 
 namespace FinanceApp.Infrastructure;
@@ -12,6 +13,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Budget> Budgets => Set<Budget>();
     public DbSet<RecurringExpense> RecurringExpenses => Set<RecurringExpense>();
     public DbSet<TaxProfile> TaxProfiles => Set<TaxProfile>();
+    public DbSet<SavingsPlan> SavingsPlans => Set<SavingsPlan>();
+    public DbSet<SavingsEntry> SavingsEntries => Set<SavingsEntry>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -61,6 +64,20 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.HealthContribution).HasPrecision(18, 2);
             e.Property(x => x.Regime).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.ZusType).HasConversion<string>().HasMaxLength(20);
+        });
+
+        b.Entity<SavingsPlan>(e =>
+        {
+            e.Property(x => x.Value).HasPrecision(18, 2);
+            e.Property(x => x.Mode).HasConversion<string>().HasMaxLength(20);
+        });
+
+        b.Entity<SavingsEntry>(e =>
+        {
+            e.Property(x => x.Amount).HasPrecision(18, 2);
+            e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.Note).HasMaxLength(500);
+            e.HasIndex(x => x.Date);
         });
 
         b.Entity<RecurringExpense>(e =>

@@ -8,29 +8,27 @@ function summary(over: Partial<SafeToSpend> = {}): SafeToSpend {
     date: '2026-07-24', currency: 'PLN', budgetSet: true, monthlyBudget: 3000,
     spentThisMonth: 0, reservedRecurring: 0, remainingThisMonth: 3000, daysLeftInMonth: 8, safeToSpendToday: 375,
     monthTaxes: null,
+    savings: { balance: 0, monthGoal: 0, depositedThisMonth: 0, stillToReserve: 0 },
     ...over,
   }
 }
 
 const props = {
   transactions: [], onDelete: vi.fn(), onGoSettings: vi.fn(), onQuickRepeat: vi.fn(), onEdit: vi.fn(),
+  onGoSavings: vi.fn(),
 }
 
 describe('Home', () => {
   it('shows the safe-to-spend number when a budget is set', () => {
-    render(<Home summary={summary()} transactions={[]} onDelete={vi.fn()} onGoSettings={vi.fn()} onQuickRepeat={vi.fn()} onEdit={vi.fn()} />)
+    render(<Home {...props} summary={summary()} />)
     expect(screen.getByText(/375,00/)).toBeInTheDocument()
   })
 
   it('prompts to set a budget when none is set', () => {
     render(
       <Home
+        {...props}
         summary={summary({ budgetSet: false, monthlyBudget: null, remainingThisMonth: null, safeToSpendToday: null })}
-        transactions={[]}
-        onDelete={vi.fn()}
-        onGoSettings={vi.fn()}
-        onQuickRepeat={vi.fn()}
-        onEdit={vi.fn()}
       />,
     )
     expect(screen.getByText(/Задати місячний бюджет/)).toBeInTheDocument()
@@ -54,6 +52,30 @@ describe('Home', () => {
     expect(screen.getByText(/24 600,00/)).toBeInTheDocument()
     expect(screen.getByText('Відкладено на податки')).toBeInTheDocument()
     expect(screen.getByText(/− 9355,00/)).toBeInTheDocument()
+  })
+
+  it('shows the savings envelope as its own number, plus what is still held back', () => {
+    render(
+      <Home
+        {...props}
+        summary={summary({
+          savings: { balance: 5000, monthGoal: 2000, depositedThisMonth: 500, stillToReserve: 1500 },
+          monthTaxes: {
+            gross: 24600, revenue: 20000, vat: 4600, zusSocial: 1788.19,
+            health: 830.58, tax: 2136.23, setAside: 9355, takeHome: 15245,
+          },
+        })}
+      />,
+    )
+
+    expect(screen.getByText('Відкладено')).toBeInTheDocument()
+    expect(screen.getByText(/5000,00/)).toBeInTheDocument()
+    expect(screen.getByText('Ще відкласти цього місяця')).toBeInTheDocument()
+  })
+
+  it('offers to set up saving when the envelope is empty', () => {
+    render(<Home {...props} summary={summary()} />)
+    expect(screen.getByText(/Відкладати щомісяця/)).toBeInTheDocument()
   })
 
   it('hides the month summary when there is no income to explain', () => {

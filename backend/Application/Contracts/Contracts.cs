@@ -72,7 +72,33 @@ public record SafeToSpendResponse(
     decimal? RemainingThisMonth,
     int DaysLeftInMonth,
     decimal? SafeToSpendToday,
-    MonthTaxBreakdown? MonthTaxes);
+    MonthTaxBreakdown? MonthTaxes,
+    SavingsSummary Savings);
+
+/// The savings envelope, shown on its own: a balance that survives across months,
+/// plus how much of this month's goal is still being held back from safe-to-spend.
+public record SavingsSummary(
+    decimal Balance,
+    decimal MonthGoal,
+    decimal DepositedThisMonth,
+    decimal StillToReserve);
+
+public record SaveSavingsPlanRequest(string Mode, decimal Value, bool Active);
+
+public record SaveSavingsEntryRequest(string Kind, decimal Amount, DateOnly? Date, string? Note);
+
+public record SavingsEntryResponse(int Id, DateOnly Date, string Kind, decimal Amount, string? Note);
+
+public record SavingsResponse(
+    string Mode,
+    decimal Value,
+    bool Active,
+    decimal Balance,
+    decimal MonthGoal,
+    decimal DepositedThisMonth,
+    decimal StillToReserve,
+    string Currency,
+    IReadOnlyList<SavingsEntryResponse> Recent);
 
 public record SaveRecurringRequest(
     decimal Amount,

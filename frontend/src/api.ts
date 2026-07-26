@@ -1,6 +1,6 @@
 import type {
   Budget, Category, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
-  IncomePreview, TakeHome, TaxDefaults, TaxProfile, Transaction,
+  IncomePreview, SaveSavingsEntry, SaveSavingsPlan, Savings, TakeHome, TaxDefaults, TaxProfile, Transaction,
 } from './types'
 
 async function http<T>(url: string, options?: RequestInit): Promise<T> {
@@ -64,6 +64,14 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ amount, amountIncludesVat }),
     }),
+  getSavings: () => http<Savings>('/api/savings'),
+  saveSavingsPlan: (p: SaveSavingsPlan) =>
+    http<Savings>('/api/savings/plan', { method: 'PUT', body: JSON.stringify(p) }),
+  addSavingsEntry: (e: SaveSavingsEntry) =>
+    http<Savings>('/api/savings/entries', { method: 'POST', body: JSON.stringify(e) }),
+  deleteSavingsEntry: (id: number) =>
+    http<Savings>(`/api/savings/entries/${id}`, { method: 'DELETE' }),
+
   previewIncome: (amount: number, amountIncludesVat: boolean) =>
     http<IncomePreview>('/api/tax/income-preview', {
       method: 'POST',
