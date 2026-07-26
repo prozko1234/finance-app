@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api'
 import type { SaveCategory, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction } from './types'
@@ -137,4 +138,25 @@ export function useCalculateTakeHome() {
     mutationFn: ({ amount, includesVat }: { amount: number; includesVat: boolean }) =>
       api.calculateTakeHome(amount, includesVat),
   })
+}
+
+/// Live income preview. Debounced so typing "24600" is one request, not five.
+/// Only meaningful in the base currency — the tax engine works in PLN.
+export function useIncomePreview(amount: number, includesVat: boolean, enabled: boolean) {
+  const debounced = useDebounced(amount, 350)
+  return useQuery({
+    queryKey: ['incomePreview', debounced, includesVat],
+    queryFn: () => api.previewIncome(debounced, includesVat),
+    enabled: enabled && debounced > 0,
+    staleTime: 60_000,
+  })
+}
+
+function useDebounced<T>(value: T, ms: number): T {
+  const [settled, setSettled] = useState(value)
+  useEffect(() => {
+    const id = setTimeout(() => setSettled(value), ms)
+    return () => clearTimeout(id)
+  }, [value, ms])
+  return settled
 }

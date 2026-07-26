@@ -116,6 +116,21 @@ public record TaxDefaultsResponse(
 
 public record CalculateTakeHomeRequest(decimal Amount, bool AmountIncludesVat);
 
+/// Answers "what does this invoice actually add to my budget?" while the user is still typing.
+/// Deliberately expressed as a DELTA over the month, not as a standalone invoice calculation:
+/// ZUS and health are monthly, so a second invoice adds more take-home than the first one did.
+/// Showing a per-invoice figure here would contradict the home screen.
+public record IncomePreviewResponse(
+    decimal InvoiceGross,     // з VAT — скільки прийде на рахунок
+    decimal InvoiceVat,
+    decimal InvoiceRevenue,   // przychód цієї фактури
+    decimal BudgetBefore,     // бюджет місяця зараз
+    decimal BudgetAfter,
+    decimal BudgetDelta,      // += до бюджету за цю фактуру
+    bool IsFirstIncomeThisMonth,
+    MonthTaxBreakdown MonthAfter,
+    string Currency);
+
 public record TakeHomeResponse(
     decimal GrossWithVat,
     decimal VatAmount,

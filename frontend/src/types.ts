@@ -89,6 +89,20 @@ export interface MonthTaxes {
   takeHome: number
 }
 
+/// Live feedback while typing an invoice: what it adds to THIS month's budget.
+/// A monthly delta, not a per-invoice figure — contributions are monthly.
+export interface IncomePreview {
+  invoiceGross: number
+  invoiceVat: number
+  invoiceRevenue: number
+  budgetBefore: number
+  budgetAfter: number
+  budgetDelta: number
+  isFirstIncomeThisMonth: boolean
+  monthAfter: MonthTaxes
+  currency: string
+}
+
 export interface SafeToSpend {
   date: string
   currency: string

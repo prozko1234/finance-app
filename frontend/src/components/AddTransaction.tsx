@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import type { Category, Priority, SaveCategory, SaveIncome, SaveTransaction, Transaction } from '../types'
-import { CURRENCIES, shiftIso, todayIso } from '../types'
+import { BASE_CURRENCY, CURRENCIES, shiftIso, todayIso } from '../types'
+import { money } from '../format'
+import { useIncomePreview } from '../hooks'
 import { readLastUsed, writeLastUsed } from '../lastUsed'
 
 interface Props {
@@ -137,10 +139,7 @@ export function AddTransaction({ categories, onSave, onSaveIncome, onCreateCateg
                 ))}
               </div>
             </div>
-            <p className="text-xs text-neutral-400">
-              VAT відділиться автоматично, а податки за місяць порахуються від сумарного
-              доходу — так бюджет показує реальні гроші.
-            </p>
+            <IncomePreviewBlock amount={amountNum} includesVat={includesVat} currency={currency} />
           </>
         ) : (
           <>
@@ -281,6 +280,67 @@ export function AddTransaction({ categories, onSave, onSaveIncome, onCreateCateg
       >
         {saving ? 'Зберігаю…' : editing ? 'Зберегти зміни' : 'Зберегти'}
       </button>
+    </div>
+  )
+}
+
+/// The point of M13: the form answers "what does this actually give me" while you type,
+/// so there is no reason to reach for an external calculator.
+/// Shows a MONTHLY delta — a second invoice adds more than the first, because ZUS and
+/// health are already covered. A per-invoice figure here would contradict the home screen.
+function IncomePreviewBlock({ amount, includesVat, currency }: {
+  amount: number; includesVat: boolean; currency: string
+}) {
+  const isBase = currency === BASE_CURRENCY
+  const { data, isFetching } = useIncomePreview(amount, includesVat, isBase)
+
+  if (!isBase) {
+    return (
+      <p className="text-xs text-neutral-400">
+        Розклад податків рахується в {BASE_CURRENCY}. Дохід у {currency} перерахується
+        за курсом при збереженні.
+      </p>
+    )
+  }
+
+  if (!data) {
+    return (
+      <p className="text-xs text-neutral-400">
+        {amount > 0 ? 'Рахую…' : 'Введи суму — покажу, скільки з неї твоє.'}
+      </p>
+    )
+  }
+
+  return (
+    <div className={`rounded-xl bg-neutral-50 dark:bg-neutral-800/60 p-3 space-y-2 ${isFetching ? 'opacity-60' : ''}`}>
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-xs text-neutral-400">Твоє з цієї суми</span>
+        <span className="text-2xl font-bold tabular-nums text-emerald-600">
+          + {money(data.budgetDelta, data.currency)}
+        </span>
+      </div>
+
+      <div className="text-xs text-neutral-400 space-y-0.5">
+        <div className="flex justify-between gap-3">
+          <span>Прийде на рахунок</span>
+          <span className="tabular-nums">{money(data.invoiceGross, data.currency)}</span>
+        </div>
+        <div className="flex justify-between gap-3">
+          <span>VAT</span>
+          <span className="tabular-nums">− {money(data.invoiceVat, data.currency)}</span>
+        </div>
+        {!data.isFirstIncomeThisMonth && (
+          <div className="flex justify-between gap-3">
+            <span>ZUS і здоровотна вже покриті цього місяця</span>
+            <span className="tabular-nums">−</span>
+          </div>
+        )}
+      </div>
+
+      <div className="flex justify-between gap-3 border-t border-neutral-200 dark:border-neutral-700 pt-1.5 text-xs">
+        <span className="text-neutral-400">Бюджет місяця стане</span>
+        <span className="tabular-nums font-medium">{money(data.budgetAfter, data.currency)}</span>
+      </div>
     </div>
   )
 }

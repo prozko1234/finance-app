@@ -1,5 +1,7 @@
 using FinanceApp.Application.Abstractions;
+using FinanceApp.Application.Common;
 using FinanceApp.Application.Contracts;
+using FinanceApp.Application.Mapping;
 using FinanceApp.Application.Recurring;
 using FinanceApp.Domain;
 using FinanceApp.Domain.Budgeting;
@@ -23,8 +25,7 @@ public sealed class SummaryService(
         await materializer.MaterializeDueAsync(ct);
 
         var today = DateOnly.FromDateTime(DateTime.Now);
-        var first = new DateOnly(today.Year, today.Month, 1);
-        var last = new DateOnly(today.Year, today.Month, DateTime.DaysInMonth(today.Year, today.Month));
+        var (first, last) = MonthRange.Of(today);
 
         var monthRows = db.Transactions.Where(t => t.Date >= first && t.Date <= last);
 
@@ -45,11 +46,8 @@ public sealed class SummaryService(
         return new SafeToSpendResponse(
             today, Money.BaseCurrency, r.BudgetSet, r.MonthlyBudget, r.SpentThisMonth,
             r.ReservedRecurring, r.RemainingThisMonth, r.DaysLeftInMonth, r.SafeToSpendToday,
-            taxes is null ? null : ToBreakdown(taxes));
+            taxes?.ToMonthBreakdown());
     }
-
-    private static MonthTaxBreakdown ToBreakdown(TakeHomeBreakdown b) => new(
-        b.GrossWithVat, b.Revenue, b.VatAmount, b.ZusSocial, b.HealthContribution, b.Tax, b.SetAside, b.TakeHome);
 
     /// Budget comes from this month's income after tax. Taxes (ZUS, health, ryczalt) are
     /// MONTHLY in Poland, so they are applied once to the month's total revenue — never

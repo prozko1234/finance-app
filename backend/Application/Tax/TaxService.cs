@@ -1,5 +1,7 @@
 using FinanceApp.Application.Abstractions;
+using FinanceApp.Application.Common;
 using FinanceApp.Application.Contracts;
+using FinanceApp.Application.Mapping;
 using FinanceApp.Domain;
 using FinanceApp.Domain.Common;
 using FinanceApp.Domain.Tax;
@@ -12,6 +14,7 @@ public interface ITaxService
     Task<TaxProfileResponse> GetProfileAsync(CancellationToken ct = default);
     Task<Result<TaxProfileResponse>> SaveProfileAsync(SaveTaxProfileRequest req, CancellationToken ct = default);
     Task<Result<TakeHomeResponse>> CalculateAsync(CalculateTakeHomeRequest req, CancellationToken ct = default);
+    Task<Result<IncomePreviewResponse>> PreviewIncomeAsync(CalculateTakeHomeRequest req, CancellationToken ct = default);
     TaxDefaultsResponse GetDefaults();
 }
 
@@ -64,6 +67,42 @@ public sealed class TaxService(IAppDbContext db) : ITaxService
         return Result<TakeHomeResponse>.Ok(new TakeHomeResponse(
             b.GrossWithVat, b.VatAmount, b.Revenue, b.ZusSocial, b.HealthContribution,
             b.HealthDeducted, b.TaxBase, b.Tax, b.TakeHome, Money.BaseCurrency));
+    }
+
+    /// Live feedback while typing an invoice: what it adds to THIS MONTH's budget.
+    /// The delta is taxed(revenue so far + this invoice) - taxed(revenue so far), so ZUS and
+    /// health are never charged twice — the second invoice of a month legitimately adds more
+    /// take-home than the first. Matches what the home screen will show after saving.
+    public async Task<Result<IncomePreviewResponse>> PreviewIncomeAsync(
+        CalculateTakeHomeRequest req, CancellationToken ct = default)
+    {
+        var p = await LoadOrDefaultAsync(ct);
+
+        var invoice = TakeHomeCalculator.Calculate(p, req.Amount, req.AmountIncludesVat);
+        if (!invoice.IsSuccess) return invoice.Error;
+
+        var (first, last) = MonthRange.Of(DateOnly.FromDateTime(DateTime.Now));
+        var revenueSoFar = await db.Transactions
+            .Where(t => t.Date >= first && t.Date <= last && t.Kind == TransactionKind.Income)
+            .SumAsync(t => (decimal?)t.AmountBase, ct) ?? 0m;
+
+        var after = TakeHomeCalculator.Calculate(p, revenueSoFar + invoice.Value!.Revenue, amountIncludesVat: false);
+        if (!after.IsSuccess) return after.Error;
+
+        // No income yet = no budget from income yet, so the whole take-home is the delta.
+        var budgetBefore = 0m;
+        if (revenueSoFar > 0)
+        {
+            var before = TakeHomeCalculator.Calculate(p, revenueSoFar, amountIncludesVat: false);
+            if (!before.IsSuccess) return before.Error;
+            budgetBefore = before.Value!.TakeHome;
+        }
+
+        var b = invoice.Value!;
+        return Result<IncomePreviewResponse>.Ok(new IncomePreviewResponse(
+            b.GrossWithVat, b.VatAmount, b.Revenue,
+            budgetBefore, after.Value!.TakeHome, after.Value!.TakeHome - budgetBefore,
+            revenueSoFar == 0m, after.Value!.ToMonthBreakdown(), Money.BaseCurrency));
     }
 
     public TaxDefaultsResponse GetDefaults() => new(

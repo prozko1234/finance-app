@@ -1,6 +1,6 @@
 import type {
   Budget, Category, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
-  TakeHome, TaxDefaults, TaxProfile, Transaction,
+  IncomePreview, TakeHome, TaxDefaults, TaxProfile, Transaction,
 } from './types'
 
 async function http<T>(url: string, options?: RequestInit): Promise<T> {
@@ -61,6 +61,11 @@ export const api = {
   getTaxDefaults: () => http<TaxDefaults>('/api/tax/defaults'),
   calculateTakeHome: (amount: number, amountIncludesVat: boolean) =>
     http<TakeHome>('/api/tax/take-home', {
+      method: 'POST',
+      body: JSON.stringify({ amount, amountIncludesVat }),
+    }),
+  previewIncome: (amount: number, amountIncludesVat: boolean) =>
+    http<IncomePreview>('/api/tax/income-preview', {
       method: 'POST',
       body: JSON.stringify({ amount, amountIncludesVat }),
     }),

@@ -28,6 +28,13 @@ public static class TaxEndpoints
             return r.IsSuccess ? Results.Ok(r.Value) : r.Error.ToProblem();
         });
 
+        // Live preview while typing an invoice — what it adds to this month's budget.
+        g.MapPost("/income-preview", async (CalculateTakeHomeRequest req, ITaxService svc, CancellationToken ct) =>
+        {
+            var r = await svc.PreviewIncomeAsync(req, ct);
+            return r.IsSuccess ? Results.Ok(r.Value) : r.Error.ToProblem();
+        });
+
         return app;
     }
 }
