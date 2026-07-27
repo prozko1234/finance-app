@@ -1,12 +1,12 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, type Mock } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Recurring } from './Recurring'
-import type { Category, Recurring as RecurringType } from '../types'
+import type { Category, Recurring as RecurringType, SaveRecurring } from '../types'
 
 const categories: Category[] = [
-  { id: 1, name: 'Підписки', icon: '📺', isDefault: true },
-  { id: 2, name: 'Житло', icon: '🏠', isDefault: true },
+  { id: 1, name: 'Підписки', icon: '📺', sortOrder: 1, isSystem: false },
+  { id: 2, name: 'Житло', icon: '🏠', sortOrder: 2, isSystem: false },
 ]
 
 function item(over: Partial<RecurringType> = {}): RecurringType {
@@ -17,11 +17,16 @@ function item(over: Partial<RecurringType> = {}): RecurringType {
   }
 }
 
-function props(over: Partial<Parameters<typeof Recurring>[0]> = {}) {
+/// Mocks stay typed as mocks (not as the plain prop signatures) so the assertions
+/// can read `.mock.calls` without casting.
+function props(over: { items?: RecurringType[]; onCreate?: Mock } = {}) {
   return {
-    categories, items: [], onCreate: vi.fn().mockResolvedValue(undefined), onToggle: vi.fn(),
-    onDelete: vi.fn().mockResolvedValue(undefined), onBack: vi.fn(),
-    ...over,
+    categories,
+    items: over.items ?? [],
+    onCreate: over.onCreate ?? vi.fn<(r: SaveRecurring) => Promise<void>>().mockResolvedValue(undefined),
+    onToggle: vi.fn(),
+    onDelete: vi.fn<(id: number) => Promise<void>>().mockResolvedValue(undefined),
+    onBack: vi.fn(),
   }
 }
 
