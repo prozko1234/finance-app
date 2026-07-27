@@ -8,9 +8,11 @@ interface Props {
   onGoRecurring: () => void
   onGoTax: () => void
   onGoCategories: () => void
+  /// Only provided in a dev build — the API exposes these endpoints in Development only.
+  onGoDev?: () => void
 }
 
-export function Settings({ budget, onSave, onBack, onGoRecurring, onGoTax, onGoCategories }: Props) {
+export function Settings({ budget, onSave, onBack, onGoRecurring, onGoTax, onGoCategories, onGoDev }: Props) {
   const [amount, setAmount] = useState(budget?.monthlyAmount != null ? String(budget.monthlyAmount) : '')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -89,6 +91,16 @@ export function Settings({ budget, onSave, onBack, onGoRecurring, onGoTax, onGoC
         <span className="font-medium">Податки й take-home (B2B)</span>
         <span className="text-neutral-400">→</span>
       </button>
+
+      {onGoDev && (
+        <button
+          onClick={onGoDev}
+          className="w-full flex items-center justify-between rounded-2xl bg-white dark:bg-neutral-900 px-5 py-4 shadow-sm"
+        >
+          <span className="font-medium">Тестові дані</span>
+          <span className="text-neutral-400">→</span>
+        </button>
+      )}
 
       <p className="text-xs text-neutral-400 text-center">
         Safe-to-spend рахується від цього бюджета. Банківський синк — у майбутніх версіях.

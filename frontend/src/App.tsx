@@ -13,9 +13,10 @@ import { Recurring } from './components/Recurring'
 import { Tax } from './components/Tax'
 import { Categories } from './components/Categories'
 import { Savings } from './components/Savings'
+import { DevTools } from './components/DevTools'
 
 
-type View = 'home' | 'add' | 'settings' | 'recurring' | 'tax' | 'categories' | 'savings'
+type View = 'home' | 'add' | 'settings' | 'recurring' | 'tax' | 'categories' | 'savings' | 'dev'
 
 function App() {
   const [view, setView] = useState<View>('home')
@@ -124,8 +125,10 @@ function App() {
             onGoRecurring={() => setView('recurring')}
             onGoTax={() => setView('tax')}
             onGoCategories={() => setView('categories')}
+            onGoDev={import.meta.env.DEV ? () => setView('dev') : undefined}
           />
         )}
+        {view === 'dev' && <DevTools onBack={() => setView('settings')} />}
         {view === 'savings' && (
           <Savings
             data={savings.data ?? null}

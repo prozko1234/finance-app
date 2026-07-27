@@ -72,6 +72,9 @@ export const api = {
   deleteSavingsEntry: (id: number) =>
     http<Savings>(`/api/savings/entries/${id}`, { method: 'DELETE' }),
 
+  resetDevData: () => http<{ message: string }>('/api/dev/reset', { method: 'POST' }),
+  seedDevData: () => http<{ message: string }>('/api/dev/seed', { method: 'POST' }),
+
   previewIncome: (amount: number, amountIncludesVat: boolean) =>
     http<IncomePreview>('/api/tax/income-preview', {
       method: 'POST',

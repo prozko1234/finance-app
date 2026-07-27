@@ -191,3 +191,18 @@ export function useAddSavingsEntry() {
 export function useDeleteSavingsEntry() {
   return useSavingsMutation((id: number) => api.deleteSavingsEntry(id))
 }
+
+/// Dev-only helpers. The endpoints exist only when the API runs in Development;
+/// everything is refetched afterwards because every screen's data just changed.
+export function useDevData() {
+  const qc = useQueryClient()
+  const run = (fn: () => Promise<{ message: string }>) => ({
+    mutationFn: fn,
+    onSuccess: () => qc.invalidateQueries(),
+  })
+
+  return {
+    reset: useMutation(run(api.resetDevData)),
+    seed: useMutation(run(api.seedDevData)),
+  }
+}

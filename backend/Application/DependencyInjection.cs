@@ -2,6 +2,7 @@ using System.Reflection;
 using FinanceApp.Application.Budgets;
 using FinanceApp.Application.Categories;
 using FinanceApp.Application.Recurring;
+using FinanceApp.Application.Dev;
 using FinanceApp.Application.Savings;
 using FinanceApp.Application.Summaries;
 using FinanceApp.Application.Tax;
@@ -20,6 +21,7 @@ public static class DependencyInjection
         services.AddScoped<ISummaryService, SummaryService>();
         services.AddScoped<IMonthlyBudget, MonthlyBudget>();
         services.AddScoped<ISavingsService, SavingsService>();
+        services.AddScoped<IDevDataService, DevDataService>();
         services.AddScoped<ICategoryService, CategoryService>();
         services.AddScoped<IRecurringService, RecurringService>();
         services.AddScoped<IRecurringMaterializer, RecurringMaterializer>();

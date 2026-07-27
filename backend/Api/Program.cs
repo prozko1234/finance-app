@@ -57,6 +57,9 @@ app.MapRecurringEndpoints();
 app.MapTaxEndpoints();
 app.MapSavingsEndpoints();
 
+// Reset/seed helpers — local development only, never in a deployed build.
+if (app.Environment.IsDevelopment()) app.MapDevEndpoints();
+
 app.Run();
 
 public partial class Program { } // marker for integration tests (WebApplicationFactory)
