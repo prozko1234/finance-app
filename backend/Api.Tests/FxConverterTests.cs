@@ -91,4 +91,74 @@ public class FxConverterTests
         Assert.False(r.IsSuccess);
         Assert.Equal(ErrorType.Unsupported, r.Error.Type);
     }
+
+    [Fact]
+    public async Task From_base_reads_a_pln_amount_out_in_another_currency()
+    {
+        using var mem = new SqliteInMemory();
+        var fake = new FakeRateProvider(new FxQuote(4m, D));
+        var sut = new CachingFxConverter(mem.Db, new[] { fake });
+
+        var r = await sut.ConvertFromBaseAsync(100m, "USD", D);
+
+        Assert.True(r.IsSuccess);
+        Assert.Equal(25m, r.Value!.AmountBase);
+        Assert.Equal(4m, r.Value.Rate);
+    }
+
+    [Fact]
+    public async Task From_base_uses_the_rate_of_the_given_date_not_of_today()
+    {
+        using var mem = new SqliteInMemory();
+        // Two dates, two rates: the record's own date must decide, or a July expense
+        // would quietly change size every time the zloty moves.
+        var july = new DateOnly(2026, 7, 3);
+        var december = new DateOnly(2026, 12, 3);
+        var provider = new RatesByDateProvider(new()
+        {
+            [july] = new FxQuote(4m, july),
+            [december] = new FxQuote(5m, december),
+        });
+        var sut = new CachingFxConverter(mem.Db, new[] { provider });
+
+        var atJuly = await sut.ConvertFromBaseAsync(100m, "USD", july);
+        var atDecember = await sut.ConvertFromBaseAsync(100m, "USD", december);
+
+        Assert.Equal(25m, atJuly.Value!.AmountBase);
+        Assert.Equal(20m, atDecember.Value!.AmountBase);
+    }
+
+    [Fact]
+    public async Task From_base_is_one_to_one_for_pln()
+    {
+        using var mem = new SqliteInMemory();
+        var fake = new FakeRateProvider(new FxQuote(9.99m, D));
+        var sut = new CachingFxConverter(mem.Db, new[] { fake });
+
+        var r = await sut.ConvertFromBaseAsync(123.45m, "PLN", D);
+
+        Assert.True(r.IsSuccess);
+        Assert.Equal(123.45m, r.Value!.AmountBase);
+        Assert.Equal(0, fake.Calls);
+    }
+
+    [Fact]
+    public async Task From_base_fails_when_no_source_quotes_the_currency()
+    {
+        using var mem = new SqliteInMemory();
+        var sut = new CachingFxConverter(mem.Db, new[] { new FakeRateProvider(null) });
+
+        var r = await sut.ConvertFromBaseAsync(100m, "XYZ", D);
+
+        Assert.False(r.IsSuccess);
+    }
+
+    /// Quotes a different rate per date — the point of the historical lookup.
+    private sealed class RatesByDateProvider(Dictionary<DateOnly, FxQuote> rates) : IFxRateProvider
+    {
+        public string Name => "byDate";
+
+        public Task<FxQuote?> GetPlnPerUnitAsync(string currency, DateOnly date, CancellationToken ct = default)
+            => Task.FromResult(rates.TryGetValue(date, out var q) ? q : null);
+    }
 }

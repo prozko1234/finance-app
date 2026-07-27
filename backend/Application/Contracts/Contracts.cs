@@ -229,3 +229,13 @@ public record RecurringResponse(
     string? Note,
     string Kind,
     bool AmountIncludesVat);
+
+/// App-wide settings. <paramref name="BaseCurrency"/> is what the app stores in; the user
+/// only chooses what to read. <paramref name="TaxesInBaseCurrency"/> tells the UI it must
+/// say the tax split is still computed in PLN.
+public record AppSettingsResponse(
+    string DisplayCurrency,
+    string BaseCurrency,
+    bool TaxesInBaseCurrency);
+
+public record SetDisplayCurrencyRequest(string Currency);

@@ -46,19 +46,31 @@ public sealed class FakeFxConverter : IFxConverter
     public Task<Result<FxConversion>> ConvertToBaseAsync(
         decimal amount, string currency, DateOnly date, CancellationToken ct = default)
     {
-        decimal? rate = currency.ToUpperInvariant() switch
-        {
-            "PLN" => 1m,
-            "USD" => 4.0m,
-            "EUR" => 4.3m,
-            "UAH" => 0.1m,
-            _ => null,
-        };
-
+        var rate = RateFor(currency);
         if (rate is null)
             return Task.FromResult(Result<FxConversion>.Fail(Error.Unsupported($"no rate for {currency}")));
 
         var baseAmount = Math.Round(amount * rate.Value, 2, MidpointRounding.AwayFromZero);
         return Task.FromResult(Result<FxConversion>.Ok(new FxConversion(baseAmount, rate.Value, date)));
     }
+
+    public Task<Result<FxConversion>> ConvertFromBaseAsync(
+        decimal baseAmount, string currency, DateOnly date, CancellationToken ct = default)
+    {
+        var rate = RateFor(currency);
+        if (rate is null)
+            return Task.FromResult(Result<FxConversion>.Fail(Error.Unsupported($"no rate for {currency}")));
+
+        var amount = Math.Round(baseAmount / rate.Value, 2, MidpointRounding.AwayFromZero);
+        return Task.FromResult(Result<FxConversion>.Ok(new FxConversion(amount, rate.Value, date)));
+    }
+
+    private static decimal? RateFor(string currency) => currency.ToUpperInvariant() switch
+    {
+        "PLN" => 1m,
+        "USD" => 4.0m,
+        "EUR" => 4.3m,
+        "UAH" => 0.1m,
+        _ => null,
+    };
 }

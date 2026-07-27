@@ -18,6 +18,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<SavingsEntry> SavingsEntries => Set<SavingsEntry>();
     public DbSet<AllocationScheme> AllocationSchemes => Set<AllocationScheme>();
     public DbSet<AllocationBucket> AllocationBuckets => Set<AllocationBucket>();
+    public DbSet<AppSettings> AppSettings => Set<AppSettings>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -109,6 +110,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         b.Entity<Budget>(e =>
         {
             e.Property(x => x.MonthlyAmount).HasPrecision(18, 2);
+        });
+
+        b.Entity<AppSettings>(e =>
+        {
+            e.Property(x => x.DisplayCurrency).HasMaxLength(3).IsRequired();
         });
 
         b.Entity<AllocationScheme>(e =>

@@ -28,6 +28,22 @@ public sealed class CachingFxConverter(AppDbContext db, IEnumerable<IFxRateProvi
         return Result<FxConversion>.Ok(new FxConversion(Round(amount * plnPerUnit), plnPerUnit, effectiveDate));
     }
 
+    public async Task<Result<FxConversion>> ConvertFromBaseAsync(
+        decimal baseAmount, string currency, DateOnly date, CancellationToken ct = default)
+    {
+        currency = currency.ToUpperInvariant();
+        if (currency == Money.BaseCurrency)
+            return Result<FxConversion>.Ok(new FxConversion(Round(baseAmount), 1m, date));
+
+        var rate = await GetRateAsync(currency, date, ct);
+        if (rate is null)
+            return Error.Unsupported(
+                $"Не вдалося отримати курс {currency}→PLN на {date:yyyy-MM-dd} (джерела недоступні або валюта не підтримується).");
+
+        var (plnPerUnit, effectiveDate) = rate.Value;
+        return Result<FxConversion>.Ok(new FxConversion(Round(baseAmount / plnPerUnit), plnPerUnit, effectiveDate));
+    }
+
     private async Task<(decimal rate, DateOnly effectiveDate)?> GetRateAsync(
         string currency, DateOnly date, CancellationToken ct)
     {

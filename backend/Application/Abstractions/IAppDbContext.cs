@@ -20,6 +20,7 @@ public interface IAppDbContext
     DbSet<SavingsEntry> SavingsEntries { get; }
     DbSet<AllocationScheme> AllocationSchemes { get; }
     DbSet<AllocationBucket> AllocationBuckets { get; }
+    DbSet<AppSettings> AppSettings { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

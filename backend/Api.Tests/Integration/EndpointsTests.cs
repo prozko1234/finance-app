@@ -98,4 +98,38 @@ public class EndpointsTests(TestApiFactory factory) : IClassFixture<TestApiFacto
         var res = await _client.PutAsJsonAsync("/api/budget", new { amount = -5m });
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
     }
+
+    [Fact]
+    public async Task Settings_default_to_reading_in_the_base_currency()
+    {
+        var res = await _client.GetAsync("/api/settings");
+        res.EnsureSuccessStatusCode();
+
+        var json = await res.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("PLN", json.GetProperty("displayCurrency").GetString());
+        Assert.False(json.GetProperty("taxesInBaseCurrency").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Choosing_a_currency_without_a_rate_is_refused()
+    {
+        var res = await _client.PutAsJsonAsync("/api/settings/currency", new { currency = "XYZ" });
+
+        // Shape is fine, so this is a business refusal, not a validation one.
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, res.StatusCode);
+    }
+
+    [Fact]
+    public async Task Choosing_uah_flags_that_taxes_stay_in_pln()
+    {
+        var res = await _client.PutAsJsonAsync("/api/settings/currency", new { currency = "uah" });
+        res.EnsureSuccessStatusCode();
+
+        var json = await res.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("UAH", json.GetProperty("displayCurrency").GetString());
+        Assert.True(json.GetProperty("taxesInBaseCurrency").GetBoolean());
+
+        // Put it back — the fixture's database is shared across tests in this class.
+        await _client.PutAsJsonAsync("/api/settings/currency", new { currency = "PLN" });
+    }
 }
