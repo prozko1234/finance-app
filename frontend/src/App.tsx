@@ -145,7 +145,7 @@ function App() {
             items={recurring.data ?? []}
             onCreate={(r) => createRecurring.mutateAsync(r).then(() => {})}
             onToggle={toggleRecurring}
-            onDelete={(id) => deleteRecurring.mutate(id)}
+            onDelete={(id) => deleteRecurring.mutateAsync(id).then(() => {})}
             onBack={() => setView('settings')}
           />
         )}
