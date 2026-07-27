@@ -97,16 +97,46 @@ public class TakeHomeCalculatorTests
         Assert.Equal(b.TakeHome, b.GrossWithVat - b.SetAside);
     }
 
-    [Fact]
-    public void Unsupported_regime_fails_explicitly()
+    [Theory]
+    [InlineData(TaxRegime.UoP)]
+    [InlineData(TaxRegime.Zlecenie)]
+    public void Regime_without_a_formula_yet_fails_explicitly(TaxRegime regime)
     {
         var p = Profile();
-        p.Regime = TaxRegime.Liniowy;
+        p.Regime = regime;
 
         var r = TakeHomeCalculator.Calculate(p, 10_000m, amountIncludesVat: false);
 
         Assert.False(r.IsSuccess);
         Assert.Equal(ErrorType.Unsupported, r.Error.Type);
+    }
+
+    /// Someone who has not set up taxes at all must still get a working budget —
+    /// an untouched profile may not quietly deduct anything.
+    [Fact]
+    public void Untouched_profile_takes_nothing_away()
+    {
+        var b = TakeHomeCalculator.Calculate(new TaxProfile(), 5_000m, amountIncludesVat: true).Value!;
+
+        Assert.Equal(5_000m, b.TakeHome);
+    }
+
+    /// "Just money": whatever the user typed is theirs, and no VAT setting on the
+    /// profile may quietly shave a percentage off it.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void None_regime_keeps_the_whole_amount(bool amountIncludesVat)
+    {
+        var p = Profile();
+        p.Regime = TaxRegime.None;
+
+        var b = TakeHomeCalculator.Calculate(p, 4_200m, amountIncludesVat).Value!;
+
+        Assert.Equal(4_200m, b.TakeHome);
+        Assert.Equal(4_200m, b.Revenue);
+        Assert.Equal(4_200m, b.GrossWithVat);
+        Assert.Equal(0m, b.SetAside);
     }
 
     [Theory]

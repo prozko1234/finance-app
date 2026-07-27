@@ -9,7 +9,9 @@ public class TaxProfile
 {
     public int Id { get; set; }
 
-    public TaxRegime Regime { get; set; } = TaxRegime.Ryczalt;
+    /// None by default: a new user is not assumed to be a B2B contractor. The remaining
+    /// defaults below are prefills for the form once a business regime is chosen.
+    public TaxRegime Regime { get; set; } = TaxRegime.None;
     /// Ryczalt rate as a fraction, e.g. 0.12 for 12%.
     public decimal RyczaltRate { get; set; } = 0.12m;
 

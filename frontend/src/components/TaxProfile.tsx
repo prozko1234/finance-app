@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { SaveTaxProfile, TaxDefaults, TaxProfile as TaxProfileData } from '../types'
+import type { SaveTaxProfile, TaxDefaults, TaxRegime, TaxProfile as TaxProfileData } from '../types'
 import { money } from '../format'
 
 interface Props {
@@ -21,20 +21,31 @@ export function TaxProfile({ profile, defaults, onSave, onBack }: Props) {
       </div>
 
       <p className="text-sm text-neutral-500">
-        За цими ставками рахується твій бюджет місяця, коли ти вписуєш дохід.
+        Звідси береться твій бюджет місяця, коли ти вписуєш дохід.
       </p>
 
       {profile
         ? <ProfileForm profile={profile} defaults={defaults} onSave={onSave} />
         : <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm animate-pulse h-40" />}
 
-      <p className="text-xs text-neutral-400 text-center leading-relaxed">
-        Розрахунок орієнтовний, для ryczałt. Ставки на {defaults?.year ?? '—'} рік — звір із
-        книговою: вони змінюються щороку.
-      </p>
+      {profile?.regime === 'Ryczalt' && (
+        <p className="text-xs text-neutral-400 text-center leading-relaxed">
+          Розрахунок орієнтовний. Ставки на {defaults?.year ?? '—'} рік — звір із
+          книговою: вони змінюються щороку.
+        </p>
+      )}
     </div>
   )
 }
+
+/// `soon` = the backend still returns Unsupported for it, so it must not be selectable —
+/// picking it would break income entry instead of the profile screen, far from the cause.
+const REGIMES: { value: TaxRegime; label: string; hint: string; soon?: boolean }[] = [
+  { value: 'None', label: 'Просто гроші', hint: 'Скільки прийшло — стільки й твоє' },
+  { value: 'Ryczalt', label: 'B2B, ryczałt', hint: 'VAT, ZUS і здоровотна відкладаються самі' },
+  { value: 'UoP', label: 'Умова о праце', hint: 'Brutto з умови → netto на руки', soon: true },
+  { value: 'Zlecenie', label: 'Умова злеценя', hint: 'Brutto з умови → netto на руки', soon: true },
+]
 
 function ProfileForm({
   profile, defaults, onSave,
@@ -60,6 +71,32 @@ function ProfileForm({
 
   return (
     <div className="rounded-2xl bg-white dark:bg-neutral-900 p-5 shadow-sm space-y-4">
+      <div className="space-y-2">
+        {REGIMES.map((r) => (
+          <button
+            key={r.value}
+            disabled={r.soon}
+            onClick={() => set('regime', r.value)}
+            className={`w-full rounded-xl px-3 py-2.5 text-left ${
+              form.regime === r.value
+                ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+                : 'bg-neutral-100 dark:bg-neutral-800 disabled:opacity-40'
+            }`}
+          >
+            <span className="text-sm font-medium">{r.label}{r.soon && ' · скоро'}</span>
+            <span className={`block text-xs ${form.regime === r.value ? 'opacity-70' : 'text-neutral-400'}`}>
+              {r.hint}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {form.regime === 'None' ? (
+        <p className="text-sm text-neutral-500">
+          Скільки вписав — стільки й твоє. Ні податків, ні внесків рахувати не треба.
+        </p>
+      ) : (
+      <>
       <Field label="Ставка ryczałt, %">
         <input
           inputMode="decimal" value={Math.round(form.ryczaltRate * 1000) / 10}
@@ -108,6 +145,8 @@ function ProfileForm({
           <p>Підказки {defaults.year}: duży без chorobowego {money(defaults.duzyWithoutChorobowe, 'PLN')}, з ним {money(defaults.duzyWithChorobowe, 'PLN')}.</p>
           <p>Здоровотна: до 60k {money(defaults.healthUnder60k, 'PLN')} · 60–300k {money(defaults.health60kTo300k, 'PLN')} · 300k+ {money(defaults.healthOver300k, 'PLN')}.</p>
         </div>
+      )}
+      </>
       )}
 
       <button

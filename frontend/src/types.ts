@@ -193,8 +193,11 @@ export interface SaveRecurring {
 export const BASE_CURRENCY = 'PLN'
 export const CURRENCIES = ['PLN', 'UAH', 'USD', 'EUR'] as const
 
+/// 'None' = «просто гроші»: сума вся твоя. Решта — форми оподаткування в Польщі.
+export type TaxRegime = 'None' | 'Ryczalt' | 'UoP' | 'Zlecenie'
+
 export interface TaxProfile {
-  regime: string
+  regime: TaxRegime
   ryczaltRate: number
   vatPayer: boolean
   vatRate: number

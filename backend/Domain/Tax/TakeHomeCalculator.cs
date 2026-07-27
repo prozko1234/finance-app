@@ -19,24 +19,41 @@ public record TakeHomeBreakdown(
     public decimal SetAside => VatAmount + ZusSocial + HealthContribution + Tax;
 }
 
-/// The heart of the product for B2B: turns an invoice into real take-home pay.
+/// The heart of the product: turns what the user earned into real take-home pay.
 /// Pure function — no DB, no clock — so it is fully testable.
 ///
-/// Ryczalt order (PL): VAT is transit money (not income) -> przychód -> minus ZUS social
-/// -> minus 50% of health from the tax base -> tax on that base -> subtract everything.
+/// A switch over four regimes, deliberately not a strategy hierarchy: the set is small
+/// and closed, and the ceremony would cost more than it explains.
 public static class TakeHomeCalculator
 {
-    /// <param name="amount">Invoice amount the user typed.</param>
+    /// <param name="amount">Amount the user typed (invoice or salary).</param>
     /// <param name="amountIncludesVat">true = user entered gross (with VAT); false = net (przychód).</param>
     public static Result<TakeHomeBreakdown> Calculate(
         TaxProfile profile, decimal amount, bool amountIncludesVat)
     {
         if (amount < 0)
             return Error.Validation("Сума не може бути від'ємною.");
-        if (profile.Regime != TaxRegime.Ryczalt)
-            return Error.Unsupported(
-                "Поки що підтримується лише ryczałt. Liniowy і skala — у наступних версіях.");
 
+        return profile.Regime switch
+        {
+            TaxRegime.None => Result<TakeHomeBreakdown>.Ok(NoTax(amount)),
+            TaxRegime.Ryczalt => Ryczalt(profile, amount, amountIncludesVat),
+            _ => Error.Unsupported(
+                "UoP і zlecenie ще рахуються — поки що обери «просто гроші» або ryczałt."),
+        };
+    }
+
+    /// "Just money": nothing is withheld, so every figure collapses to the amount itself.
+    private static TakeHomeBreakdown NoTax(decimal amount) => new(
+        GrossWithVat: amount, VatAmount: 0m, Revenue: amount,
+        ZusSocial: 0m, HealthContribution: 0m, HealthDeducted: 0m,
+        TaxBase: amount, Tax: 0m, TakeHome: amount);
+
+    /// Ryczalt order (PL): VAT is transit money (not income) -> przychód -> minus ZUS social
+    /// -> minus 50% of health from the tax base -> tax on that base -> subtract everything.
+    private static Result<TakeHomeBreakdown> Ryczalt(
+        TaxProfile profile, decimal amount, bool amountIncludesVat)
+    {
         var vatRate = profile.VatPayer ? profile.VatRate : 0m;
 
         // Split VAT out: it never belongs to you, it is passed to the tax office.

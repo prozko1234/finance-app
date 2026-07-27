@@ -4,7 +4,7 @@ import type {
 } from '../types'
 import { BASE_CURRENCY, CURRENCIES, shiftIso, todayIso } from '../types'
 import { money } from '../format'
-import { useIncomePreview, useSaveSavingsPlan } from '../hooks'
+import { useIncomePreview, useSaveSavingsPlan, useTaxProfile } from '../hooks'
 import { readIncomeSources, readLastUsed, rememberIncomeSource, writeLastUsed } from '../lastUsed'
 
 interface Props {
@@ -60,6 +60,9 @@ export function AddTransaction({
   const [note, setNote] = useState(editing?.note ?? '')
   // Remembered once per mount: the list only changes on save, and the form closes then.
   const [incomeSources] = useState(readIncomeSources)
+  // The income form follows the tax profile: on "просто гроші" there is no VAT to split off,
+  // so asking brutto/netto would be a question with no meaning behind it.
+  const vatApplies = useTaxProfile().data?.regime === 'Ryczalt'
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -171,6 +174,7 @@ export function AddTransaction({
 
         {isIncome ? (
           <>
+            {vatApplies && (
             <div>
               <label className="text-xs text-neutral-400">Що прийшло</label>
               <div className="mt-1 flex gap-2">
@@ -189,6 +193,7 @@ export function AddTransaction({
                 ))}
               </div>
             </div>
+            )}
             <label className="flex items-center gap-2 text-sm text-neutral-500">
               <input
                 type="checkbox"
@@ -427,16 +432,21 @@ function IncomePreviewBlock({ amount, includesVat, currency }: {
         </span>
       </div>
 
+      {/* Nothing is withheld on "просто гроші", so the breakdown would just repeat the amount. */}
       <div className="text-xs text-neutral-400 space-y-0.5">
-        <div className="flex justify-between gap-3">
-          <span>Прийде на рахунок</span>
-          <span className="tabular-nums">{money(data.invoiceGross, data.currency)}</span>
-        </div>
-        <div className="flex justify-between gap-3">
-          <span>VAT</span>
-          <span className="tabular-nums">− {money(data.invoiceVat, data.currency)}</span>
-        </div>
-        {!data.isFirstIncomeThisMonth && (
+        {data.invoiceVat > 0 && (
+          <>
+            <div className="flex justify-between gap-3">
+              <span>Прийде на рахунок</span>
+              <span className="tabular-nums">{money(data.invoiceGross, data.currency)}</span>
+            </div>
+            <div className="flex justify-between gap-3">
+              <span>VAT</span>
+              <span className="tabular-nums">− {money(data.invoiceVat, data.currency)}</span>
+            </div>
+          </>
+        )}
+        {data.monthAfter.setAside > 0 && !data.isFirstIncomeThisMonth && (
           <div className="flex justify-between gap-3">
             <span>ZUS і здоровотна вже покриті цього місяця</span>
             <span className="tabular-nums">−</span>
