@@ -1,4 +1,5 @@
 using FinanceApp.Domain.Common;
+using static FinanceApp.Domain.Tax.PolishPayrollRates2026;
 
 namespace FinanceApp.Domain.Tax;
 
@@ -38,8 +39,9 @@ public static class TakeHomeCalculator
         {
             TaxRegime.None => Result<TakeHomeBreakdown>.Ok(NoTax(amount)),
             TaxRegime.Ryczalt => Ryczalt(profile, amount, amountIncludesVat),
-            _ => Error.Unsupported(
-                "UoP і zlecenie ще рахуються — поки що обери «просто гроші» або ryczałt."),
+            TaxRegime.UoP => Payroll(profile, amount, TaxRegime.UoP),
+            TaxRegime.Zlecenie => Payroll(profile, amount, TaxRegime.Zlecenie),
+            _ => Error.Unsupported($"Форма оподаткування {profile.Regime} ще не рахується."),
         };
     }
 
@@ -48,6 +50,45 @@ public static class TakeHomeCalculator
         GrossWithVat: amount, VatAmount: 0m, Revenue: amount,
         ZusSocial: 0m, HealthContribution: 0m, HealthDeducted: 0m,
         TaxBase: amount, Tax: 0m, TakeHome: amount);
+
+    /// Employment income (UoP / zlecenie): gross from the contract to what reaches the account.
+    /// Order (PL): gross -> minus employee social contributions -> health on what is left
+    /// (never deductible from PIT) -> PIT on gross minus social minus koszty uzyskania.
+    ///
+    /// VAT plays no part here, so <c>amountIncludesVat</c> is deliberately ignored: on payroll
+    /// the amount is always the contract gross.
+    private static Result<TakeHomeBreakdown> Payroll(TaxProfile profile, decimal gross, TaxRegime regime)
+    {
+        // A student under 26 on zlecenie is outside ZUS entirely, and ulga dla młodych
+        // clears the PIT — so the gross is the net. UoP gives no such exemption.
+        if (regime == TaxRegime.Zlecenie && profile.StudentUnder26)
+            return Result<TakeHomeBreakdown>.Ok(NoTax(gross));
+
+        // Chorobowe is mandatory on UoP and voluntary on zlecenie.
+        var sickness = regime == TaxRegime.UoP || profile.Chorobowe ? Sickness : 0m;
+        var social = Round(gross * (Pension + Disability + sickness));
+
+        var afterSocial = gross - social;
+        var health = Round(afterSocial * Health);
+
+        var costs = regime == TaxRegime.UoP
+            ? UoPMonthlyCosts
+            : Round(afterSocial * ZlecenieCostsRate);
+        // The PIT base is rounded to whole zloty, as the tax office requires.
+        var taxBase = Math.Max(0m, Math.Round(afterSocial - costs, 0, MidpointRounding.AwayFromZero));
+
+        // Kwota zmniejszająca needs a filed PIT-2, which is the norm on UoP and the exception
+        // on zlecenie. Not applying it on zlecenie under-reports take-home rather than over-.
+        var relief = regime == TaxRegime.UoP ? MonthlyTaxRelief : 0m;
+        var tax = Math.Max(0m, Round(TaxOnMonthlyBase(taxBase) - relief));
+
+        var takeHome = Round(gross - social - health - tax);
+
+        return Result<TakeHomeBreakdown>.Ok(new TakeHomeBreakdown(
+            GrossWithVat: gross, VatAmount: 0m, Revenue: gross,
+            ZusSocial: social, HealthContribution: health, HealthDeducted: 0m,
+            TaxBase: taxBase, Tax: tax, TakeHome: takeHome));
+    }
 
     /// Ryczalt order (PL): VAT is transit money (not income) -> przychód -> minus ZUS social
     /// -> minus 50% of health from the tax base -> tax on that base -> subtract everything.

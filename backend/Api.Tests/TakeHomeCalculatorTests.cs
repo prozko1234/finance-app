@@ -97,20 +97,6 @@ public class TakeHomeCalculatorTests
         Assert.Equal(b.TakeHome, b.GrossWithVat - b.SetAside);
     }
 
-    [Theory]
-    [InlineData(TaxRegime.UoP)]
-    [InlineData(TaxRegime.Zlecenie)]
-    public void Regime_without_a_formula_yet_fails_explicitly(TaxRegime regime)
-    {
-        var p = Profile();
-        p.Regime = regime;
-
-        var r = TakeHomeCalculator.Calculate(p, 10_000m, amountIncludesVat: false);
-
-        Assert.False(r.IsSuccess);
-        Assert.Equal(ErrorType.Unsupported, r.Error.Type);
-    }
-
     /// Someone who has not set up taxes at all must still get a working budget —
     /// an untouched profile may not quietly deduct anything.
     [Fact]

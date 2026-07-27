@@ -124,6 +124,7 @@ public record TaxProfileResponse(
     decimal ZusSocial,
     decimal HealthContribution,
     bool Chorobowe,
+    bool StudentUnder26,
     DateOnly ValidFrom,
     decimal MonthlyContributionsTotal);
 
@@ -135,7 +136,8 @@ public record SaveTaxProfileRequest(
     string ZusType,
     decimal ZusSocial,
     decimal HealthContribution,
-    bool Chorobowe);
+    bool Chorobowe,
+    bool StudentUnder26 = false);
 
 public record TaxDefaultsResponse(
     int Year,

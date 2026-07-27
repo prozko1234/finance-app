@@ -205,6 +205,7 @@ export interface TaxProfile {
   zusSocial: number
   healthContribution: number
   chorobowe: boolean
+  studentUnder26: boolean
   validFrom: string
   monthlyContributionsTotal: number
 }

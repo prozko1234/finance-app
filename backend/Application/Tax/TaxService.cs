@@ -50,6 +50,7 @@ public sealed class TaxService(IAppDbContext db) : ITaxService
         p.ZusSocial = req.ZusSocial;
         p.HealthContribution = req.HealthContribution;
         p.Chorobowe = req.Chorobowe;
+        p.StudentUnder26 = req.StudentUnder26;
         p.UpdatedAt = DateTimeOffset.UtcNow;
 
         await db.SaveChangesAsync(ct);
@@ -123,6 +124,7 @@ public sealed class TaxService(IAppDbContext db) : ITaxService
 
     private static TaxProfileResponse ToResponse(TaxProfile p) => new(
         p.Regime.ToString(), p.RyczaltRate, p.VatPayer, p.VatRate, p.ZusType.ToString(),
-        p.ZusSocial, p.HealthContribution, p.Chorobowe, p.ValidFrom,
-        p.ZusSocial + p.HealthContribution);
+        p.ZusSocial, p.HealthContribution, p.Chorobowe, p.StudentUnder26, p.ValidFrom,
+        // A fixed monthly total only exists on ryczalt; on payroll contributions follow the salary.
+        p.Regime == TaxRegime.Ryczalt ? p.ZusSocial + p.HealthContribution : 0m);
 }

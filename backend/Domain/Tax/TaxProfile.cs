@@ -25,7 +25,12 @@ public class TaxProfile
     /// Monthly health contribution in PLN (ryczalt: fixed per income threshold).
     public decimal HealthContribution { get; set; }
     /// Whether voluntary sickness insurance (chorobowe) is included in ZusSocial.
+    /// On zlecenie this also decides whether the contribution is withheld at all.
     public bool Chorobowe { get; set; }
+
+    /// Zlecenie only: a student under 26 pays no ZUS and no PIT (ulga dla młodych).
+    /// Common enough in this app's audience to be worth a switch rather than a wrong number.
+    public bool StudentUnder26 { get; set; }
 
     /// Year these amounts apply to — rates go stale annually.
     public DateOnly ValidFrom { get; set; }

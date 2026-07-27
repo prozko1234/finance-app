@@ -28,7 +28,7 @@ export function TaxProfile({ profile, defaults, onSave, onBack }: Props) {
         ? <ProfileForm profile={profile} defaults={defaults} onSave={onSave} />
         : <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm animate-pulse h-40" />}
 
-      {profile?.regime === 'Ryczalt' && (
+      {profile && profile.regime !== 'None' && (
         <p className="text-xs text-neutral-400 text-center leading-relaxed">
           Розрахунок орієнтовний. Ставки на {defaults?.year ?? '—'} рік — звір із
           книговою: вони змінюються щороку.
@@ -38,13 +38,11 @@ export function TaxProfile({ profile, defaults, onSave, onBack }: Props) {
   )
 }
 
-/// `soon` = the backend still returns Unsupported for it, so it must not be selectable —
-/// picking it would break income entry instead of the profile screen, far from the cause.
-const REGIMES: { value: TaxRegime; label: string; hint: string; soon?: boolean }[] = [
+const REGIMES: { value: TaxRegime; label: string; hint: string }[] = [
   { value: 'None', label: 'Просто гроші', hint: 'Скільки прийшло — стільки й твоє' },
   { value: 'Ryczalt', label: 'B2B, ryczałt', hint: 'VAT, ZUS і здоровотна відкладаються самі' },
-  { value: 'UoP', label: 'Умова о праце', hint: 'Brutto з умови → netto на руки', soon: true },
-  { value: 'Zlecenie', label: 'Умова злеценя', hint: 'Brutto з умови → netto на руки', soon: true },
+  { value: 'UoP', label: 'Умова о праце', hint: 'Brutto з умови → netto на руки' },
+  { value: 'Zlecenie', label: 'Умова злеценя', hint: 'Brutto з умови → netto на руки' },
 ]
 
 function ProfileForm({
@@ -59,6 +57,7 @@ function ProfileForm({
     zusSocial: profile.zusSocial,
     healthContribution: profile.healthContribution,
     chorobowe: profile.chorobowe,
+    studentUnder26: profile.studentUnder26,
   })
   const [saved, setSaved] = useState(false)
 
@@ -67,23 +66,20 @@ function ProfileForm({
   const set = <K extends keyof SaveTaxProfile>(k: K, v: SaveTaxProfile[K]) =>
     setForm((f) => ({ ...f, [k]: v }))
 
-  const num = (v: string) => Number(v.replace(',', '.')) || 0
-
   return (
     <div className="rounded-2xl bg-white dark:bg-neutral-900 p-5 shadow-sm space-y-4">
       <div className="space-y-2">
         {REGIMES.map((r) => (
           <button
             key={r.value}
-            disabled={r.soon}
             onClick={() => set('regime', r.value)}
             className={`w-full rounded-xl px-3 py-2.5 text-left ${
               form.regime === r.value
                 ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
-                : 'bg-neutral-100 dark:bg-neutral-800 disabled:opacity-40'
+                : 'bg-neutral-100 dark:bg-neutral-800'
             }`}
           >
-            <span className="text-sm font-medium">{r.label}{r.soon && ' · скоро'}</span>
+            <span className="text-sm font-medium">{r.label}</span>
             <span className={`block text-xs ${form.regime === r.value ? 'opacity-70' : 'text-neutral-400'}`}>
               {r.hint}
             </span>
@@ -91,12 +87,64 @@ function ProfileForm({
         ))}
       </div>
 
-      {form.regime === 'None' ? (
+      {/* Only the fields the chosen regime actually uses — the rest would be noise. */}
+      {form.regime === 'None' && (
         <p className="text-sm text-neutral-500">
           Скільки вписав — стільки й твоє. Ні податків, ні внесків рахувати не треба.
         </p>
-      ) : (
-      <>
+      )}
+
+      {form.regime === 'Ryczalt' && <RyczaltFields form={form} set={set} defaults={defaults} />}
+
+      {form.regime === 'UoP' && (
+        <p className="text-sm text-neutral-500">
+          Налаштовувати нічого: ZUS, здоровотна і PIT на умові о праце однакові для всіх.
+          Вписуй brutto з умови — покажу, скільки прийде на рахунок.
+        </p>
+      )}
+
+      {form.regime === 'Zlecenie' && (
+        <div className="space-y-4">
+          <Field label="Студент до 26 років">
+            <input
+              type="checkbox" checked={form.studentUnder26}
+              onChange={(e) => set('studentUnder26', e.target.checked)} className="h-5 w-5"
+            />
+          </Field>
+          {form.studentUnder26
+            ? <p className="text-sm text-neutral-500">Ні ZUS, ні податку — brutto і є твої гроші.</p>
+            : (
+              <Field label="Добровільне chorobowe">
+                <input
+                  type="checkbox" checked={form.chorobowe}
+                  onChange={(e) => set('chorobowe', e.target.checked)} className="h-5 w-5"
+                />
+              </Field>
+            )}
+        </div>
+      )}
+
+      <button
+        onClick={() => onSave(form).then(() => setSaved(true))}
+        className="w-full rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 py-2.5 font-medium"
+      >
+        {saved ? 'Збережено ✓' : 'Зберегти профіль'}
+      </button>
+    </div>
+  )
+}
+
+/// Ryczalt is the only regime with negotiable numbers: the rate, VAT status and the ZUS
+/// amounts the accountant bills. Everything else is statutory and needs no form.
+function RyczaltFields({ form, set, defaults }: {
+  form: SaveTaxProfile
+  set: <K extends keyof SaveTaxProfile>(k: K, v: SaveTaxProfile[K]) => void
+  defaults: TaxDefaults | null
+}) {
+  const num = (v: string) => Number(v.replace(',', '.')) || 0
+
+  return (
+    <>
       <Field label="Ставка ryczałt, %">
         <input
           inputMode="decimal" value={Math.round(form.ryczaltRate * 1000) / 10}
@@ -146,16 +194,7 @@ function ProfileForm({
           <p>Здоровотна: до 60k {money(defaults.healthUnder60k, 'PLN')} · 60–300k {money(defaults.health60kTo300k, 'PLN')} · 300k+ {money(defaults.healthOver300k, 'PLN')}.</p>
         </div>
       )}
-      </>
-      )}
-
-      <button
-        onClick={() => onSave(form).then(() => setSaved(true))}
-        className="w-full rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 py-2.5 font-medium"
-      >
-        {saved ? 'Збережено ✓' : 'Зберегти профіль'}
-      </button>
-    </div>
+    </>
   )
 }
 
