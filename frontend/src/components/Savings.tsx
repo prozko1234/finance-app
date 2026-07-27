@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Savings as SavingsData, SaveSavingsEntry, SavingsEntry, SaveSavingsPlan } from '../types'
 import { BASE_CURRENCY, CURRENCIES, todayIso } from '../types'
 import { money } from '../format'
-import { ScreenHeader } from './ScreenHeader'
+import { Card, CardSkeleton, FormError, PrimaryButton, Screen, SectionTitle } from './Screen'
 
 interface Props {
   data: SavingsData | null
@@ -17,12 +17,21 @@ export function Savings({ data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteE
   // Which movement is open for editing — at most one, so the list stays readable.
   const [editing, setEditing] = useState<SavingsEntry | null>(null)
 
-  if (!data) return <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm animate-pulse h-40" />
+  // The header stays while loading — the way back must not depend on the data arriving.
+  if (!data) {
+    return (
+      <Screen title="Заощадження" onBack={onBack}>
+        <CardSkeleton />
+      </Screen>
+    )
+  }
 
   return (
-    <div className="space-y-5">
-      <ScreenHeader title="Заощадження" onBack={onBack} />
-
+    <Screen
+      title="Заощадження"
+      onBack={onBack}
+      footnote="Заощадження не входять у «Ще сьогодні». Зняти можна будь-коли — це твої гроші, не податки."
+    >
       <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm text-center">
         <p className="text-sm uppercase tracking-wide text-neutral-400">У заощадженнях</p>
         <p className="mt-1 text-4xl font-bold tabular-nums">{money(data.balance, data.currency)}</p>
@@ -43,7 +52,7 @@ export function Savings({ data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteE
         onSave={async (id, e) => { await onUpdateEntry(id, e); setEditing(null) }}
         onDelete={onDeleteEntry}
       />
-    </div>
+    </Screen>
   )
 }
 
@@ -80,8 +89,8 @@ function MoveMoney({ currency, balance, onAdd }: {
   }
 
   return (
-    <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm space-y-3">
-      <h2 className="text-sm font-medium text-neutral-400">Змінити вручну</h2>
+    <Card>
+      <SectionTitle>Змінити вручну</SectionTitle>
 
       <div className="flex gap-2">
         <input
@@ -108,7 +117,7 @@ function MoveMoney({ currency, balance, onAdd }: {
         className="w-full rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-sm outline-none"
       />
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      <FormError>{error}</FormError>
 
       <div className="flex gap-2">
         <button
@@ -129,11 +138,10 @@ function MoveMoney({ currency, balance, onAdd }: {
         </button>
       </div>
       <p className="text-xs text-neutral-400">
-        Заощадження не входять у «Ще сьогодні». Зняти можна будь-коли — це твої гроші,
-        не податки. Максимум до зняття: {money(balance, currency)}.
+        Максимум до зняття: {money(balance, currency)}.
         {!isBase && ` Сума в ${entryCurrency} перерахується за курсом на сьогодні.`}
       </p>
-    </div>
+    </Card>
   )
 }
 
@@ -142,6 +150,10 @@ function PlanForm({ data, onSave }: { data: SavingsData; onSave: (p: SaveSavings
   const [value, setValue] = useState(data.value > 0 ? String(data.value) : '')
   const [active, setActive] = useState(data.active)
   const [busy, setBusy] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  // Any edit invalidates the "Збережено ✓" the button is still showing.
+  useEffect(() => setSaved(false), [mode, value, active])
 
   const num = Number(value.replace(',', '.'))
   const valid = num >= 0 && (mode !== 'Percent' || num <= 100)
@@ -151,14 +163,15 @@ function PlanForm({ data, onSave }: { data: SavingsData; onSave: (p: SaveSavings
     setBusy(true)
     try {
       await onSave({ mode, value: num, active })
+      setSaved(true)
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm space-y-3">
-      <h2 className="text-sm font-medium text-neutral-400">Скільки у заощадження щомісяця</h2>
+    <Card>
+      <SectionTitle>Скільки у заощадження щомісяця</SectionTitle>
 
       {data.goalFromScheme && (
         <p className="rounded-xl bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 px-3 py-2 text-xs">
@@ -207,14 +220,10 @@ function PlanForm({ data, onSave }: { data: SavingsData; onSave: (p: SaveSavings
         </p>
       )}
 
-      <button
-        disabled={!valid || busy}
-        onClick={save}
-        className="w-full rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 px-3 py-2.5 font-medium disabled:opacity-40"
-      >
+      <PrimaryButton onClick={save} disabled={!valid || busy} saved={saved}>
         Зберегти
-      </button>
-    </div>
+      </PrimaryButton>
+    </Card>
   )
 }
 

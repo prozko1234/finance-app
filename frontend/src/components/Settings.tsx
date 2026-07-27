@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Budget } from '../types'
 import { money } from '../format'
-import { ScreenHeader } from './ScreenHeader'
+import { Card, FormError, PrimaryButton, Screen } from './Screen'
 
 interface Props {
   budget: Budget | null
@@ -40,11 +40,13 @@ export function Settings({ budget, incomeBudget, onSave, onBack }: Props) {
   }
 
   return (
-    <div className="space-y-5">
-      <ScreenHeader title="Бюджет і решта" onBack={onBack} />
-
-      <div className="rounded-2xl bg-white dark:bg-neutral-900 p-5 shadow-sm space-y-3">
-        <label className="text-sm text-neutral-500">Запасний бюджет (PLN)</label>
+    <Screen
+      title="Бюджет і решта"
+      onBack={onBack}
+      subtitle="Запасний бюджет — коли за місяць немає доходу."
+      footnote="«Ще сьогодні» рахується від бюджета місяця: з доходу, якщо він є, інакше — із запасного. Банківський синк — у майбутніх версіях."
+    >
+      <Card>
         <p className="text-xs text-neutral-400">
           {incomeBudget !== null
             ? `Цього місяця не діє: бюджет уже порахований з доходу — ${money(incomeBudget, budget?.currency ?? 'PLN')}. Ця сума спрацює в місяці без доходу.`
@@ -61,22 +63,11 @@ export function Settings({ budget, incomeBudget, onSave, onBack }: Props) {
           />
           <span className="text-neutral-400 font-medium">zł</span>
         </div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        {saved && <p className="text-sm text-emerald-600">Збережено ✓</p>}
-      </div>
-
-      <button
-        onClick={submit}
-        disabled={!valid || saving}
-        className="w-full rounded-2xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 py-4 font-semibold disabled:opacity-40"
-      >
-        {saving ? 'Зберігаю…' : 'Зберегти бюджет'}
-      </button>
-
-      <p className="text-xs text-neutral-400 text-center">
-        «Ще сьогодні» рахується від бюджета місяця: з доходу, якщо він є, інакше — із
-        запасного. Банківський синк — у майбутніх версіях.
-      </p>
-    </div>
+        <FormError>{error}</FormError>
+        <PrimaryButton onClick={submit} disabled={!valid || saving} saved={saved}>
+          {saving ? 'Зберігаю…' : 'Зберегти бюджет'}
+        </PrimaryButton>
+      </Card>
+    </Screen>
   )
 }

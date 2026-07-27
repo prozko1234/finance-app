@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useDevData } from '../hooks'
-import { ScreenHeader } from './ScreenHeader'
+import { ScreenHeader } from './Screen'
 
 /// Local testing helpers, so a flow can be re-run from a known state without
 /// hand-deleting rows. Only rendered when the app runs against a dev server;

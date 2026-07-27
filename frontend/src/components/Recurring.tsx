@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { Category, Recurring as RecurringType, SaveRecurring } from '../types'
 import { CURRENCIES } from '../types'
 import { money } from '../format'
-import { ScreenHeader } from './ScreenHeader'
+import { ScreenHeader } from './Screen'
 
 interface Props {
   categories: Category[]

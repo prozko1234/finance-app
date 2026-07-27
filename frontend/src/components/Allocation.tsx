@@ -3,7 +3,7 @@ import type {
   Allocation as AllocationData, AllocationBucket, AllocationPreset, BucketKind, SaveAllocation,
 } from '../types'
 import { money } from '../format'
-import { ScreenHeader } from './ScreenHeader'
+import { CardSkeleton, FormError, Screen } from './Screen'
 
 interface Props {
   data: AllocationData | null
@@ -25,7 +25,14 @@ const KINDS: { kind: BucketKind; label: string }[] = [
 export function Allocation({ data, budget, currency, onSave, onBack }: Props) {
   const [error, setError] = useState<string | null>(null)
 
-  if (!data) return <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm animate-pulse h-40" />
+  // The header stays while loading — the way back must not depend on the data arriving.
+  if (!data) {
+    return (
+      <Screen title="Розподіл бюджету" onBack={onBack}>
+        <CardSkeleton />
+      </Screen>
+    )
+  }
 
   async function apply(a: SaveAllocation) {
     setError(null)
@@ -37,15 +44,12 @@ export function Allocation({ data, budget, currency, onSave, onBack }: Props) {
   }
 
   return (
-    <div className="space-y-5">
-      <ScreenHeader title="Розподіл бюджету" onBack={onBack} />
-
-      <p className="text-sm text-neutral-500">
-        Денна норма рахується лише з того, що на витрати. Решта відкладається ще до того,
-        як ти побачиш «Ще сьогодні».
-      </p>
-
-      {error && <p className="text-sm text-red-600">{error}</p>}
+    <Screen
+      title="Розподіл бюджету"
+      onBack={onBack}
+      subtitle="Денна норма рахується лише з того, що на витрати. Решта відкладається ще до того, як ти побачиш «Ще сьогодні»."
+    >
+      <FormError>{error}</FormError>
 
       <div className="space-y-2">
         {data.presets.map((p) => (
@@ -66,7 +70,7 @@ export function Allocation({ data, budget, currency, onSave, onBack }: Props) {
         currency={currency}
         onSave={(name, buckets) => apply({ name, buckets })}
       />
-    </div>
+    </Screen>
   )
 }
 

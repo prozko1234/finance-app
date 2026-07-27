@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { SaveTaxProfile, TaxDefaults, TaxRegime, TaxProfile as TaxProfileData } from '../types'
 import { money } from '../format'
-import { ScreenHeader } from './ScreenHeader'
+import { Card, CardSkeleton, FormError, PrimaryButton, Screen } from './Screen'
 
 interface Props {
   profile: TaxProfileData | null
@@ -15,24 +15,18 @@ interface Props {
 /// What stays here is the profile: the rates that calculation runs on.
 export function TaxProfile({ profile, defaults, onSave, onBack }: Props) {
   return (
-    <div className="space-y-5">
-      <ScreenHeader title="Податковий профіль" onBack={onBack} />
-
-      <p className="text-sm text-neutral-500">
-        Звідси береться твій бюджет місяця, коли ти вписуєш дохід.
-      </p>
-
+    <Screen
+      title="Податковий профіль"
+      onBack={onBack}
+      subtitle="Звідси береться твій бюджет місяця, коли ти вписуєш дохід."
+      footnote={profile && profile.regime !== 'None'
+        ? `Розрахунок орієнтовний. Ставки на ${defaults?.year ?? '—'} рік — звір із книговою: вони змінюються щороку.`
+        : undefined}
+    >
       {profile
         ? <ProfileForm profile={profile} defaults={defaults} onSave={onSave} />
-        : <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm animate-pulse h-40" />}
-
-      {profile && profile.regime !== 'None' && (
-        <p className="text-xs text-neutral-400 text-center leading-relaxed">
-          Розрахунок орієнтовний. Ставки на {defaults?.year ?? '—'} рік — звір із
-          книговою: вони змінюються щороку.
-        </p>
-      )}
-    </div>
+        : <CardSkeleton />}
+    </Screen>
   )
 }
 
@@ -58,14 +52,29 @@ function ProfileForm({
     studentUnder26: profile.studentUnder26,
   })
   const [saved, setSaved] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => setSaved(false), [form])
+
+  async function save() {
+    setBusy(true)
+    setError(null)
+    try {
+      await onSave(form)
+      setSaved(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не вдалося зберегти')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const set = <K extends keyof SaveTaxProfile>(k: K, v: SaveTaxProfile[K]) =>
     setForm((f) => ({ ...f, [k]: v }))
 
   return (
-    <div className="rounded-2xl bg-white dark:bg-neutral-900 p-5 shadow-sm space-y-4">
+    <Card>
       <div className="space-y-2">
         {REGIMES.map((r) => (
           <button
@@ -122,13 +131,12 @@ function ProfileForm({
         </div>
       )}
 
-      <button
-        onClick={() => onSave(form).then(() => setSaved(true))}
-        className="w-full rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 py-2.5 font-medium"
-      >
-        {saved ? 'Збережено ✓' : 'Зберегти профіль'}
-      </button>
-    </div>
+      <FormError>{error}</FormError>
+
+      <PrimaryButton onClick={save} disabled={busy} saved={saved}>
+        Зберегти профіль
+      </PrimaryButton>
+    </Card>
   )
 }
 

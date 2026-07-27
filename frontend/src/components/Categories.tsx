@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Category, SaveCategory } from '../types'
-import { ScreenHeader } from './ScreenHeader'
+import { Card, FormError, Screen, SectionTitle } from './Screen'
 
 interface Props {
   categories: Category[]
@@ -28,16 +28,21 @@ export function Categories({ categories, onCreate, onUpdate, onDelete, onBack }:
   }
 
   return (
-    <div className="space-y-5">
-      <ScreenHeader title="Категорії" onBack={onBack} />
-
-      <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm flex gap-2">
+    <Screen
+      title="Категорії"
+      onBack={onBack}
+      subtitle="Куди розкладаються витрати."
+      footnote="Видалення не втрачає грошей — транзакції переїжджають у «Інше»."
+    >
+      <Card>
+        <SectionTitle>Нова категорія</SectionTitle>
+        <div className="flex gap-2">
         <input
           placeholder="🍕" value={icon} onChange={(e) => setIcon(e.target.value)}
           className="w-14 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-2 py-2 text-center text-sm outline-none"
         />
         <input
-          placeholder="Нова категорія" value={name} onChange={(e) => setName(e.target.value)}
+          placeholder="Назва" value={name} onChange={(e) => setName(e.target.value)}
           className="flex-1 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-sm outline-none"
         />
         <button
@@ -50,11 +55,13 @@ export function Categories({ categories, onCreate, onUpdate, onDelete, onBack }:
         >
           Додати
         </button>
-      </div>
+        </div>
+        <FormError>{error}</FormError>
+      </Card>
 
-      {error && <p className="text-sm text-red-600 px-1">{error}</p>}
-
-      <ul className="space-y-2">
+      <div>
+      <SectionTitle>Усі категорії</SectionTitle>
+      <ul className="space-y-2 mt-2">
         {categories.map((c) => (
           <li key={c.id} className="rounded-xl bg-white dark:bg-neutral-900 px-4 py-3 shadow-sm">
             {editingId === c.id ? (
@@ -107,10 +114,7 @@ export function Categories({ categories, onCreate, onUpdate, onDelete, onBack }:
           </li>
         ))}
       </ul>
-
-      <p className="text-xs text-neutral-400 text-center">
-        Видалення не втрачає грошей — транзакції переїжджають у «Інше».
-      </p>
-    </div>
+      </div>
+    </Screen>
   )
 }
