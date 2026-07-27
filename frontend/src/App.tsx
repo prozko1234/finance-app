@@ -6,6 +6,7 @@ import {
   useUpdateRecurring, useTaxProfile, useTaxDefaults, useSaveTaxProfile,
   useAllocations, useSaveAllocation, useSettings, useSetDisplayCurrency,
   useSavings, useSaveSavingsPlan, useAddSavingsEntry, useUpdateSavingsEntry, useDeleteSavingsEntry,
+  useStats,
 } from './hooks'
 import { Home } from './components/Home'
 import { AddTransaction } from './components/AddTransaction'
@@ -15,6 +16,7 @@ import { TaxProfile } from './components/TaxProfile'
 import { Categories } from './components/Categories'
 import { Savings } from './components/Savings'
 import { Allocation } from './components/Allocation'
+import { Stats, MONTHS_BACK } from './components/Stats'
 import { DevTools } from './components/DevTools'
 import { Nav } from './components/Nav'
 import type { View } from './components/Nav'
@@ -24,6 +26,8 @@ function App() {
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   // Set when a quick-category tap opens the form; cleared as soon as the form closes.
   const [presetCategoryId, setPresetCategoryId] = useState<number | null>(null)
+  // null = whichever month the server considers current; set once the user taps a bar.
+  const [statsMonth, setStatsMonth] = useState<string | null>(null)
 
   const categories = useCategories()
   const summary = useSafeToSpend()
@@ -37,6 +41,7 @@ function App() {
   const addSavingsEntry = useAddSavingsEntry()
   const updateSavingsEntry = useUpdateSavingsEntry()
   const deleteSavingsEntry = useDeleteSavingsEntry()
+  const stats = useStats(MONTHS_BACK, statsMonth, view === 'stats')
   const settings = useSettings()
   const setDisplayCurrency = useSetDisplayCurrency()
   const taxProfile = useTaxProfile()
@@ -151,6 +156,14 @@ function App() {
             budget={summary.data?.monthlyBudget ?? null}
             currency={summary.data?.currency ?? 'PLN'}
             onSave={(a) => saveAllocation.mutateAsync(a).then(() => {})}
+            onBack={() => setView('home')}
+          />
+        )}
+        {view === 'stats' && (
+          <Stats
+            data={stats.data ?? null}
+            selected={statsMonth}
+            onSelectMonth={setStatsMonth}
             onBack={() => setView('home')}
           />
         )}

@@ -295,3 +295,29 @@ export interface TaxDefaults {
   health60kTo300k: number
   healthOver300k: number
 }
+
+/// Статистика: стовпчики по місяцях + розклад одного місяця по категоріях.
+/// month — "yyyy-MM"; income для доходу — це przychód без VAT, як і в бюджеті.
+export interface MonthStats {
+  month: string
+  income: number
+  expense: number
+  net: number
+}
+
+export interface CategoryStats {
+  categoryId: number
+  name: string
+  icon: string | null
+  amount: number
+  percent: number
+  count: number
+}
+
+export interface Stats {
+  currency: string
+  months: MonthStats[]
+  selectedMonth: string
+  selectedExpense: number
+  categories: CategoryStats[]
+}

@@ -7,6 +7,7 @@ using FinanceApp.Application.Dev;
 using FinanceApp.Application.Display;
 using FinanceApp.Application.Savings;
 using FinanceApp.Application.Settings;
+using FinanceApp.Application.Stats;
 using FinanceApp.Application.Summaries;
 using FinanceApp.Application.Tax;
 using FinanceApp.Application.Transactions;
@@ -22,6 +23,7 @@ public static class DependencyInjection
         services.AddScoped<ITransactionService, TransactionService>();
         services.AddScoped<IBudgetService, BudgetService>();
         services.AddScoped<ISummaryService, SummaryService>();
+        services.AddScoped<IStatsService, StatsService>();
         services.AddScoped<IMonthlyBudget, MonthlyBudget>();
         services.AddScoped<ISavingsService, SavingsService>();
         services.AddScoped<IAllocationService, AllocationService>();

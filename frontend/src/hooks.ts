@@ -17,6 +17,18 @@ export const queryKeys = {
   allocations: ['allocations'] as const,
   incomePreview: ['incomePreview'] as const,
   settings: ['settings'] as const,
+  stats: ['stats'] as const,
+}
+
+/// The month drives the query key: switching months is a new fetch, and the previously
+/// seen month stays cached, so clicking back and forth on the chart does not flicker.
+export function useStats(months: number, month: string | null, enabled = true) {
+  return useQuery({
+    queryKey: [...queryKeys.stats, months, month],
+    queryFn: () => api.getStats(months, month),
+    // Half a year of totals is not worth fetching on a screen that never shows them.
+    enabled,
+  })
 }
 
 export function useCategories() {
@@ -113,6 +125,8 @@ function useInvalidate() {
     qc.invalidateQueries({ queryKey: queryKeys.summary })
     qc.invalidateQueries({ queryKey: queryKeys.budget })
     qc.invalidateQueries({ queryKey: queryKeys.recurring })
+    // Every month cached under any key: a new expense changes the bar it lands in.
+    qc.invalidateQueries({ queryKey: queryKeys.stats })
   }
 }
 

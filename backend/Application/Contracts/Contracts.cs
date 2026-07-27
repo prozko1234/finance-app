@@ -240,6 +240,23 @@ public record RecurringResponse(
 /// App-wide settings. <paramref name="BaseCurrency"/> is what the app stores in; the user
 /// only chooses what to read. <paramref name="TaxesInBaseCurrency"/> tells the UI it must
 /// say the tax split is still computed in PLN.
+/// The statistics screen in one response: the bars, and the breakdown of one month.
+/// <paramref name="SelectedMonth"/> is echoed back ("yyyy-MM") because an out-of-range or
+/// unparsable request falls back to the current month, and the UI must label what it shows.
+public record StatsResponse(
+    string Currency,
+    IReadOnlyList<MonthStatsResponse> Months,
+    string SelectedMonth,
+    decimal SelectedExpense,
+    IReadOnlyList<CategoryStatsResponse> Categories);
+
+/// Income is revenue (przychód, VAT excluded) — the same number the budget is built from,
+/// so the bars cannot claim a month earned more than the home screen let the user spend.
+public record MonthStatsResponse(string Month, decimal Income, decimal Expense, decimal Net);
+
+public record CategoryStatsResponse(
+    int CategoryId, string Name, string? Icon, decimal Amount, decimal Percent, int Count);
+
 public record AppSettingsResponse(
     string DisplayCurrency,
     string BaseCurrency,

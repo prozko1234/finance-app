@@ -1,6 +1,6 @@
 import type {
   AppSettings, Budget, Category, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
-  Allocation, SaveAllocation, IncomePreview, SaveSavingsEntry, SaveSavingsPlan, Savings, TaxDefaults, TaxProfile, Transaction,
+  Allocation, SaveAllocation, IncomePreview, SaveSavingsEntry, SaveSavingsPlan, Savings, Stats, TaxDefaults, TaxProfile, Transaction,
 } from './types'
 
 async function http<T>(url: string, options?: RequestInit): Promise<T> {
@@ -46,6 +46,9 @@ export const api = {
     http<Budget>('/api/budget', { method: 'PUT', body: JSON.stringify({ amount }) }),
 
   getSafeToSpend: () => http<SafeToSpend>('/api/summary/safe-to-spend'),
+
+  getStats: (months: number, month: string | null) =>
+    http<Stats>(`/api/stats?months=${months}${month ? `&month=${month}` : ''}`),
 
   getSettings: () => http<AppSettings>('/api/settings'),
   setDisplayCurrency: (currency: string) =>
