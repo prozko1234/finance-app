@@ -1,4 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { setOnUnauthorized } from './api'
+import { Login } from './components/Login'
 import type { Recurring as RecurringType, SaveCategory, SaveIncome, SaveTransaction, Transaction } from './types'
 import {
   useBudget, useCategories, useCreateRecurring, useCreateTransaction, useDeleteRecurring,
@@ -6,7 +9,7 @@ import {
   useUpdateRecurring, useTaxProfile, useTaxDefaults, useSaveTaxProfile,
   useAllocations, useSaveAllocation, useSettings, useSetDisplayCurrency,
   useSavings, useSaveSavingsPlan, useAddSavingsEntry, useUpdateSavingsEntry, useDeleteSavingsEntry,
-  useStats,
+  useStats, useAuthStatus, useLogin, useLogout, queryKeys,
 } from './hooks'
 import { Home } from './components/Home'
 import { AddTransaction } from './components/AddTransaction'
@@ -28,6 +31,14 @@ function App() {
   const [presetCategoryId, setPresetCategoryId] = useState<number | null>(null)
   // null = whichever month the server considers current; set once the user taps a bar.
   const [statsMonth, setStatsMonth] = useState<string | null>(null)
+
+  const qc = useQueryClient()
+  const auth = useAuthStatus()
+  const login = useLogin()
+  const logout = useLogout()
+
+  // A cookie can expire while the app is open. Any 401 sends us back to asking.
+  useEffect(() => setOnUnauthorized(() => { qc.invalidateQueries({ queryKey: queryKeys.auth }) }), [qc])
 
   const categories = useCategories()
   const summary = useSafeToSpend()
@@ -87,10 +98,21 @@ function App() {
     })
   }
 
+  // Nothing is rendered before we know whether a password is wanted — a flash of the
+  // dashboard would show the balance to someone who has not passed the door yet.
+  if (auth.isPending) return null
+  if (auth.data?.required && !auth.data.authenticated)
+    return <Login onSubmit={(p) => login.mutateAsync(p).then(() => {})} />
+
   return (
     <div className="min-h-screen">
       <div className="mx-auto max-w-4xl px-4 py-6 pb-28 md:flex md:gap-8">
-        <Nav current={view} onGo={setView} showDev={import.meta.env.DEV} />
+        <Nav
+          current={view}
+          onGo={setView}
+          showDev={import.meta.env.DEV}
+          onLogout={auth.data?.required ? () => logout.mutate() : undefined}
+        />
 
         <main className="flex-1 md:max-w-md">
         <header className="mb-6 md:hidden">

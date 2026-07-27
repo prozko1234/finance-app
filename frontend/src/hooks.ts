@@ -18,6 +18,31 @@ export const queryKeys = {
   incomePreview: ['incomePreview'] as const,
   settings: ['settings'] as const,
   stats: ['stats'] as const,
+  auth: ['auth'] as const,
+}
+
+export function useAuthStatus() {
+  return useQuery({ queryKey: queryKeys.auth, queryFn: () => api.getAuthStatus(), retry: false })
+}
+
+/// Signing in makes every other query answerable, and they all failed while the door was
+/// shut — so the cache is cleared rather than selectively invalidated.
+export function useLogin() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (password: string) => api.login(password),
+    onSuccess: () => qc.resetQueries(),
+  })
+}
+
+export function useLogout() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api.logout(),
+    // Nothing cached may outlive the session: the next person to open this browser must
+    // not see the balance flash on screen before the login form replaces it.
+    onSuccess: () => qc.clear(),
+  })
 }
 
 /// The month drives the query key: switching months is a new fetch, and the previously

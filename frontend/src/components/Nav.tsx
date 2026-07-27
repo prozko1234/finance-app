@@ -7,6 +7,9 @@ interface Props {
   onGo: (v: View) => void
   /// Dev-only screens exist just in a dev build — the API exposes them in Development only.
   showDev: boolean
+  /// Absent when the app runs without a password (local development): a "вийти" that
+  /// leads straight back in would be a button that does nothing.
+  onLogout?: () => void
 }
 
 /// Everything reachable from one place. Before this, "налаштування" was a landing page you
@@ -31,7 +34,7 @@ const SETUP: Item[] = [
 
 /// One menu, two shapes: a permanent column on desktop, a burger and a slide-over on mobile.
 /// Both drive the same list, so a screen can never be reachable in one and lost in the other.
-export function Nav({ current, onGo, showDev }: Props) {
+export function Nav({ current, onGo, showDev, onLogout }: Props) {
   const [open, setOpen] = useState(false)
 
   const setup = showDev ? [...SETUP, { view: 'dev' as View, label: 'Тестові дані', icon: '🧪' }] : SETUP
@@ -61,6 +64,7 @@ export function Nav({ current, onGo, showDev }: Props) {
             </div>
             <Group items={MONEY} current={current} onGo={go} />
             <Group items={setup} label="Налаштування" current={current} onGo={go} />
+            <LogoutItem onLogout={onLogout} />
           </nav>
         </div>
       )}
@@ -71,6 +75,19 @@ export function Nav({ current, onGo, showDev }: Props) {
         <Group items={setup} label="Налаштування" current={current} onGo={go} />
       </nav>
     </>
+  )
+}
+
+function LogoutItem({ onLogout }: { onLogout?: () => void }) {
+  if (!onLogout) return null
+  return (
+    <button
+      onClick={onLogout}
+      className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+    >
+      <span className="w-5 text-center">⎋</span>
+      Вийти
+    </button>
   )
 }
 

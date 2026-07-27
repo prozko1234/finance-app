@@ -1,13 +1,21 @@
 import type {
-  AppSettings, Budget, Category, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
+  AuthStatus, AppSettings, Budget, Category, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
   Allocation, SaveAllocation, IncomePreview, SaveSavingsEntry, SaveSavingsPlan, Savings, Stats, TaxDefaults, TaxProfile, Transaction,
 } from './types'
+
+/// Called whenever the server says "not you" — a cookie can expire mid-session, and the
+/// screen must fall back to the login form instead of showing a broken dashboard.
+let onUnauthorized: () => void = () => {}
+export function setOnUnauthorized(handler: () => void) {
+  onUnauthorized = handler
+}
 
 async function http<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
     ...options,
   })
+  if (res.status === 401 && !url.startsWith('/api/auth')) onUnauthorized()
   if (!res.ok) {
     let message = `HTTP ${res.status}`
     try {
@@ -23,6 +31,11 @@ async function http<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  getAuthStatus: () => http<AuthStatus>('/api/auth/me'),
+  login: (password: string) =>
+    http<void>('/api/auth/login', { method: 'POST', body: JSON.stringify({ password }) }),
+  logout: () => http<void>('/api/auth/logout', { method: 'POST' }),
+
   getCategories: () => http<Category[]>('/api/categories'),
   createCategory: (c: SaveCategory) =>
     http<Category>('/api/categories', { method: 'POST', body: JSON.stringify(c) }),

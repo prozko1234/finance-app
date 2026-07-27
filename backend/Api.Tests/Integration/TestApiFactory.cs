@@ -14,13 +14,19 @@ namespace FinanceApp.Api.Tests.Integration;
 
 /// Spins up the real API in-memory. Swaps SQLite for an in-memory connection and the
 /// FX converter for a deterministic fake, so tests never touch a file or the network.
-public sealed class TestApiFactory : WebApplicationFactory<Program>
+public class TestApiFactory : WebApplicationFactory<Program>
 {
     private readonly SqliteConnection _connection = new("DataSource=:memory:");
+
+    /// The password the app should demand, or null for an open (development-like) app.
+    protected virtual string? Password => null;
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         _connection.Open();
+
+        if (Password is not null)
+            builder.UseSetting("Auth:Password", Password);
 
         builder.ConfigureTestServices(services =>
         {

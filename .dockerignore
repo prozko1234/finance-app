@@ -1,0 +1,12 @@
+# Keep the build context small and, more importantly, keep local state out of the image:
+# the dev database is real data and has no business being baked into a deployed artifact.
+**/bin
+**/obj
+**/node_modules
+**/dist
+**/*.db
+**/*.db-shm
+**/*.db-wal
+.git
+.github
+.vscode

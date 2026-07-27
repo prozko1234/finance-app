@@ -321,3 +321,9 @@ export interface Stats {
   selectedExpense: number
   categories: CategoryStats[]
 }
+
+/// required=false — локальна робота без паролю; тоді екран входу не показуємо взагалі.
+export interface AuthStatus {
+  required: boolean
+  authenticated: boolean
+}
