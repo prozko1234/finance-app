@@ -11,14 +11,21 @@ interface Props {
 
 /// Everything reachable from one place. Before this, "налаштування" was a landing page you
 /// had to pass through to get anywhere, which put unrelated screens behind a settings label.
-const ITEMS: { view: View; label: string; icon: string }[] = [
+/// Two groups, because a flat list of seven asks you to read all seven: the top group is
+/// where money is looked at, the bottom is what you set up once and forget.
+type Item = { view: View; label: string; icon: string }
+
+const MONEY: Item[] = [
   { view: 'home', label: 'Головна', icon: '◉' },
   { view: 'savings', label: 'Заощадження', icon: '🐖' },
   { view: 'allocation', label: 'Розподіл бюджету', icon: '🧩' },
   { view: 'recurring', label: 'Підписки й регулярні', icon: '↻' },
+]
+
+const SETUP: Item[] = [
   { view: 'categories', label: 'Категорії', icon: '🏷' },
   { view: 'tax', label: 'Податковий профіль', icon: '%' },
-  { view: 'settings', label: 'Налаштування', icon: '⚙' },
+  { view: 'settings', label: 'Бюджет і решта', icon: '⚙' },
 ]
 
 /// One menu, two shapes: a permanent column on desktop, a burger and a slide-over on mobile.
@@ -26,7 +33,7 @@ const ITEMS: { view: View; label: string; icon: string }[] = [
 export function Nav({ current, onGo, showDev }: Props) {
   const [open, setOpen] = useState(false)
 
-  const items = showDev ? [...ITEMS, { view: 'dev' as View, label: 'Тестові дані', icon: '🧪' }] : ITEMS
+  const setup = showDev ? [...SETUP, { view: 'dev' as View, label: 'Тестові дані', icon: '🧪' }] : SETUP
 
   function go(v: View) {
     onGo(v)
@@ -51,16 +58,29 @@ export function Nav({ current, onGo, showDev }: Props) {
               <span className="font-bold">finance</span>
               <button onClick={() => setOpen(false)} className="text-neutral-400 text-xl" aria-label="Закрити">✕</button>
             </div>
-            {items.map((i) => <NavItem key={i.view} {...i} current={current} onGo={go} />)}
+            <Group items={MONEY} current={current} onGo={go} />
+            <Group items={setup} label="Налаштування" current={current} onGo={go} />
           </nav>
         </div>
       )}
 
       <nav className="hidden md:block w-56 shrink-0 space-y-1">
         <p className="text-xl font-bold px-3 pb-3">finance</p>
-        {items.map((i) => <NavItem key={i.view} {...i} current={current} onGo={go} />)}
+        <Group items={MONEY} current={current} onGo={go} />
+        <Group items={setup} label="Налаштування" current={current} onGo={go} />
       </nav>
     </>
+  )
+}
+
+function Group({ items, label, current, onGo }: {
+  items: Item[]; label?: string; current: View; onGo: (v: View) => void
+}) {
+  return (
+    <div className="space-y-1 pb-3">
+      {label && <p className="px-3 pt-2 pb-1 text-xs uppercase tracking-wide text-neutral-400">{label}</p>}
+      {items.map((i) => <NavItem key={i.view} {...i} current={current} onGo={onGo} />)}
+    </div>
   )
 }
 

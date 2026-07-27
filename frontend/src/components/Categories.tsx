@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Category, SaveCategory } from '../types'
+import { ScreenHeader } from './ScreenHeader'
 
 interface Props {
   categories: Category[]
@@ -28,10 +29,7 @@ export function Categories({ categories, onCreate, onUpdate, onDelete, onBack }:
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2">
-        <button onClick={onBack} className="text-neutral-400 text-2xl leading-none">←</button>
-        <h1 className="text-lg font-semibold">Категорії</h1>
-      </div>
+      <ScreenHeader title="Категорії" onBack={onBack} />
 
       <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm flex gap-2">
         <input

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Category, Recurring as RecurringType, SaveRecurring } from '../types'
 import { CURRENCIES } from '../types'
 import { money } from '../format'
+import { ScreenHeader } from './ScreenHeader'
 
 interface Props {
   categories: Category[]
@@ -104,10 +105,7 @@ export function Recurring({ categories, items, onCreate, onToggle, onDelete, onB
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2">
-        <button onClick={onBack} className="text-neutral-400 text-2xl leading-none">←</button>
-        <h1 className="text-lg font-semibold">Регулярні: підписки й дохід</h1>
-      </div>
+      <ScreenHeader title="Регулярні: підписки й дохід" onBack={onBack} />
 
       <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm space-y-3">
         <div className="flex gap-2">

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { SaveTaxProfile, TaxDefaults, TaxRegime, TaxProfile as TaxProfileData } from '../types'
 import { money } from '../format'
+import { ScreenHeader } from './ScreenHeader'
 
 interface Props {
   profile: TaxProfileData | null
@@ -15,10 +16,7 @@ interface Props {
 export function TaxProfile({ profile, defaults, onSave, onBack }: Props) {
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2">
-        <button onClick={onBack} className="text-neutral-400 text-2xl leading-none">←</button>
-        <h1 className="text-lg font-semibold">Податковий профіль</h1>
-      </div>
+      <ScreenHeader title="Податковий профіль" onBack={onBack} />
 
       <p className="text-sm text-neutral-500">
         Звідси береться твій бюджет місяця, коли ти вписуєш дохід.

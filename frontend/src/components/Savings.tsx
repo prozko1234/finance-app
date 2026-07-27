@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Savings as SavingsData, SaveSavingsEntry, SavingsEntry, SaveSavingsPlan } from '../types'
 import { BASE_CURRENCY, CURRENCIES, todayIso } from '../types'
 import { money } from '../format'
+import { ScreenHeader } from './ScreenHeader'
 
 interface Props {
   data: SavingsData | null
@@ -20,10 +21,7 @@ export function Savings({ data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteE
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2">
-        <button onClick={onBack} className="text-neutral-400 text-2xl leading-none">←</button>
-        <h1 className="text-lg font-semibold">Заощадження</h1>
-      </div>
+      <ScreenHeader title="Заощадження" onBack={onBack} />
 
       <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm text-center">
         <p className="text-sm uppercase tracking-wide text-neutral-400">У заощадженнях</p>

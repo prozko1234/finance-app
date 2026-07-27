@@ -128,4 +128,35 @@ describe('Home', () => {
     render(<Home {...props} summary={summary()} />)
     expect(screen.queryByText('Підсумок місяця')).not.toBeInTheDocument()
   })
+
+  it('puts the month arithmetic in one column, схема included', async () => {
+    render(
+      <Home
+        {...props}
+        summary={summary({
+          spentThisMonth: 500, monthlyBudget: 6000, remainingThisMonth: 4300,
+          allocation: {
+            schemeName: '70/20/10', preset: '70-20-10', spendable: 4200, reserved: 1800,
+            buckets: [
+              { id: 1, name: 'Витрати', kind: 'Spending', percent: 70, amount: 4200 },
+              { id: 2, name: 'Заощадження', kind: 'Savings', percent: 20, amount: 1200 },
+              { id: 3, name: 'Борг', kind: 'Debt', percent: 10, amount: 600 },
+            ],
+          },
+        })}
+      />,
+    )
+
+    expect(screen.getByText('Місяць')).toBeInTheDocument()
+    expect(screen.getByText('Бюджет місяця')).toBeInTheDocument()
+    // Заощадження мають свій рядок, тож схема резервує лише борг.
+    expect(screen.getByText(/Відкладено за схемою «70\/20\/10»/)).toBeInTheDocument()
+    expect(screen.getByText('− 600,00 zł')).toBeInTheDocument()
+    expect(screen.getByText(/куди пішов бюджет/)).toBeInTheDocument()
+  })
+
+  it('offers to split the budget while the default scheme is on', () => {
+    render(<Home {...props} summary={summary()} />)
+    expect(screen.getByText(/Ділити бюджет за схемою/)).toBeInTheDocument()
+  })
 })

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useDevData } from '../hooks'
+import { ScreenHeader } from './ScreenHeader'
 
 /// Local testing helpers, so a flow can be re-run from a known state without
 /// hand-deleting rows. Only rendered when the app runs against a dev server;
@@ -20,10 +21,7 @@ export function DevTools({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2">
-        <button onClick={onBack} className="text-neutral-400 text-2xl leading-none">←</button>
-        <h1 className="text-lg font-semibold">Тестові дані</h1>
-      </div>
+      <ScreenHeader title="Тестові дані" onBack={onBack} />
 
       <p className="text-sm text-neutral-500">
         Тільки для розробки. Ці кнопки міняють базу без відновлення.

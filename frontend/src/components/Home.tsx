@@ -1,4 +1,5 @@
-import type { AllocationSummary, MonthTaxes, SafeToSpend, SavingsSummary, Transaction } from '../types'
+import type { ReactNode } from 'react'
+import type { AllocationSummary, SafeToSpend, SavingsSummary, Transaction } from '../types'
 import { BASE_CURRENCY } from '../types'
 import { money } from '../format'
 import { buildQuickCategories, type QuickCategory } from '../quickCategories'
@@ -22,15 +23,7 @@ export function Home({
   return (
     <div className="space-y-6">
       <SafeToSpendCard summary={summary} onGoSettings={onGoSettings} />
-      {summary?.monthTaxes && <MonthSummary summary={summary} taxes={summary.monthTaxes} />}
-      {summary?.allocation && (
-        <AllocationCard
-          allocation={summary.allocation}
-          currency={summary.currency}
-          budgetSet={summary.budgetSet}
-          onOpen={onGoAllocation}
-        />
-      )}
+      {summary?.budgetSet && <MonthCard summary={summary} onGoAllocation={onGoAllocation} />}
       {summary && <SavingsCard savings={summary.savings} currency={summary.currency} onOpen={onGoSavings} />}
       {quick.length > 0 && <QuickRow categories={quick} onPick={onQuickCategory} />}
       <RecentList transactions={transactions} onDelete={onDelete} onEdit={onEdit} />
@@ -106,7 +99,7 @@ function SafeToSpendCard({ summary, onGoSettings }: { summary: SafeToSpend | nul
       </p>
       {summary.reservedRecurring > 0 && !summary.monthTaxes && (
         <p className="text-xs text-neutral-400">
-          Зарезервовано на фіксовані: {money(summary.reservedRecurring, summary.currency)}
+          Зарезервовано на підписки: {money(summary.reservedRecurring, summary.currency)}
         </p>
       )}
     </div>
@@ -129,85 +122,71 @@ function TomorrowNote({ summary }: { summary: SafeToSpend }) {
   )
 }
 
-/// Answers "чому на рахунку більше, ніж бюджет": every row between what landed on the
-/// account and what is left is spelled out, so the column actually adds up.
-function MonthSummary({ summary, taxes }: { summary: SafeToSpend; taxes: MonthTaxes }) {
+/// Одна картка на весь місяць: звідки взявся бюджет, що з нього вже пішло і що лишилось.
+/// До M23 це були три окремі картки (підсумок, розподіл, податки) — три заголовки для
+/// однієї арифметики. Тепер один стовпчик, який справді сходиться, а деталі — під
+/// розкривачками, щоб головна не була простинею.
+function MonthCard({ summary, onGoAllocation }: { summary: SafeToSpend; onGoAllocation: () => void }) {
   const c = summary.currency
+  const taxes = summary.monthTaxes
+  const a = summary.allocation
+  const split = a !== null && a.buckets.length > 1
 
   return (
     <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm">
-      <h2 className="text-sm font-medium text-neutral-400 mb-3">Підсумок місяця</h2>
+      <h2 className="text-sm font-medium text-neutral-400 mb-3">Місяць</h2>
       <dl className="space-y-1.5 text-sm">
-        <Row label="Прийшло на рахунок" value={money(taxes.gross, c)} />
-        <Row label="Відкладено на податки" value={`− ${money(taxes.setAside, c)}`} muted />
-        <details className="group">
-          <summary className="cursor-pointer list-none text-xs text-neutral-400 pl-3 py-1">
-            з чого · VAT, ZUS, здоровотна, податок
-          </summary>
-          <div className="pl-3 pt-1 space-y-1 text-xs text-neutral-400">
-            <Row label="VAT" value={money(taxes.vat, c)} small />
-            <Row label="ZUS соціальний" value={money(taxes.zusSocial, c)} small />
-            <Row label="Здоровотна" value={money(taxes.health, c)} small />
-            <Row label="Податок (ryczałt)" value={money(taxes.tax, c)} small />
-          </div>
-        </details>
-        <Row label="Бюджет місяця" value={money(taxes.takeHome, c)} strong />
+        {taxes && (
+          <>
+            <Row label="Прийшло на рахунок" value={money(taxes.gross, c)} />
+            <Row label="Відкладено на податки" value={`− ${money(taxes.setAside, c)}`} muted />
+            <Details summary="з чого · VAT, ZUS, здоровотна, податок">
+              <Row label="VAT" value={money(taxes.vat, c)} small />
+              <Row label="ZUS, соціальні внески" value={money(taxes.zusSocial, c)} small />
+              <Row label="Здоровотна" value={money(taxes.health, c)} small />
+              <Row label="Податок (ryczałt)" value={money(taxes.tax, c)} small />
+            </Details>
+          </>
+        )}
+
+        <Row label="Бюджет місяця" value={money(summary.monthlyBudget ?? 0, c)} strong />
         <Row label="Витрачено" value={`− ${money(summary.spentThisMonth, c)}`} muted />
+
         {summary.reservedRecurring > 0 && (
           <Row label="Зарезервовано на підписки" value={`− ${money(summary.reservedRecurring, c)}`} muted />
         )}
-        {otherReserved(summary.allocation) > 0 && (
-          <Row
-            label={`Відкладено за схемою «${summary.allocation!.schemeName}»`}
-            value={`− ${money(otherReserved(summary.allocation), c)}`}
-            muted
-          />
+        {otherReserved(a) > 0 && (
+          <Row label={`Відкладено за схемою «${a!.schemeName}»`} value={`− ${money(otherReserved(a), c)}`} muted />
         )}
         {summary.savings.stillToReserve > 0 && (
           <Row label="Ще у заощадження цього місяця" value={`− ${money(summary.savings.stillToReserve, c)}`} muted />
         )}
+
+        {split && (
+          <Details summary={`куди пішов бюджет · ${a!.schemeName}`}>
+            {a!.buckets.map((b) => (
+              <Row key={b.id} label={`${b.name} · ${b.percent}%`} value={money(b.amount, c)} small />
+            ))}
+          </Details>
+        )}
+
         <Row label="Лишилось" value={money(summary.remainingThisMonth ?? 0, c)} strong />
       </dl>
+
+      <button onClick={onGoAllocation} className="mt-3 text-xs text-neutral-400">
+        {split ? 'Змінити розподіл →' : 'Ділити бюджет за схемою (50/30/20 та інші) →'}
+      </button>
     </div>
   )
 }
 
-/// Куди пішов бюджет ще до денної норми. Схема за замовчуванням (один кошик на 100%)
-/// нічого не ділить, тож картка мовчить — показувати «на витрати 100%» немає сенсу.
-function AllocationCard({ allocation, currency, budgetSet, onOpen }: {
-  allocation: AllocationSummary; currency: string; budgetSet: boolean; onOpen: () => void
-}) {
-  if (allocation.buckets.length < 2) {
-    return (
-      <button
-        onClick={onOpen}
-        className="w-full rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700 p-4 text-sm text-neutral-500"
-      >
-        + Ділити бюджет за схемою (50/30/20 та інші)
-      </button>
-    )
-  }
-
+/// Розкривачка з однаковим виглядом у всій картці — щоб «деталі» скрізь означали одне.
+function Details({ summary, children }: { summary: string; children: ReactNode }) {
   return (
-    <button onClick={onOpen} className="w-full rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm text-left">
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="text-sm text-neutral-400">Куди пішов бюджет</span>
-        <span className="text-xs text-neutral-400 truncate">{allocation.schemeName}</span>
-      </div>
-      <ul className="mt-2 space-y-1 text-sm">
-        {allocation.buckets.map((b) => (
-          <li key={b.id} className="flex justify-between gap-3">
-            <span className="truncate">
-              {b.name}
-              <span className="text-neutral-400 text-xs"> · {b.percent}%</span>
-            </span>
-            <span className={`tabular-nums shrink-0 ${b.kind === 'Spending' ? '' : 'text-neutral-400'}`}>
-              {budgetSet ? money(b.amount, currency) : `${b.percent}%`}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </button>
+    <details>
+      <summary className="cursor-pointer list-none text-xs text-neutral-400 pl-3 py-1">{summary}</summary>
+      <div className="pl-3 pt-1 space-y-1 text-xs text-neutral-400">{children}</div>
+    </details>
   )
 }
 

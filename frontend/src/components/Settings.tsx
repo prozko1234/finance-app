@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Budget } from '../types'
 import { money } from '../format'
+import { ScreenHeader } from './ScreenHeader'
 
 interface Props {
   budget: Budget | null
@@ -40,10 +41,7 @@ export function Settings({ budget, incomeBudget, onSave, onBack }: Props) {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2">
-        <button onClick={onBack} className="text-neutral-400 text-2xl leading-none">←</button>
-        <h1 className="text-lg font-semibold">Налаштування</h1>
-      </div>
+      <ScreenHeader title="Бюджет і решта" onBack={onBack} />
 
       <div className="rounded-2xl bg-white dark:bg-neutral-900 p-5 shadow-sm space-y-3">
         <label className="text-sm text-neutral-500">Запасний бюджет (PLN)</label>

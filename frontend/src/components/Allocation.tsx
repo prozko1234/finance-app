@@ -3,6 +3,7 @@ import type {
   Allocation as AllocationData, AllocationBucket, AllocationPreset, BucketKind, SaveAllocation,
 } from '../types'
 import { money } from '../format'
+import { ScreenHeader } from './ScreenHeader'
 
 interface Props {
   data: AllocationData | null
@@ -21,8 +22,6 @@ const KINDS: { kind: BucketKind; label: string }[] = [
   { kind: 'Other', label: 'Інше' },
 ]
 
-const KIND_LABEL = Object.fromEntries(KINDS.map((k) => [k.kind, k.label])) as Record<BucketKind, string>
-
 export function Allocation({ data, budget, currency, onSave, onBack }: Props) {
   const [error, setError] = useState<string | null>(null)
 
@@ -39,10 +38,7 @@ export function Allocation({ data, budget, currency, onSave, onBack }: Props) {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2">
-        <button onClick={onBack} className="text-neutral-400 text-2xl leading-none">←</button>
-        <h1 className="text-lg font-semibold">Розподіл бюджету</h1>
-      </div>
+      <ScreenHeader title="Розподіл бюджету" onBack={onBack} />
 
       <p className="text-sm text-neutral-500">
         Денна норма рахується лише з того, що на витрати. Решта відкладається ще до того,
@@ -231,8 +227,6 @@ function CustomSplit({ current, budget, currency, onSave }: {
     </details>
   )
 }
-
-export { KIND_LABEL }
 
 /// Відсотки без хвоста нулів: 20, а не 20.00.
 function pct(v: number): string {
