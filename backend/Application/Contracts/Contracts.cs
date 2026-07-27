@@ -64,7 +64,10 @@ public record MonthTaxBreakdown(
     decimal Health,
     decimal Tax,
     decimal SetAside,     // VAT + ZUS + здоровотна + податок
-    decimal TakeHome);    // = MonthlyBudget
+    decimal TakeHome,     // = MonthlyBudget
+    /// Валюта цього розкладу — завжди базова. Польський рушій рахує у злотих, і саме ці
+    /// цифри побачить книгова, тож вони не конвертуються разом з рештою екрана.
+    string Currency);
 
 public record SafeToSpendResponse(
     DateOnly Date,

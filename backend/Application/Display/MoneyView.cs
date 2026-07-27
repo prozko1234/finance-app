@@ -57,6 +57,19 @@ public sealed class MoneyView
         return Math.Round(baseAmount / rate, 2, MidpointRounding.AwayFromZero);
     }
 
+    /// The other direction: a number the user typed in their own currency, turned into the
+    /// base amount we store. Anything written back to the database goes through here, or the
+    /// app would save hryvnia digits into a zloty column.
+    public async Task<decimal> ToBaseTodayAsync(decimal displayAmount, CancellationToken ct = default)
+    {
+        if (IsBase) return displayAmount;
+
+        var conv = await _fx.ConvertToBaseAsync(displayAmount, Currency, _today, ct);
+        // The view only exists because today's rate was obtained, so this is all but
+        // unreachable; refusing to guess is still better than storing a wrong anchor.
+        return conv.IsSuccess ? conv.Value!.AmountBase : displayAmount * _todayPerBase;
+    }
+
     /// For amounts that are about now rather than about a past record — the month budget,
     /// safe-to-spend, a savings goal. They have no date of their own, so they take today's.
     public Task<decimal> FromBaseTodayAsync(decimal baseAmount, CancellationToken ct = default) =>

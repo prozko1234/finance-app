@@ -91,6 +91,8 @@ export interface MonthTaxes {
   tax: number
   setAside: number
   takeHome: number
+  /// Завжди базова валюта: польський рушій рахує у злотих, і це ті цифри, що в книгової.
+  currency: string
 }
 
 /// Live feedback while typing an invoice: what it adds to THIS month's budget.

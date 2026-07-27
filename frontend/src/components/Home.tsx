@@ -137,14 +137,22 @@ function MonthCard({ summary, onGoAllocation }: { summary: SafeToSpend; onGoAllo
       <dl className="space-y-1.5 text-sm">
         {taxes && (
           <>
-            <Row label="Прийшло на рахунок" value={money(taxes.gross, c)} />
-            <Row label="Відкладено на податки" value={`− ${money(taxes.setAside, c)}`} muted />
+            {/* Податкові рядки лишаються у валюті рушія — це цифри для книгової. Показати
+                їх із міткою гривні означало б написати суму, якої немає в жодному документі. */}
+            <Row label="Прийшло на рахунок" value={money(taxes.gross, taxes.currency)} />
+            <Row label="Відкладено на податки" value={`− ${money(taxes.setAside, taxes.currency)}`} muted />
             <Details summary="з чого · VAT, ZUS, здоровотна, податок">
-              <Row label="VAT" value={money(taxes.vat, c)} small />
-              <Row label="ZUS, соціальні внески" value={money(taxes.zusSocial, c)} small />
-              <Row label="Здоровотна" value={money(taxes.health, c)} small />
-              <Row label="Податок (ryczałt)" value={money(taxes.tax, c)} small />
+              <Row label="VAT" value={money(taxes.vat, taxes.currency)} small />
+              <Row label="ZUS, соціальні внески" value={money(taxes.zusSocial, taxes.currency)} small />
+              <Row label="Здоровотна" value={money(taxes.health, taxes.currency)} small />
+              <Row label="Податок (ryczałt)" value={money(taxes.tax, taxes.currency)} small />
             </Details>
+            {taxes.currency !== c && (
+              <p className="text-xs text-neutral-400 leading-relaxed pt-0.5">
+                Податки рахуються у {taxes.currency} — так їх бачить книгова. Нижче все
+                у {c}.
+              </p>
+            )}
           </>
         )}
 

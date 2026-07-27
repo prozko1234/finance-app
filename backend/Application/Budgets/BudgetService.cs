@@ -23,6 +23,12 @@ public sealed class BudgetService(IAppDbContext db, IMoneyViewFactory moneyViews
 
     public async Task<BudgetResponse> SetAsync(decimal amount, CancellationToken ct = default)
     {
+        // The user types in the currency they read; storage is always base. Converting here
+        // keeps the anchor honest — otherwise a budget set while reading hryvnia would be
+        // stored as that many zloty.
+        var view = await moneyViews.CurrentAsync(ct);
+        amount = await view.ToBaseTodayAsync(amount, ct);
+
         // MVP: a single active budget — upsert the first row.
         var b = await db.Budgets.OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
         if (b is null)

@@ -65,9 +65,12 @@ export function Settings({ budget, settings, incomeBudget, onSave, onPickCurrenc
             placeholder="0"
             value={amount}
             onChange={(e) => { setAmount(e.target.value); setSaved(false) }}
-            className="flex-1 text-3xl font-bold tabular-nums bg-transparent outline-none"
+            className="flex-1 min-w-0 text-3xl font-bold tabular-nums bg-transparent outline-none"
           />
-          <span className="text-neutral-400 font-medium">zł</span>
+          {/* The amount is typed in whatever the user reads; the server converts to base. */}
+          <span className="text-neutral-400 font-medium shrink-0">
+            {settings?.displayCurrency ?? 'PLN'}
+          </span>
         </div>
         <FormError>{error}</FormError>
         <PrimaryButton onClick={submit} disabled={!valid || saving} saved={saved}>

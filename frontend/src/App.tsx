@@ -126,7 +126,9 @@ function App() {
           <Settings
             budget={budget.data ?? null}
             settings={settings.data ?? null}
-            incomeBudget={summary.data?.monthTaxes?.takeHome ?? null}
+            /// The month budget as reported — already in the currency the user reads.
+            /// monthTaxes.takeHome would be the PLN figure and would arrive mislabelled.
+            incomeBudget={summary.data?.monthTaxes ? summary.data.monthlyBudget ?? null : null}
             onPickCurrency={(c) => setDisplayCurrency.mutateAsync(c).then(() => {})}
             onSave={(amount) => setBudget.mutateAsync(amount).then(() => {})}
             onBack={() => setView('home')}
