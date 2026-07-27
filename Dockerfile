@@ -23,6 +23,9 @@ COPY --from=frontend /src/frontend/dist ./wwwroot
 # The database lives on a mounted volume, never inside the image — a redeploy replaces the
 # image, and anything written into it would be a month of records thrown away.
 ENV ConnectionStrings__Default="Data Source=/data/financeapp.db"
+# Cookie-encryption keys go on the same volume: inside the container they would be lost on
+# every redeploy, which looks exactly like "the password stopped working".
+ENV DataProtection__KeyPath="/data/keys"
 VOLUME /data
 
 ENV ASPNETCORE_URLS=http://+:8080

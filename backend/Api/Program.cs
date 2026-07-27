@@ -5,6 +5,7 @@ using FinanceApp.Application;
 using FinanceApp.Infrastructure;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
@@ -57,6 +58,14 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         o.Events.OnRedirectToLogin = ctx => { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return Task.CompletedTask; };
         o.Events.OnRedirectToAccessDenied = ctx => { ctx.Response.StatusCode = StatusCodes.Status403Forbidden; return Task.CompletedTask; };
     });
+
+// The auth cookie is encrypted with Data Protection keys, and by default those live inside
+// the container. A redeploy would then throw them away and log the user out every single
+// time — silently, looking like the password stopped working. Kept beside the database on
+// the same volume, they outlive the container. Unset locally: nothing to survive there.
+var keyPath = builder.Configuration["DataProtection:KeyPath"];
+if (!string.IsNullOrWhiteSpace(keyPath))
+    builder.Services.AddDataProtection().PersistKeysToFileSystem(Directory.CreateDirectory(keyPath));
 
 builder.Services.AddAuthorization(o =>
 {
