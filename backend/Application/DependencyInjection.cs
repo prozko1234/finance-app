@@ -4,6 +4,7 @@ using FinanceApp.Application.Budgets;
 using FinanceApp.Application.Categories;
 using FinanceApp.Application.Recurring;
 using FinanceApp.Application.Dev;
+using FinanceApp.Application.Display;
 using FinanceApp.Application.Savings;
 using FinanceApp.Application.Settings;
 using FinanceApp.Application.Summaries;
@@ -28,6 +29,7 @@ public static class DependencyInjection
         services.AddScoped<ICategoryService, CategoryService>();
         services.AddScoped<IRecurringService, RecurringService>();
         services.AddScoped<ISettingsService, SettingsService>();
+        services.AddScoped<IMoneyViewFactory, MoneyViewFactory>();
         services.AddScoped<IRecurringMaterializer, RecurringMaterializer>();
         services.AddScoped<ITaxService, TaxService>();
 

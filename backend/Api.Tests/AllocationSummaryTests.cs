@@ -1,5 +1,6 @@
 using FinanceApp.Api.Tests.Integration;
 using FinanceApp.Application.Allocations;
+using FinanceApp.Application.Display;
 using FinanceApp.Application.Recurring;
 using FinanceApp.Application.Savings;
 using FinanceApp.Application.Summaries;
@@ -22,8 +23,9 @@ public class AllocationSummaryTests
             mem.Db, fx,
             new RecurringMaterializer(mem.Db, fx),
             new MonthlyBudget(mem.Db),
-            new SavingsService(mem.Db, new MonthlyBudget(mem.Db), fx, new AllocationService(mem.Db)),
-            new AllocationService(mem.Db));
+            new SavingsService(mem.Db, new MonthlyBudget(mem.Db), fx, new AllocationService(mem.Db), new MoneyViewFactory(mem.Db, fx)),
+            new AllocationService(mem.Db),
+            new MoneyViewFactory(mem.Db, fx));
     }
 
     private static async Task ActivateAsync(SqliteInMemory mem, string preset)
@@ -89,8 +91,9 @@ public class AllocationSummaryTests
         using var mem = new SqliteInMemory();
         await ActivateAsync(mem, "80-20");
 
+        var fx = new FakeFxConverter();
         var savings = new SavingsService(
-            mem.Db, new MonthlyBudget(mem.Db), new FakeFxConverter(), new AllocationService(mem.Db));
+            mem.Db, new MonthlyBudget(mem.Db), fx, new AllocationService(mem.Db), new MoneyViewFactory(mem.Db, fx));
         await savings.AddEntryAsync(new("Deposit", 500m, null, null, null));
 
         var r = await Sut(mem).GetSafeToSpendAsync();

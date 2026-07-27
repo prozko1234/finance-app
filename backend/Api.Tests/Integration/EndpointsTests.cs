@@ -132,4 +132,60 @@ public class EndpointsTests(TestApiFactory factory) : IClassFixture<TestApiFacto
         // Put it back — the fixture's database is shared across tests in this class.
         await _client.PutAsJsonAsync("/api/settings/currency", new { currency = "PLN" });
     }
+
+    [Fact]
+    public async Task Reading_in_another_currency_converts_the_summary_and_the_rows()
+    {
+        await _client.PutAsJsonAsync("/api/settings/currency", new { currency = "USD" });
+        try
+        {
+            // FakeFxConverter: 1 USD = 4 PLN, so 100 PLN reads as 25 USD.
+            var create = await _client.PostAsJsonAsync("/api/transactions", new
+            {
+                amount = 100m,
+                currency = "PLN",
+                categoryId = 1,
+                date = DateOnly.FromDateTime(DateTime.Now),
+            });
+            create.EnsureSuccessStatusCode();
+
+            var tx = await create.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal(100m, tx.GetProperty("amountBase").GetDecimal());
+            Assert.Equal(25m, tx.GetProperty("amountDisplay").GetDecimal());
+            Assert.Equal("USD", tx.GetProperty("displayCurrency").GetString());
+
+            var summary = await _client.GetFromJsonAsync<JsonElement>("/api/summary/safe-to-spend");
+            Assert.Equal("USD", summary.GetProperty("currency").GetString());
+        }
+        finally
+        {
+            await _client.PutAsJsonAsync("/api/settings/currency", new { currency = "PLN" });
+        }
+    }
+
+    [Fact]
+    public async Task Storage_stays_in_pln_whatever_the_user_reads()
+    {
+        await _client.PutAsJsonAsync("/api/settings/currency", new { currency = "USD" });
+        try
+        {
+            var create = await _client.PostAsJsonAsync("/api/transactions", new
+            {
+                amount = 40m,
+                currency = "PLN",
+                categoryId = 1,
+                date = DateOnly.FromDateTime(DateTime.Now),
+            });
+            var tx = await create.Content.ReadFromJsonAsync<JsonElement>();
+
+            // The anchor is untouched: switching the display currency must never rewrite
+            // what was stored, or history would drift every time the setting changes.
+            Assert.Equal(40m, tx.GetProperty("amountBase").GetDecimal());
+            Assert.Equal(1m, tx.GetProperty("fxRate").GetDecimal());
+        }
+        finally
+        {
+            await _client.PutAsJsonAsync("/api/settings/currency", new { currency = "PLN" });
+        }
+    }
 }

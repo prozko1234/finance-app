@@ -2,6 +2,7 @@ using FinanceApp.Application.Abstractions;
 using FinanceApp.Application.Allocations;
 using FinanceApp.Application.Common;
 using FinanceApp.Application.Contracts;
+using FinanceApp.Application.Display;
 using FinanceApp.Domain;
 using FinanceApp.Domain.Common;
 using FinanceApp.Domain.Fx;
@@ -25,7 +26,7 @@ public interface ISavingsService
 
 public sealed class SavingsService(
     IAppDbContext db, IMonthlyBudget monthlyBudget, IFxConverter fx,
-    IAllocationService allocations) : ISavingsService
+    IAllocationService allocations, IMoneyViewFactory moneyViews) : ISavingsService
 {
     public async Task<SavingsResponse> GetAsync(CancellationToken ct = default) =>
         await BuildAsync(await TakeHomeAsync(ct), ct);
@@ -157,22 +158,30 @@ public sealed class SavingsService(
         var plan = await db.SavingsPlans.OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
         var (status, fromScheme) = await GoalStatusAsync(monthlyTakeHome, ct);
 
-        var entries = await db.SavingsEntries
+        var rows = await db.SavingsEntries
             .OrderByDescending(x => x.Date).ThenByDescending(x => x.Id)
             .Take(100)
-            .Select(x => new SavingsEntryResponse(
-                x.Id, x.Date, x.Kind.ToString(), x.AmountBase, x.AmountOriginal, x.CurrencyOriginal, x.Note))
             .ToListAsync(ct);
+
+        var view = await moneyViews.CurrentAsync(ct);
+
+        // Movements are history: each is read at its own date. The balance and the goal are
+        // about now, so they take today's rate — the same split the month summary makes.
+        var entries = new List<SavingsEntryResponse>(rows.Count);
+        foreach (var x in rows)
+            entries.Add(new SavingsEntryResponse(
+                x.Id, x.Date, x.Kind.ToString(), await view.FromBaseAsync(x.AmountBase, x.Date, ct),
+                x.AmountOriginal, x.CurrencyOriginal, x.Note));
 
         return new SavingsResponse(
             plan?.Mode.ToString() ?? SavingsMode.Fixed.ToString(),
             plan?.Value ?? 0m,
             plan?.Active ?? false,
-            status.Balance,
-            status.MonthGoal,
-            status.DepositedThisMonth,
-            status.StillToReserve,
-            Money.BaseCurrency,
+            await view.FromBaseTodayAsync(status.Balance, ct),
+            await view.FromBaseTodayAsync(status.MonthGoal, ct),
+            await view.FromBaseTodayAsync(status.DepositedThisMonth, ct),
+            await view.FromBaseTodayAsync(status.StillToReserve, ct),
+            view.Currency,
             entries,
             fromScheme);
     }

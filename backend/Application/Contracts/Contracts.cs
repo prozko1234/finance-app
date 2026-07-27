@@ -39,7 +39,11 @@ public record TransactionResponse(
     DateOnly Date,
     string? Merchant,
     string? Note,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    /// The same amount as the user reads it, converted at THIS transaction's date — so a
+    /// July expense keeps its July size. Equals AmountBase while reading in PLN.
+    decimal AmountDisplay,
+    string DisplayCurrency);
 
 public record CategoryResponse(int Id, string Name, string? Icon, string? Color, int SortOrder, bool IsSystem);
 

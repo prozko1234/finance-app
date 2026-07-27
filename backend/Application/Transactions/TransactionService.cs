@@ -1,5 +1,6 @@
 using FinanceApp.Application.Abstractions;
 using FinanceApp.Application.Contracts;
+using FinanceApp.Application.Display;
 using FinanceApp.Application.Mapping;
 using FinanceApp.Application.Recurring;
 using FinanceApp.Domain;
@@ -11,8 +12,23 @@ using Microsoft.EntityFrameworkCore;
 namespace FinanceApp.Application.Transactions;
 
 public sealed class TransactionService(
-    IAppDbContext db, IFxConverter fx, IRecurringMaterializer materializer) : ITransactionService
+    IAppDbContext db, IFxConverter fx, IRecurringMaterializer materializer,
+    IMoneyViewFactory moneyViews) : ITransactionService
 {
+    /// Every transaction leaving this service carries the amount as the user reads it,
+    /// converted at the transaction's OWN date: a row is a record of what happened, and
+    /// re-reading it at today's rate would quietly resize the past.
+    private async Task<TransactionResponse> ShowAsync(
+        Transaction t, MoneyView view, CancellationToken ct) =>
+        t.ToResponse() with
+        {
+            AmountDisplay = await view.FromBaseAsync(t.AmountBase, t.Date, ct),
+            DisplayCurrency = view.Currency,
+        };
+
+    private async Task<TransactionResponse> ShowAsync(Transaction t, CancellationToken ct) =>
+        await ShowAsync(t, await moneyViews.CurrentAsync(ct), ct);
+
     public async Task<IReadOnlyList<TransactionResponse>> GetRecentAsync(int take, CancellationToken ct = default)
     {
         await materializer.MaterializeDueAsync(ct); // reflect any due recurring in the list
@@ -22,7 +38,12 @@ public sealed class TransactionService(
             .OrderByDescending(t => t.Date).ThenByDescending(t => t.Id)
             .Take(Math.Clamp(take, 1, 200))
             .ToListAsync(ct);
-        return items.Select(t => t.ToResponse()).ToList();
+        // One view for the whole list: it caches a rate per distinct date, so a month of
+        // transactions costs at most one lookup per day, not one per row.
+        var view = await moneyViews.CurrentAsync(ct);
+        var rows = new List<TransactionResponse>(items.Count);
+        foreach (var t in items) rows.Add(await ShowAsync(t, view, ct));
+        return rows;
     }
 
     public async Task<Result<TransactionResponse>> GetByIdAsync(int id, CancellationToken ct = default)
@@ -30,7 +51,7 @@ public sealed class TransactionService(
         var t = await db.Transactions.Include(x => x.Category).FirstOrDefaultAsync(x => x.Id == id, ct);
         return t is null
             ? Error.NotFound($"Транзакцію {id} не знайдено.")
-            : Result<TransactionResponse>.Ok(t.ToResponse());
+            : Result<TransactionResponse>.Ok(await ShowAsync(t, ct));
     }
 
     public async Task<Result<TransactionResponse>> CreateAsync(SaveTransactionRequest req, CancellationToken ct = default)
@@ -43,7 +64,7 @@ public sealed class TransactionService(
         db.Transactions.Add(tx);
         await db.SaveChangesAsync(ct);
         await LoadCategoryAsync(tx, ct);
-        return Result<TransactionResponse>.Ok(tx.ToResponse());
+        return Result<TransactionResponse>.Ok(await ShowAsync(tx, ct));
     }
 
     /// Income entry: the user types what arrived (gross with VAT, or net), we split VAT out
@@ -95,7 +116,7 @@ public sealed class TransactionService(
         db.Transactions.Add(tx);
         await db.SaveChangesAsync(ct);
         await LoadCategoryAsync(tx, ct);
-        return Result<TransactionResponse>.Ok(tx.ToResponse());
+        return Result<TransactionResponse>.Ok(await ShowAsync(tx, ct));
     }
 
     public async Task<Result<TransactionResponse>> UpdateAsync(int id, SaveTransactionRequest req, CancellationToken ct = default)
@@ -108,7 +129,7 @@ public sealed class TransactionService(
 
         await db.SaveChangesAsync(ct);
         await LoadCategoryAsync(tx, ct);
-        return Result<TransactionResponse>.Ok(tx.ToResponse());
+        return Result<TransactionResponse>.Ok(await ShowAsync(tx, ct));
     }
 
     public async Task<Result<bool>> DeleteAsync(int id, CancellationToken ct = default)
