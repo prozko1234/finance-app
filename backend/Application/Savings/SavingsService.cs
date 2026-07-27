@@ -1,4 +1,5 @@
 using FinanceApp.Application.Abstractions;
+using FinanceApp.Application.Allocations;
 using FinanceApp.Application.Common;
 using FinanceApp.Application.Contracts;
 using FinanceApp.Domain;
@@ -22,7 +23,9 @@ public interface ISavingsService
     Task<SavingsStatus> StatusAsync(decimal monthlyTakeHome, CancellationToken ct = default);
 }
 
-public sealed class SavingsService(IAppDbContext db, IMonthlyBudget monthlyBudget, IFxConverter fx) : ISavingsService
+public sealed class SavingsService(
+    IAppDbContext db, IMonthlyBudget monthlyBudget, IFxConverter fx,
+    IAllocationService allocations) : ISavingsService
 {
     public async Task<SavingsResponse> GetAsync(CancellationToken ct = default) =>
         await BuildAsync(await TakeHomeAsync(ct), ct);
@@ -130,18 +133,29 @@ public sealed class SavingsService(IAppDbContext db, IMonthlyBudget monthlyBudge
         return Result<SavingsResponse>.Ok(await BuildAsync(await TakeHomeAsync(ct), ct));
     }
 
-    public async Task<SavingsStatus> StatusAsync(decimal monthlyTakeHome, CancellationToken ct = default)
+    public async Task<SavingsStatus> StatusAsync(decimal monthlyTakeHome, CancellationToken ct = default) =>
+        (await GoalStatusAsync(monthlyTakeHome, ct)).Status;
+
+    /// The month's goal, from whichever source owns it. An active scheme with a Savings
+    /// bucket wins: two mechanisms reserving for savings at once would hold the money twice.
+    private async Task<(SavingsStatus Status, string? FromScheme)> GoalStatusAsync(
+        decimal monthlyTakeHome, CancellationToken ct)
     {
-        var plan = await db.SavingsPlans.OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
-        return SavingsCalculator.Status(
-            plan, monthlyTakeHome, await BalanceAsync(ct), await DepositedThisMonthAsync(ct));
+        var breakdown = await allocations.BreakdownAsync(monthlyTakeHome, ct);
+        var goal = breakdown.SavingsGoal
+            ?? SavingsCalculator.MonthGoal(
+                await db.SavingsPlans.OrderBy(x => x.Id).FirstOrDefaultAsync(ct), monthlyTakeHome);
+
+        var status = SavingsCalculator.Status(
+            goal, await BalanceAsync(ct), await DepositedThisMonthAsync(ct));
+
+        return (status, breakdown.SavingsGoal is null ? null : breakdown.SchemeName);
     }
 
     private async Task<SavingsResponse> BuildAsync(decimal monthlyTakeHome, CancellationToken ct)
     {
         var plan = await db.SavingsPlans.OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
-        var status = SavingsCalculator.Status(
-            plan, monthlyTakeHome, await BalanceAsync(ct), await DepositedThisMonthAsync(ct));
+        var (status, fromScheme) = await GoalStatusAsync(monthlyTakeHome, ct);
 
         var entries = await db.SavingsEntries
             .OrderByDescending(x => x.Date).ThenByDescending(x => x.Id)
@@ -159,7 +173,8 @@ public sealed class SavingsService(IAppDbContext db, IMonthlyBudget monthlyBudge
             status.DepositedThisMonth,
             status.StillToReserve,
             Money.BaseCurrency,
-            entries);
+            entries,
+            fromScheme);
     }
 
     /// A percentage goal is a share of what is actually the user's after tax.

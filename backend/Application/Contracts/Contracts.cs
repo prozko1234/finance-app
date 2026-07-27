@@ -77,7 +77,21 @@ public record SafeToSpendResponse(
     decimal? TomorrowIfStop,
     decimal? TomorrowIfOnPlan,
     MonthTaxBreakdown? MonthTaxes,
-    SavingsSummary Savings);
+    SavingsSummary Savings,
+    AllocationSummary? Allocation = null);
+
+/// Where the month's budget went before the daily norm was computed — the "куди пішов
+/// бюджет" row. Null-ish case (the default one-bucket scheme) still comes through, so the
+/// UI can decide on its own whether a single 100% bucket is worth showing.
+public record AllocationSummary(
+    string SchemeName,
+    string? Preset,
+    decimal Spendable,
+    decimal Reserved,
+    IReadOnlyList<BucketShareResponse> Buckets);
+
+public record BucketShareResponse(
+    int Id, string Name, string Kind, decimal Percent, decimal Amount);
 
 /// The savings envelope, shown on its own: a balance that survives across months,
 /// plus how much of this month's goal is still being held back from safe-to-spend.
@@ -114,7 +128,10 @@ public record SavingsResponse(
     decimal DepositedThisMonth,
     decimal StillToReserve,
     string Currency,
-    IReadOnlyList<SavingsEntryResponse> Recent);
+    IReadOnlyList<SavingsEntryResponse> Recent,
+    /// Name of the allocation scheme that dictates the goal, or null when the plan below
+    /// still decides it. Set = the plan's own value is ignored, and the UI must say so.
+    string? GoalFromScheme = null);
 
 public record SaveRecurringRequest(
     decimal Amount,

@@ -1,5 +1,6 @@
 using FinanceApp.Application.Abstractions;
 using FinanceApp.Domain;
+using FinanceApp.Domain.Budgeting;
 using FinanceApp.Domain.Savings;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,6 +16,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<TaxProfile> TaxProfiles => Set<TaxProfile>();
     public DbSet<SavingsPlan> SavingsPlans => Set<SavingsPlan>();
     public DbSet<SavingsEntry> SavingsEntries => Set<SavingsEntry>();
+    public DbSet<AllocationScheme> AllocationSchemes => Set<AllocationScheme>();
+    public DbSet<AllocationBucket> AllocationBuckets => Set<AllocationBucket>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -107,7 +110,46 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             e.Property(x => x.MonthlyAmount).HasPrecision(18, 2);
         });
+
+        b.Entity<AllocationScheme>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(60).IsRequired();
+            e.Property(x => x.Preset).HasMaxLength(40);
+            // Exactly one scheme may be active; the DB enforces it, not just the service.
+            e.HasIndex(x => x.IsActive).IsUnique().HasFilter("\"IsActive\" = 1");
+            e.HasMany(x => x.Buckets)
+                .WithOne(x => x.Scheme!)
+                .HasForeignKey(x => x.SchemeId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasData(DefaultScheme);
+        });
+
+        b.Entity<AllocationBucket>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(60).IsRequired();
+            e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.Percent).HasPrecision(5, 2);
+            e.HasData(DefaultBuckets);
+        });
     }
+
+    // Every database starts with the app's pre-schemes behaviour expressed as a scheme:
+    // one Spending bucket at 100%. Seeded rather than created on demand so existing
+    // databases get an active scheme from the migration alone.
+    private static readonly AllocationScheme DefaultScheme = new()
+    {
+        Id = 1,
+        Name = AllocationPresets.Find(AllocationPresets.DailyNormOnly)!.Name,
+        Preset = AllocationPresets.DailyNormOnly,
+        IsActive = true,
+        // Fixed, not UtcNow: seed data must be deterministic or every migration differs.
+        UpdatedAt = new DateTimeOffset(2026, 7, 27, 0, 0, 0, TimeSpan.Zero),
+    };
+
+    private static readonly AllocationBucket[] DefaultBuckets =
+    [
+        new() { Id = 1, SchemeId = 1, Name = "На витрати", Kind = BucketKind.Spending, Percent = 100m, SortOrder = 0 },
+    ];
 
     private static readonly Category[] SeedCategories =
     [

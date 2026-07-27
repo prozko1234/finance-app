@@ -1,4 +1,5 @@
 using System.Reflection;
+using FinanceApp.Application.Allocations;
 using FinanceApp.Application.Budgets;
 using FinanceApp.Application.Categories;
 using FinanceApp.Application.Recurring;
@@ -21,6 +22,7 @@ public static class DependencyInjection
         services.AddScoped<ISummaryService, SummaryService>();
         services.AddScoped<IMonthlyBudget, MonthlyBudget>();
         services.AddScoped<ISavingsService, SavingsService>();
+        services.AddScoped<IAllocationService, AllocationService>();
         services.AddScoped<IDevDataService, DevDataService>();
         services.AddScoped<ICategoryService, CategoryService>();
         services.AddScoped<IRecurringService, RecurringService>();

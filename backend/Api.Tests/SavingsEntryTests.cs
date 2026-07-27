@@ -1,3 +1,4 @@
+using FinanceApp.Application.Allocations;
 using FinanceApp.Application.Contracts;
 using FinanceApp.Application.Savings;
 using FinanceApp.Application.Summaries;
@@ -12,7 +13,7 @@ namespace FinanceApp.Api.Tests;
 public class SavingsEntryTests
 {
     private static SavingsService Sut(SqliteInMemory mem) =>
-        new(mem.Db, new MonthlyBudget(mem.Db), new FakeFxConverter());
+        new(mem.Db, new MonthlyBudget(mem.Db), new FakeFxConverter(), new AllocationService(mem.Db));
 
     private static SaveSavingsEntryRequest Deposit(decimal amount, string? currency = null) =>
         new("Deposit", amount, null, null, currency);

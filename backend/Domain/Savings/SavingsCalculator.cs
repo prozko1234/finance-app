@@ -13,9 +13,13 @@ public record SavingsStatus(
 public static class SavingsCalculator
 {
     public static SavingsStatus Status(
-        SavingsPlan? plan, decimal monthlyTakeHome, decimal balance, decimal depositedThisMonth)
+        SavingsPlan? plan, decimal monthlyTakeHome, decimal balance, decimal depositedThisMonth) =>
+        Status(MonthGoal(plan, monthlyTakeHome), balance, depositedThisMonth);
+
+    /// Same rules for a goal that comes from elsewhere — an allocation scheme's Savings
+    /// bucket. Deposits eat into the reservation there too, so the money is never held twice.
+    public static SavingsStatus Status(decimal goal, decimal balance, decimal depositedThisMonth)
     {
-        var goal = MonthGoal(plan, monthlyTakeHome);
         var stillToReserve = Math.Max(0m, goal - depositedThisMonth);
         return new SavingsStatus(balance, goal, depositedThisMonth, stillToReserve);
     }

@@ -1,4 +1,5 @@
 using FinanceApp.Domain;
+using FinanceApp.Domain.Budgeting;
 using FinanceApp.Domain.Savings;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,6 +18,8 @@ public interface IAppDbContext
     DbSet<TaxProfile> TaxProfiles { get; }
     DbSet<SavingsPlan> SavingsPlans { get; }
     DbSet<SavingsEntry> SavingsEntries { get; }
+    DbSet<AllocationScheme> AllocationSchemes { get; }
+    DbSet<AllocationBucket> AllocationBuckets { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

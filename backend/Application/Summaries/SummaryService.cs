@@ -1,4 +1,5 @@
 using FinanceApp.Application.Abstractions;
+using FinanceApp.Application.Allocations;
 using FinanceApp.Application.Common;
 using FinanceApp.Application.Contracts;
 using FinanceApp.Application.Mapping;
@@ -19,7 +20,8 @@ public interface ISummaryService
 
 public sealed class SummaryService(
     IAppDbContext db, IFxConverter fx, IRecurringMaterializer materializer,
-    IMonthlyBudget monthlyBudget, ISavingsService savings) : ISummaryService
+    IMonthlyBudget monthlyBudget, ISavingsService savings,
+    IAllocationService allocations) : ISummaryService
 {
     public async Task<SafeToSpendResponse> GetSafeToSpendAsync(CancellationToken ct = default)
     {
@@ -46,8 +48,20 @@ public sealed class SummaryService(
         var savingsStatus = await savings.StatusAsync(budget ?? 0m, ct);
         var recurring = await ReservedRecurringAsync(today, ct);
 
+        // The active scheme decides how much of the budget is spendable at all. Its Savings
+        // buckets are NOT added here: they already come through savingsStatus, where deposits
+        // made this month reduce what is still held back.
+        var allocation = await allocations.BreakdownAsync(budget ?? 0m, ct);
+        var allocated = allocation.Reserved - (allocation.SavingsGoal ?? 0m);
+
+        // Deposits already made count as held back too, not only what is left to reserve.
+        // A deposit is not an expense transaction, so without this the money that moved into
+        // the envelope would come back as spendable — the goal would reserve less the more
+        // of it was actually saved.
+        var savingsHeld = savingsStatus.DepositedThisMonth + savingsStatus.StillToReserve;
+
         var r = SafeToSpendCalculator.Calculate(
-            budget, spent, spentToday, recurring + savingsStatus.StillToReserve, today);
+            budget, spent, spentToday, recurring + savingsHeld + allocated, today);
 
         // Reported separately from the recurring reserve: the month summary shows them as
         // two different rows, and lumping them together would make the column unreadable.
@@ -58,7 +72,14 @@ public sealed class SummaryService(
             taxes?.ToMonthBreakdown(),
             new SavingsSummary(
                 savingsStatus.Balance, savingsStatus.MonthGoal,
-                savingsStatus.DepositedThisMonth, savingsStatus.StillToReserve));
+                savingsStatus.DepositedThisMonth, savingsStatus.StillToReserve),
+            new AllocationSummary(
+                allocation.SchemeName, allocation.Preset,
+                allocation.Spendable, allocation.Reserved,
+                allocation.Shares
+                    .Select(s => new BucketShareResponse(
+                        s.BucketId, s.Name, s.Kind.ToString(), s.Percent, s.Amount))
+                    .ToList()));
     }
 
     /// Active recurring EXPENSES whose this-month charge is still in the future = not yet
