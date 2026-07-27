@@ -184,6 +184,11 @@ export function useAddSavingsEntry() {
   return useSavingsMutation((e: SaveSavingsEntry) => api.addSavingsEntry(e))
 }
 
+export function useUpdateSavingsEntry() {
+  return useSavingsMutation(({ id, data }: { id: number; data: SaveSavingsEntry }) =>
+    api.updateSavingsEntry(id, data))
+}
+
 export function useDeleteSavingsEntry() {
   return useSavingsMutation((id: number) => api.deleteSavingsEntry(id))
 }

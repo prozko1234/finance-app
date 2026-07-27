@@ -27,6 +27,13 @@ public static class SavingsEndpoints
             return r.IsSuccess ? Results.Ok(r.Value) : r.Error.ToProblem();
         });
 
+        // Correcting a movement instead of deleting and retyping it.
+        g.MapPut("/entries/{id:int}", async (int id, SaveSavingsEntryRequest req, ISavingsService svc, CancellationToken ct) =>
+        {
+            var r = await svc.UpdateEntryAsync(id, req, ct);
+            return r.IsSuccess ? Results.Ok(r.Value) : r.Error.ToProblem();
+        });
+
         g.MapDelete("/entries/{id:int}", async (int id, ISavingsService svc, CancellationToken ct) =>
         {
             var r = await svc.DeleteEntryAsync(id, ct);

@@ -74,7 +74,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
         b.Entity<SavingsEntry>(e =>
         {
-            e.Property(x => x.Amount).HasPrecision(18, 2);
+            e.Property(x => x.AmountOriginal).HasPrecision(18, 2);
+            e.Property(x => x.AmountBase).HasPrecision(18, 2);
+            e.Property(x => x.FxRate).HasPrecision(18, 6);
+            e.Property(x => x.CurrencyOriginal).HasMaxLength(3).IsRequired();
             e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.Note).HasMaxLength(500);
             e.HasIndex(x => x.Date);

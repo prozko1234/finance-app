@@ -3,6 +3,7 @@ using FinanceApp.Application.Common;
 using FinanceApp.Application.Contracts;
 using FinanceApp.Domain;
 using FinanceApp.Domain.Common;
+using FinanceApp.Domain.Fx;
 using FinanceApp.Application.Summaries;
 using FinanceApp.Domain.Savings;
 using Microsoft.EntityFrameworkCore;
@@ -14,13 +15,14 @@ public interface ISavingsService
     Task<SavingsResponse> GetAsync(CancellationToken ct = default);
     Task<Result<SavingsResponse>> SavePlanAsync(SaveSavingsPlanRequest req, CancellationToken ct = default);
     Task<Result<SavingsResponse>> AddEntryAsync(SaveSavingsEntryRequest req, CancellationToken ct = default);
+    Task<Result<SavingsResponse>> UpdateEntryAsync(int id, SaveSavingsEntryRequest req, CancellationToken ct = default);
     Task<Result<SavingsResponse>> DeleteEntryAsync(int id, CancellationToken ct = default);
 
     /// Balance + this month's goal. Takes take-home because a percentage goal depends on it.
     Task<SavingsStatus> StatusAsync(decimal monthlyTakeHome, CancellationToken ct = default);
 }
 
-public sealed class SavingsService(IAppDbContext db, IMonthlyBudget monthlyBudget) : ISavingsService
+public sealed class SavingsService(IAppDbContext db, IMonthlyBudget monthlyBudget, IFxConverter fx) : ISavingsService
 {
     public async Task<SavingsResponse> GetAsync(CancellationToken ct = default) =>
         await BuildAsync(await TakeHomeAsync(ct), ct);
@@ -54,26 +56,68 @@ public sealed class SavingsService(IAppDbContext db, IMonthlyBudget monthlyBudge
     public async Task<Result<SavingsResponse>> AddEntryAsync(
         SaveSavingsEntryRequest req, CancellationToken ct = default)
     {
+        var entry = new SavingsEntry { CreatedAt = DateTimeOffset.UtcNow };
+        var applied = await ApplyAsync(entry, req, replacing: 0m, ct);
+        if (!applied.IsSuccess) return applied.Error;
+
+        db.SavingsEntries.Add(entry);
+        await db.SaveChangesAsync(ct);
+        return Result<SavingsResponse>.Ok(await BuildAsync(await TakeHomeAsync(ct), ct));
+    }
+
+    public async Task<Result<SavingsResponse>> UpdateEntryAsync(
+        int id, SaveSavingsEntryRequest req, CancellationToken ct = default)
+    {
+        var entry = await db.SavingsEntries.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (entry is null) return Error.NotFound($"Операцію {id} не знайдено.");
+
+        // The row being edited is already part of the balance, so it has to be taken out
+        // before checking the new amount — otherwise correcting a withdrawal down would
+        // be rejected by the balance it itself produced.
+        var replacing = entry.Kind == SavingsEntryKind.Deposit ? entry.AmountBase : -entry.AmountBase;
+
+        var applied = await ApplyAsync(entry, req, replacing, ct);
+        if (!applied.IsSuccess) return applied.Error;
+
+        await db.SaveChangesAsync(ct);
+        return Result<SavingsResponse>.Ok(await BuildAsync(await TakeHomeAsync(ct), ct));
+    }
+
+    /// Shared by add and edit so both validate identically and convert on the same date —
+    /// two code paths writing money is how the balance starts to disagree with the entries.
+    /// <param name="replacing">Signed base amount this entry already contributes, if any.</param>
+    private async Task<Result<SavingsEntry>> ApplyAsync(
+        SavingsEntry entry, SaveSavingsEntryRequest req, decimal replacing, CancellationToken ct)
+    {
         if (!Enum.TryParse<SavingsEntryKind>(req.Kind, ignoreCase: true, out var kind))
             return Error.Validation($"Невідомий тип операції: {req.Kind}.");
         if (req.Amount <= 0)
             return Error.Validation("Сума має бути більшою за нуль.");
 
-        var balance = await BalanceAsync(ct);
-        if (kind == SavingsEntryKind.Withdrawal && req.Amount > balance)
-            return Error.Validation($"У конверті лише {balance:0.00}. Стільки зняти не вийде.");
+        var date = req.Date ?? entry.Date;
+        if (date == default) date = DateOnly.FromDateTime(DateTime.Now);
 
-        db.SavingsEntries.Add(new SavingsEntry
-        {
-            Date = req.Date ?? DateOnly.FromDateTime(DateTime.Now),
-            Kind = kind,
-            Amount = req.Amount,
-            Note = string.IsNullOrWhiteSpace(req.Note) ? null : req.Note.Trim(),
-            CreatedAt = DateTimeOffset.UtcNow,
-        });
+        var currency = string.IsNullOrWhiteSpace(req.Currency)
+            ? Money.BaseCurrency
+            : req.Currency.ToUpperInvariant();
 
-        await db.SaveChangesAsync(ct);
-        return Result<SavingsResponse>.Ok(await BuildAsync(await TakeHomeAsync(ct), ct));
+        var conv = await fx.ConvertToBaseAsync(req.Amount, currency, date, ct);
+        if (!conv.IsSuccess) return conv.Error;
+
+        var available = await BalanceAsync(ct) - replacing;
+        if (kind == SavingsEntryKind.Withdrawal && conv.Value!.AmountBase > available)
+            return Error.Validation($"У конверті лише {available:0.00}. Стільки зняти не вийде.");
+
+        entry.Date = date;
+        entry.Kind = kind;
+        entry.AmountOriginal = req.Amount;
+        entry.CurrencyOriginal = currency;
+        entry.AmountBase = conv.Value!.AmountBase;
+        entry.FxRate = conv.Value.Rate;
+        entry.FxDate = conv.Value.RateDate;
+        entry.Note = string.IsNullOrWhiteSpace(req.Note) ? null : req.Note.Trim();
+
+        return Result<SavingsEntry>.Ok(entry);
     }
 
     public async Task<Result<SavingsResponse>> DeleteEntryAsync(int id, CancellationToken ct = default)
@@ -101,8 +145,9 @@ public sealed class SavingsService(IAppDbContext db, IMonthlyBudget monthlyBudge
 
         var entries = await db.SavingsEntries
             .OrderByDescending(x => x.Date).ThenByDescending(x => x.Id)
-            .Take(20)
-            .Select(x => new SavingsEntryResponse(x.Id, x.Date, x.Kind.ToString(), x.Amount, x.Note))
+            .Take(100)
+            .Select(x => new SavingsEntryResponse(
+                x.Id, x.Date, x.Kind.ToString(), x.AmountBase, x.AmountOriginal, x.CurrencyOriginal, x.Note))
             .ToListAsync(ct);
 
         return new SavingsResponse(
@@ -125,10 +170,10 @@ public sealed class SavingsService(IAppDbContext db, IMonthlyBudget monthlyBudge
     {
         var deposits = await db.SavingsEntries
             .Where(x => x.Kind == SavingsEntryKind.Deposit)
-            .SumAsync(x => (decimal?)x.Amount, ct) ?? 0m;
+            .SumAsync(x => (decimal?)x.AmountBase, ct) ?? 0m;
         var withdrawals = await db.SavingsEntries
             .Where(x => x.Kind == SavingsEntryKind.Withdrawal)
-            .SumAsync(x => (decimal?)x.Amount, ct) ?? 0m;
+            .SumAsync(x => (decimal?)x.AmountBase, ct) ?? 0m;
 
         return deposits - withdrawals;
     }
@@ -141,10 +186,10 @@ public sealed class SavingsService(IAppDbContext db, IMonthlyBudget monthlyBudge
 
         var deposits = await rows
             .Where(x => x.Kind == SavingsEntryKind.Deposit)
-            .SumAsync(x => (decimal?)x.Amount, ct) ?? 0m;
+            .SumAsync(x => (decimal?)x.AmountBase, ct) ?? 0m;
         var withdrawals = await rows
             .Where(x => x.Kind == SavingsEntryKind.Withdrawal)
-            .SumAsync(x => (decimal?)x.Amount, ct) ?? 0m;
+            .SumAsync(x => (decimal?)x.AmountBase, ct) ?? 0m;
 
         return deposits - withdrawals;
     }

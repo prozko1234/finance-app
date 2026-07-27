@@ -89,9 +89,21 @@ public record SavingsSummary(
 
 public record SaveSavingsPlanRequest(string Mode, decimal Value, bool Active);
 
-public record SaveSavingsEntryRequest(string Kind, decimal Amount, DateOnly? Date, string? Note);
+/// Currency is optional: most movements are in base currency, and an omitted field
+/// must not turn into a validation error on the common path.
+public record SaveSavingsEntryRequest(
+    string Kind, decimal Amount, DateOnly? Date, string? Note, string? Currency = null);
 
-public record SavingsEntryResponse(int Id, DateOnly Date, string Kind, decimal Amount, string? Note);
+public record SavingsEntryResponse(
+    int Id,
+    DateOnly Date,
+    string Kind,
+    /// In base currency — what this movement did to the balance.
+    decimal Amount,
+    /// What the user actually typed, and in which currency.
+    decimal AmountOriginal,
+    string CurrencyOriginal,
+    string? Note);
 
 public record SavingsResponse(
     string Mode,

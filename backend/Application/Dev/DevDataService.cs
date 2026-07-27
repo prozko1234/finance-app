@@ -86,7 +86,8 @@ public sealed class DevDataService(IAppDbContext db) : IDevDataService
         });
         db.SavingsEntries.Add(new SavingsEntry
         {
-            Date = first, Kind = SavingsEntryKind.Deposit, Amount = 800m,
+            Date = first, Kind = SavingsEntryKind.Deposit,
+            AmountOriginal = 800m, AmountBase = 800m, FxRate = 1m, FxDate = first,
             Note = "Перший внесок", CreatedAt = DateTimeOffset.UtcNow,
         });
 

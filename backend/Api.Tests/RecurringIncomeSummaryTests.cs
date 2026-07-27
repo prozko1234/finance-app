@@ -50,7 +50,7 @@ public class RecurringIncomeSummaryTests
             mem.Db, fx,
             new RecurringMaterializer(mem.Db, fx),
             new MonthlyBudget(mem.Db),
-            new SavingsService(mem.Db, new MonthlyBudget(mem.Db)));
+            new SavingsService(mem.Db, new MonthlyBudget(mem.Db), fx));
 
         var r = await sut.GetSafeToSpendAsync();
 

@@ -118,7 +118,11 @@ export interface SavingsEntry {
   id: number
   date: string
   kind: 'Deposit' | 'Withdrawal'
+  /// У базовій валюті — те, що ця операція зробила з балансом.
   amount: number
+  /// Те, що людина реально вписала, і в якій валюті.
+  amountOriginal: number
+  currencyOriginal: string
   note: string | null
 }
 
@@ -145,6 +149,7 @@ export interface SaveSavingsEntry {
   amount: number
   date?: string | null
   note?: string | null
+  currency?: string | null
 }
 
 export interface SafeToSpend {

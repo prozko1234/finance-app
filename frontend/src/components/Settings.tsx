@@ -9,14 +9,12 @@ interface Props {
   incomeBudget: number | null
   onSave: (amount: number) => Promise<void>
   onBack: () => void
-  onGoRecurring: () => void
-  onGoTax: () => void
-  onGoCategories: () => void
-  /// Only provided in a dev build — the API exposes these endpoints in Development only.
-  onGoDev?: () => void
 }
 
-export function Settings({ budget, incomeBudget, onSave, onBack, onGoRecurring, onGoTax, onGoCategories, onGoDev }: Props) {
+/// Settings are settings only. The screens that used to hang off this page — категорії,
+/// підписки, податковий профіль — live in the menu now, where they read as places rather
+/// than as options of something else.
+export function Settings({ budget, incomeBudget, onSave, onBack }: Props) {
   const [amount, setAmount] = useState(budget?.monthlyAmount != null ? String(budget.monthlyAmount) : '')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -76,40 +74,6 @@ export function Settings({ budget, incomeBudget, onSave, onBack, onGoRecurring, 
       >
         {saving ? 'Зберігаю…' : 'Зберегти бюджет'}
       </button>
-
-      <button
-        onClick={onGoRecurring}
-        className="w-full flex items-center justify-between rounded-2xl bg-white dark:bg-neutral-900 px-5 py-4 shadow-sm"
-      >
-        <span className="font-medium">Підписки й регулярні</span>
-        <span className="text-neutral-400">→</span>
-      </button>
-
-      <button
-        onClick={onGoCategories}
-        className="w-full flex items-center justify-between rounded-2xl bg-white dark:bg-neutral-900 px-5 py-4 shadow-sm"
-      >
-        <span className="font-medium">Категорії</span>
-        <span className="text-neutral-400">→</span>
-      </button>
-
-      <button
-        onClick={onGoTax}
-        className="w-full flex items-center justify-between rounded-2xl bg-white dark:bg-neutral-900 px-5 py-4 shadow-sm"
-      >
-        <span className="font-medium">Податковий профіль</span>
-        <span className="text-neutral-400">→</span>
-      </button>
-
-      {onGoDev && (
-        <button
-          onClick={onGoDev}
-          className="w-full flex items-center justify-between rounded-2xl bg-white dark:bg-neutral-900 px-5 py-4 shadow-sm"
-        >
-          <span className="font-medium">Тестові дані</span>
-          <span className="text-neutral-400">→</span>
-        </button>
-      )}
 
       <p className="text-xs text-neutral-400 text-center">
         «Ще сьогодні» рахується від бюджета місяця: з доходу, якщо він є, інакше — із

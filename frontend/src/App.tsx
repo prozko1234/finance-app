@@ -4,7 +4,7 @@ import {
   useBudget, useCategories, useCreateRecurring, useCreateTransaction, useDeleteRecurring,
   useCreateCategory, useCreateIncome, useUpdateTransaction, useDeleteCategory, useDeleteTransaction, useRecurring, useUpdateCategory, useSafeToSpend, useSetBudget, useTransactions,
   useUpdateRecurring, useTaxProfile, useTaxDefaults, useSaveTaxProfile,
-  useSavings, useSaveSavingsPlan, useAddSavingsEntry, useDeleteSavingsEntry,
+  useSavings, useSaveSavingsPlan, useAddSavingsEntry, useUpdateSavingsEntry, useDeleteSavingsEntry,
 } from './hooks'
 import { Home } from './components/Home'
 import { AddTransaction } from './components/AddTransaction'
@@ -14,9 +14,8 @@ import { TaxProfile } from './components/TaxProfile'
 import { Categories } from './components/Categories'
 import { Savings } from './components/Savings'
 import { DevTools } from './components/DevTools'
-
-
-type View = 'home' | 'add' | 'settings' | 'recurring' | 'tax' | 'categories' | 'savings' | 'dev'
+import { Nav } from './components/Nav'
+import type { View } from './components/Nav'
 
 function App() {
   const [view, setView] = useState<View>('home')
@@ -32,6 +31,7 @@ function App() {
   const savings = useSavings()
   const saveSavingsPlan = useSaveSavingsPlan()
   const addSavingsEntry = useAddSavingsEntry()
+  const updateSavingsEntry = useUpdateSavingsEntry()
   const deleteSavingsEntry = useDeleteSavingsEntry()
   const taxProfile = useTaxProfile()
   const taxDefaults = useTaxDefaults()
@@ -78,14 +78,12 @@ function App() {
 
   return (
     <div className="min-h-screen">
-      <div className="mx-auto max-w-md px-4 py-6 pb-28">
-        <header className="flex items-center justify-between mb-6">
+      <div className="mx-auto max-w-4xl px-4 py-6 pb-28 md:flex md:gap-8">
+        <Nav current={view} onGo={setView} showDev={import.meta.env.DEV} />
+
+        <main className="flex-1 md:max-w-md">
+        <header className="mb-6 md:hidden">
           <h1 className="text-xl font-bold">finance</h1>
-          {view === 'home' && (
-            <button onClick={() => setView('settings')} className="text-neutral-400 text-xl" aria-label="Налаштування">
-              ⚙
-            </button>
-          )}
         </header>
 
         {loadError && (
@@ -123,18 +121,15 @@ function App() {
             incomeBudget={summary.data?.monthTaxes?.takeHome ?? null}
             onSave={(amount) => setBudget.mutateAsync(amount).then(() => {})}
             onBack={() => setView('home')}
-            onGoRecurring={() => setView('recurring')}
-            onGoTax={() => setView('tax')}
-            onGoCategories={() => setView('categories')}
-            onGoDev={import.meta.env.DEV ? () => setView('dev') : undefined}
           />
         )}
-        {view === 'dev' && <DevTools onBack={() => setView('settings')} />}
+        {view === 'dev' && <DevTools onBack={() => setView('home')} />}
         {view === 'savings' && (
           <Savings
             data={savings.data ?? null}
             onSavePlan={(p) => saveSavingsPlan.mutateAsync(p).then(() => {})}
-            onAddEntry={(kind, amount, note) => addSavingsEntry.mutateAsync({ kind, amount, note }).then(() => {})}
+            onAddEntry={(e) => addSavingsEntry.mutateAsync(e).then(() => {})}
+            onUpdateEntry={(id, e) => updateSavingsEntry.mutateAsync({ id, data: e }).then(() => {})}
             onDeleteEntry={(id) => deleteSavingsEntry.mutateAsync(id).then(() => {})}
             onBack={() => setView('home')}
           />
@@ -146,7 +141,7 @@ function App() {
             onCreate={(r) => createRecurring.mutateAsync(r).then(() => {})}
             onToggle={toggleRecurring}
             onDelete={(id) => deleteRecurring.mutateAsync(id).then(() => {})}
-            onBack={() => setView('settings')}
+            onBack={() => setView('home')}
           />
         )}
         {view === 'categories' && (
@@ -155,7 +150,7 @@ function App() {
             onCreate={(c) => createCategory.mutateAsync(c)}
             onUpdate={(id, data) => updateCategory.mutateAsync({ id, data }).then(() => {})}
             onDelete={(id) => deleteCategory.mutateAsync(id).then(() => {})}
-            onBack={() => setView('settings')}
+            onBack={() => setView('home')}
           />
         )}
         {view === 'tax' && (
@@ -163,9 +158,10 @@ function App() {
             profile={taxProfile.data ?? null}
             defaults={taxDefaults.data ?? null}
             onSave={(p) => saveTaxProfile.mutateAsync(p).then(() => {})}
-            onBack={() => setView('settings')}
+            onBack={() => setView('home')}
           />
         )}
+        </main>
       </div>
 
       {view === 'home' && (

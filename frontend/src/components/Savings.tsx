@@ -1,17 +1,21 @@
 import { useState } from 'react'
-import type { Savings as SavingsData, SaveSavingsPlan } from '../types'
+import type { Savings as SavingsData, SaveSavingsEntry, SavingsEntry, SaveSavingsPlan } from '../types'
+import { BASE_CURRENCY, CURRENCIES, todayIso } from '../types'
 import { money } from '../format'
-import { todayIso } from '../types'
 
 interface Props {
   data: SavingsData | null
   onSavePlan: (p: SaveSavingsPlan) => Promise<void>
-  onAddEntry: (kind: 'Deposit' | 'Withdrawal', amount: number, note: string | null) => Promise<void>
+  onAddEntry: (e: SaveSavingsEntry) => Promise<void>
+  onUpdateEntry: (id: number, e: SaveSavingsEntry) => Promise<void>
   onDeleteEntry: (id: number) => Promise<void>
   onBack: () => void
 }
 
-export function Savings({ data, onSavePlan, onAddEntry, onDeleteEntry, onBack }: Props) {
+export function Savings({ data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteEntry, onBack }: Props) {
+  // Which movement is open for editing — at most one, so the list stays readable.
+  const [editing, setEditing] = useState<SavingsEntry | null>(null)
+
   if (!data) return <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm animate-pulse h-40" />
 
   return (
@@ -34,7 +38,13 @@ export function Savings({ data, onSavePlan, onAddEntry, onDeleteEntry, onBack }:
 
       <MoveMoney currency={data.currency} balance={data.balance} onAdd={onAddEntry} />
       <PlanForm data={data} onSave={onSavePlan} />
-      <History data={data} onDelete={onDeleteEntry} />
+      <History
+        data={data}
+        editing={editing}
+        onEdit={setEditing}
+        onSave={async (id, e) => { await onUpdateEntry(id, e); setEditing(null) }}
+        onDelete={onDeleteEntry}
+      />
     </div>
   )
 }
@@ -44,22 +54,24 @@ export function Savings({ data, onSavePlan, onAddEntry, onDeleteEntry, onBack }:
 function MoveMoney({ currency, balance, onAdd }: {
   currency: string
   balance: number
-  onAdd: (kind: 'Deposit' | 'Withdrawal', amount: number, note: string | null) => Promise<void>
+  onAdd: (e: SaveSavingsEntry) => Promise<void>
 }) {
   const [amount, setAmount] = useState('')
+  const [entryCurrency, setEntryCurrency] = useState<string>(BASE_CURRENCY)
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const value = Number(amount.replace(',', '.'))
   const valid = value > 0
+  const isBase = entryCurrency === BASE_CURRENCY
 
   async function move(kind: 'Deposit' | 'Withdrawal') {
     if (!valid || busy) return
     setBusy(true)
     setError(null)
     try {
-      await onAdd(kind, value, note.trim() || null)
+      await onAdd({ kind, amount: value, currency: entryCurrency, note: note.trim() || null })
       setAmount('')
       setNote('')
     } catch (e) {
@@ -73,14 +85,23 @@ function MoveMoney({ currency, balance, onAdd }: {
     <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm space-y-3">
       <h2 className="text-sm font-medium text-neutral-400">Змінити вручну</h2>
 
-      <input
-        type="text"
-        inputMode="decimal"
-        placeholder="0"
-        value={amount}
-        onChange={(e) => setAmount(e.target.value)}
-        className="w-full text-3xl font-bold tabular-nums bg-transparent outline-none"
-      />
+      <div className="flex gap-2">
+        <input
+          type="text"
+          inputMode="decimal"
+          placeholder="0"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          className="flex-1 text-3xl font-bold tabular-nums bg-transparent outline-none w-full"
+        />
+        <select
+          value={entryCurrency}
+          onChange={(e) => setEntryCurrency(e.target.value)}
+          className="rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 font-medium"
+        >
+          {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
       <input
         type="text"
         placeholder="Нотатка (необов'язково)"
@@ -100,7 +121,9 @@ function MoveMoney({ currency, balance, onAdd }: {
           + Відкласти
         </button>
         <button
-          disabled={!valid || busy || value > balance}
+          // In another currency the limit is only known after conversion, so the check is
+          // the server's; blocking here on a base-currency balance would be a guess.
+          disabled={!valid || busy || (isBase && value > balance)}
           onClick={() => move('Withdrawal')}
           className="flex-1 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2.5 font-medium disabled:opacity-40"
         >
@@ -110,6 +133,7 @@ function MoveMoney({ currency, balance, onAdd }: {
       <p className="text-xs text-neutral-400">
         Заощадження не входять у «Ще сьогодні». Зняти можна будь-коли — це твої гроші,
         не податки. Максимум до зняття: {money(balance, currency)}.
+        {!isBase && ` Сума в ${entryCurrency} перерахується за курсом на сьогодні.`}
       </p>
     </div>
   )
@@ -189,7 +213,13 @@ function PlanForm({ data, onSave }: { data: SavingsData; onSave: (p: SaveSavings
   )
 }
 
-function History({ data, onDelete }: { data: SavingsData; onDelete: (id: number) => Promise<void> }) {
+function History({ data, editing, onEdit, onSave, onDelete }: {
+  data: SavingsData
+  editing: SavingsEntry | null
+  onEdit: (e: SavingsEntry | null) => void
+  onSave: (id: number, e: SaveSavingsEntry) => Promise<void>
+  onDelete: (id: number) => Promise<void>
+}) {
   if (data.recent.length === 0) return null
 
   return (
@@ -197,21 +227,100 @@ function History({ data, onDelete }: { data: SavingsData; onDelete: (id: number)
       <h2 className="text-sm font-medium text-neutral-400 mb-2 px-1">Рухи</h2>
       <ul className="space-y-2">
         {data.recent.map((e) => (
-          <li key={e.id} className="flex items-center gap-3 rounded-xl bg-white dark:bg-neutral-900 px-4 py-3 shadow-sm">
-            <span className="text-xl">{e.kind === 'Deposit' ? '🐖' : '↩️'}</span>
-            <div className="flex-1 min-w-0">
-              <p className="font-medium truncate">{e.kind === 'Deposit' ? 'У заощадження' : 'Знято'}</p>
-              <p className="text-xs text-neutral-400 truncate">{e.note || (e.date === todayIso() ? 'сьогодні' : e.date)}</p>
-            </div>
-            <p className={`font-semibold tabular-nums ${e.kind === 'Deposit' ? 'text-emerald-600' : ''}`}>
-              {e.kind === 'Deposit' ? '+' : '−'}{money(e.amount, data.currency)}
-            </p>
-            <button onClick={() => onDelete(e.id)} className="text-neutral-300 hover:text-red-500 px-1" aria-label="Видалити">
-              ✕
-            </button>
+          <li key={e.id} className="rounded-xl bg-white dark:bg-neutral-900 px-4 py-3 shadow-sm">
+            {editing?.id === e.id ? (
+              <EditEntry entry={e} onSave={(payload) => onSave(e.id, payload)} onCancel={() => onEdit(null)} />
+            ) : (
+              <div className="flex items-center gap-3">
+                <span className="text-xl">{e.kind === 'Deposit' ? '🐖' : '↩️'}</span>
+                <button onClick={() => onEdit(e)} className="flex-1 min-w-0 text-left">
+                  <p className="font-medium truncate">{e.kind === 'Deposit' ? 'У заощадження' : 'Знято'}</p>
+                  <p className="text-xs text-neutral-400 truncate">
+                    {e.note || (e.date === todayIso() ? 'сьогодні' : e.date)}
+                    {/* Only worth showing when it differs from the balance's currency. */}
+                    {e.currencyOriginal !== data.currency && ` · ${money(e.amountOriginal, e.currencyOriginal)}`}
+                  </p>
+                </button>
+                <p className={`font-semibold tabular-nums ${e.kind === 'Deposit' ? 'text-emerald-600' : ''}`}>
+                  {e.kind === 'Deposit' ? '+' : '−'}{money(e.amount, data.currency)}
+                </p>
+                <button onClick={() => onDelete(e.id)} className="text-neutral-300 hover:text-red-500 px-1" aria-label="Видалити">
+                  ✕
+                </button>
+              </div>
+            )}
           </li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+/// Editing keeps the original currency: the entry is a record of what was moved, and
+/// re-converting it at today's rate would quietly rewrite history.
+function EditEntry({ entry, onSave, onCancel }: {
+  entry: SavingsEntry
+  onSave: (e: SaveSavingsEntry) => Promise<void>
+  onCancel: () => void
+}) {
+  const [amount, setAmount] = useState(String(entry.amountOriginal))
+  const [note, setNote] = useState(entry.note ?? '')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const value = Number(amount.replace(',', '.'))
+
+  async function save() {
+    if (!(value > 0) || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      await onSave({
+        kind: entry.kind,
+        amount: value,
+        currency: entry.currencyOriginal,
+        date: entry.date,
+        note: note.trim() || null,
+      })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не вдалося зберегти')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          inputMode="decimal"
+          autoFocus
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          className="flex-1 text-2xl font-bold tabular-nums bg-transparent outline-none"
+        />
+        <span className="text-neutral-400 font-medium">{entry.currencyOriginal}</span>
+      </div>
+      <input
+        type="text"
+        placeholder="Нотатка"
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        className="w-full rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-sm outline-none"
+      />
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      <div className="flex gap-2">
+        <button
+          disabled={!(value > 0) || busy}
+          onClick={save}
+          className="flex-1 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 px-3 py-2 text-sm font-medium disabled:opacity-40"
+        >
+          Зберегти
+        </button>
+        <button onClick={onCancel} className="rounded-xl bg-neutral-100 dark:bg-neutral-800 px-4 py-2 text-sm">
+          Скасувати
+        </button>
+      </div>
     </div>
   )
 }

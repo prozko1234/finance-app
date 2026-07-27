@@ -66,6 +66,8 @@ export const api = {
     http<Savings>('/api/savings/entries', { method: 'POST', body: JSON.stringify(e) }),
   deleteSavingsEntry: (id: number) =>
     http<Savings>(`/api/savings/entries/${id}`, { method: 'DELETE' }),
+  updateSavingsEntry: (id: number, e: SaveSavingsEntry) =>
+    http<Savings>(`/api/savings/entries/${id}`, { method: 'PUT', body: JSON.stringify(e) }),
 
   resetDevData: () => http<{ message: string }>('/api/dev/reset', { method: 'POST' }),
   seedDevData: () => http<{ message: string }>('/api/dev/seed', { method: 'POST' }),
