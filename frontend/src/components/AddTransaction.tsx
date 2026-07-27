@@ -4,7 +4,7 @@ import type {
 } from '../types'
 import { BASE_CURRENCY, CURRENCIES, shiftIso, todayIso } from '../types'
 import { money } from '../format'
-import { useIncomePreview, useSaveSavingsPlan, useTaxProfile } from '../hooks'
+import { useIncomePreview, useSaveSavingsPlan, useSettings, useTaxProfile } from '../hooks'
 import { readIncomeSources, readLastUsed, rememberIncomeSource, writeLastUsed } from '../lastUsed'
 
 interface Props {
@@ -459,6 +459,8 @@ function IncomePreviewBlock({ amount, includesVat, currency }: {
         <span className="tabular-nums font-medium">{money(data.budgetAfter, data.currency)}</span>
       </div>
 
+      <TaxCurrencyNote />
+
       <SavingsRow preview={data} />
     </div>
   )
@@ -541,5 +543,22 @@ function SavingsRow({ preview }: { preview: IncomePreview }) {
         Заощадження ховаються з «Ще сьогодні» — але лишаються твоїми, зняти можна будь-коли.
       </p>
     </div>
+  )
+}
+
+/// Податковий рушій польський: ставки, ZUS і здоровотна визначені в злотих, і саме ці
+/// цифри побачить книгова. Тому розклад лишається в PLN, навіть коли решта застосунку
+/// читається в іншій валюті — мовчазна конвертація дала б число, якого немає в жодному
+/// документі.
+function TaxCurrencyNote() {
+  const { data: settings } = useSettings()
+  if (!settings?.taxesInBaseCurrency) return null
+
+  return (
+    <p className="text-xs text-amber-600 dark:text-amber-400 leading-relaxed">
+      Розклад податків — у {settings.baseCurrency}: ставки й внески рахуються в злотих,
+      це ті самі цифри, що в книгової. Решта застосунку показується
+      в {settings.displayCurrency}.
+    </p>
   )
 }

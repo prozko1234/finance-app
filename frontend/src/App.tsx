@@ -4,7 +4,7 @@ import {
   useBudget, useCategories, useCreateRecurring, useCreateTransaction, useDeleteRecurring,
   useCreateCategory, useCreateIncome, useUpdateTransaction, useDeleteCategory, useDeleteTransaction, useRecurring, useUpdateCategory, useSafeToSpend, useSetBudget, useTransactions,
   useUpdateRecurring, useTaxProfile, useTaxDefaults, useSaveTaxProfile,
-  useAllocations, useSaveAllocation,
+  useAllocations, useSaveAllocation, useSettings, useSetDisplayCurrency,
   useSavings, useSaveSavingsPlan, useAddSavingsEntry, useUpdateSavingsEntry, useDeleteSavingsEntry,
 } from './hooks'
 import { Home } from './components/Home'
@@ -37,6 +37,8 @@ function App() {
   const addSavingsEntry = useAddSavingsEntry()
   const updateSavingsEntry = useUpdateSavingsEntry()
   const deleteSavingsEntry = useDeleteSavingsEntry()
+  const settings = useSettings()
+  const setDisplayCurrency = useSetDisplayCurrency()
   const taxProfile = useTaxProfile()
   const taxDefaults = useTaxDefaults()
   const saveTaxProfile = useSaveTaxProfile()
@@ -123,7 +125,9 @@ function App() {
         {view === 'settings' && (
           <Settings
             budget={budget.data ?? null}
+            settings={settings.data ?? null}
             incomeBudget={summary.data?.monthTaxes?.takeHome ?? null}
+            onPickCurrency={(c) => setDisplayCurrency.mutateAsync(c).then(() => {})}
             onSave={(amount) => setBudget.mutateAsync(amount).then(() => {})}
             onBack={() => setView('home')}
           />

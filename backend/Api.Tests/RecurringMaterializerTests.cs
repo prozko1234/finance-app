@@ -98,4 +98,55 @@ public class RecurringMaterializerTests
         Assert.Equal(24_600m, tx.GrossWithVat);
         Assert.Equal(4_600m, tx.VatAmount);
     }
+
+    /// A row whose CreatedAt was never set sits at year 1. Walking month by month from there
+    /// wrote ~24 000 phantom charges and made the app unusable — the catch-up must be bounded
+    /// by what the subscription could plausibly have been charged, not by what a date says.
+    [Fact]
+    public async Task A_recurring_without_a_creation_date_does_not_backfill_two_millennia()
+    {
+        using var mem = new SqliteInMemory();
+        var today = DateOnly.FromDateTime(DateTime.Now);
+
+        mem.Db.RecurringExpenses.Add(new RecurringExpense
+        {
+            AmountOriginal = 49.99m,
+            CurrencyOriginal = "PLN",
+            CategoryId = 1,
+            DayOfMonth = today.Day,
+            Active = true,
+            // CreatedAt deliberately left unset — default(DateTimeOffset) is 0001-01-01.
+        });
+        await mem.Db.SaveChangesAsync();
+
+        await new RecurringMaterializer(mem.Db, new FakeFxConverter()).MaterializeDueAsync();
+
+        var rows = await mem.Db.Transactions.CountAsync();
+        Assert.Equal(1, rows);
+        Assert.True(await mem.Db.Transactions.AllAsync(t => t.Date == today));
+    }
+
+    [Fact]
+    public async Task Catch_up_never_reaches_further_back_than_two_years()
+    {
+        using var mem = new SqliteInMemory();
+        var today = DateOnly.FromDateTime(DateTime.Now);
+
+        mem.Db.RecurringExpenses.Add(new RecurringExpense
+        {
+            AmountOriginal = 10m,
+            CurrencyOriginal = "PLN",
+            CategoryId = 1,
+            DayOfMonth = 1,
+            Active = true,
+            CreatedAt = DateTimeOffset.UtcNow.AddYears(-10),
+        });
+        await mem.Db.SaveChangesAsync();
+
+        await new RecurringMaterializer(mem.Db, new FakeFxConverter()).MaterializeDueAsync();
+
+        // 24 months back plus the current one, minus this month's charge if it is not due yet.
+        var rows = await mem.Db.Transactions.CountAsync();
+        Assert.InRange(rows, 24, 25);
+    }
 }

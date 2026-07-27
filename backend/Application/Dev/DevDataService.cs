@@ -73,11 +73,14 @@ public sealed class DevDataService(IAppDbContext db) : IDevDataService
         {
             AmountOriginal = 49.99m, CurrencyOriginal = "PLN",
             CategoryId = CategoryId("Розваги"), DayOfMonth = 10, Active = true, Note = "Netflix",
+            // Without this the row lands on year 1 and materialization walks every month since.
+            CreatedAt = DateTimeOffset.UtcNow,
         });
         db.RecurringExpenses.Add(new RecurringExpense
         {
             AmountOriginal = 9.99m, CurrencyOriginal = "USD",
             CategoryId = CategoryId("Інше"), DayOfMonth = 20, Active = true, Note = "iCloud",
+            CreatedAt = DateTimeOffset.UtcNow,
         });
 
         db.SavingsPlans.Add(new SavingsPlan

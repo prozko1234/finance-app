@@ -24,6 +24,10 @@ export interface Transaction {
   amountOriginal: number
   currencyOriginal: string
   amountBase: number
+  /// Та сама сума, як її читає користувач — за курсом дати САМОЇ транзакції.
+  /// Дорівнює amountBase, поки основна валюта PLN.
+  amountDisplay: number
+  displayCurrency: string
   fxRate: number
   fxDate: string
   categoryId: number
@@ -246,6 +250,17 @@ export interface SaveRecurring {
   amountIncludesVat?: boolean
 }
 
+export interface AppSettings {
+  /// Валюта, в якій користувач читає застосунок.
+  displayCurrency: string
+  /// Валюта зберігання. Не змінюється ніколи — історія не переписується.
+  baseCurrency: string
+  /// true = основна валюта не PLN, тож податковий розклад треба підписати окремо.
+  taxesInBaseCurrency: boolean
+}
+
+/// Валюта зберігання. Для вводу нових сум — дефолт; для показу бери displayCurrency
+/// з налаштувань, інакше підпишеш злоті чужою міткою.
 export const BASE_CURRENCY = 'PLN'
 export const CURRENCIES = ['PLN', 'UAH', 'USD', 'EUR'] as const
 

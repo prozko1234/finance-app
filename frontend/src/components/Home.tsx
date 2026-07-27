@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import type { AllocationSummary, SafeToSpend, SavingsSummary, Transaction } from '../types'
-import { BASE_CURRENCY } from '../types'
 import { money } from '../format'
 import { buildQuickCategories, type QuickCategory } from '../quickCategories'
 
@@ -278,8 +277,8 @@ function RecentList({ transactions, onDelete, onEdit }: { transactions: Transact
               <p className={`font-semibold tabular-nums ${t.kind === 'Income' ? 'text-emerald-600' : ''}`}>
                 {t.kind === 'Income' ? '+' : ''}{money(t.amountOriginal, t.currencyOriginal)}
               </p>
-              {t.currencyOriginal !== BASE_CURRENCY && (
-                <p className="text-xs text-neutral-400 tabular-nums">≈ {money(t.amountBase, BASE_CURRENCY)}</p>
+              {t.currencyOriginal !== t.displayCurrency && (
+                <p className="text-xs text-neutral-400 tabular-nums">≈ {money(t.amountDisplay, t.displayCurrency)}</p>
               )}
             </div>
             <button

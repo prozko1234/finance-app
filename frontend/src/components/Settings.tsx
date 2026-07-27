@@ -1,10 +1,13 @@
 import { useState } from 'react'
-import type { Budget } from '../types'
+import type { AppSettings, Budget } from '../types'
+import { CURRENCIES } from '../types'
 import { money } from '../format'
-import { Card, FormError, PrimaryButton, Screen } from './Screen'
+import { Card, FormError, PrimaryButton, Screen, SectionTitle } from './Screen'
 
 interface Props {
   budget: Budget | null
+  settings: AppSettings | null
+  onPickCurrency: (currency: string) => Promise<void>
   /// This month's budget derived from income, when there is income. While it is set,
   /// the manual amount below is ignored — M17 stopped the UI from pretending otherwise.
   incomeBudget: number | null
@@ -15,7 +18,7 @@ interface Props {
 /// Settings are settings only. The screens that used to hang off this page — категорії,
 /// підписки, податковий профіль — live in the menu now, where they read as places rather
 /// than as options of something else.
-export function Settings({ budget, incomeBudget, onSave, onBack }: Props) {
+export function Settings({ budget, settings, incomeBudget, onSave, onPickCurrency, onBack }: Props) {
   const [amount, setAmount] = useState(budget?.monthlyAmount != null ? String(budget.monthlyAmount) : '')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -46,7 +49,10 @@ export function Settings({ budget, incomeBudget, onSave, onBack }: Props) {
       subtitle="Запасний бюджет — коли за місяць немає доходу."
       footnote="«Ще сьогодні» рахується від бюджета місяця: з доходу, якщо він є, інакше — із запасного. Банківський синк — у майбутніх версіях."
     >
+      <CurrencyCard settings={settings} onPick={onPickCurrency} />
+
       <Card>
+        <SectionTitle>Запасний бюджет</SectionTitle>
         <p className="text-xs text-neutral-400">
           {incomeBudget !== null
             ? `Цього місяця не діє: бюджет уже порахований з доходу — ${money(incomeBudget, budget?.currency ?? 'PLN')}. Ця сума спрацює в місяці без доходу.`
@@ -69,5 +75,60 @@ export function Settings({ budget, incomeBudget, onSave, onBack }: Props) {
         </PrimaryButton>
       </Card>
     </Screen>
+  )
+}
+
+/// Валюта читання. Один тап = застосовано, як і схеми розподілу: зайвий крок
+/// «обери, потім збережи» — це зайве рішення.
+function CurrencyCard({ settings, onPick }: {
+  settings: AppSettings | null
+  onPick: (currency: string) => Promise<void>
+}) {
+  const [busy, setBusy] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  async function pick(c: string) {
+    if (busy || c === settings?.displayCurrency) return
+    setBusy(c)
+    setError(null)
+    try {
+      await onPick(c)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не вдалося змінити валюту')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <Card>
+      <SectionTitle>Валюта</SectionTitle>
+
+      <div className="flex gap-2">
+        {CURRENCIES.map((c) => (
+          <button
+            key={c}
+            onClick={() => pick(c)}
+            disabled={busy !== null}
+            aria-pressed={settings?.displayCurrency === c}
+            className={`flex-1 rounded-xl px-3 py-2 text-sm font-medium disabled:opacity-40 ${
+              settings?.displayCurrency === c
+                ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+                : 'bg-neutral-100 dark:bg-neutral-800'
+            }`}
+          >
+            {busy === c ? '…' : c}
+          </button>
+        ))}
+      </div>
+
+      <FormError>{error}</FormError>
+
+      <p className="text-xs text-neutral-400">
+        {settings && settings.displayCurrency !== settings.baseCurrency
+          ? `Записи зберігаються у ${settings.baseCurrency} і не переписуються — валюта міняє тільки те, як ти їх читаєш. Кожна транзакція перераховується за курсом своєї дати, тож минуле не змінює розмір.`
+          : 'Все показується у злотих. Можна читати додаток в іншій валюті — записи від цього не змінюються.'}
+      </p>
+    </Card>
   )
 }

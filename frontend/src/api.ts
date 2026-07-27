@@ -1,5 +1,5 @@
 import type {
-  Budget, Category, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
+  AppSettings, Budget, Category, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
   Allocation, SaveAllocation, IncomePreview, SaveSavingsEntry, SaveSavingsPlan, Savings, TaxDefaults, TaxProfile, Transaction,
 } from './types'
 
@@ -46,6 +46,10 @@ export const api = {
     http<Budget>('/api/budget', { method: 'PUT', body: JSON.stringify({ amount }) }),
 
   getSafeToSpend: () => http<SafeToSpend>('/api/summary/safe-to-spend'),
+
+  getSettings: () => http<AppSettings>('/api/settings'),
+  setDisplayCurrency: (currency: string) =>
+    http<AppSettings>('/api/settings/currency', { method: 'PUT', body: JSON.stringify({ currency }) }),
 
   getRecurring: () => http<Recurring[]>('/api/recurring'),
   createRecurring: (r: SaveRecurring) =>

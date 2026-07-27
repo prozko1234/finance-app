@@ -16,6 +16,7 @@ export const queryKeys = {
   savings: ['savings'] as const,
   allocations: ['allocations'] as const,
   incomePreview: ['incomePreview'] as const,
+  settings: ['settings'] as const,
 }
 
 export function useCategories() {
@@ -67,6 +68,27 @@ export function useAllocations() {
 
 /// Changing the scheme changes the daily norm and the savings goal, so both derived
 /// queries have to go — not just the allocation itself.
+export function useSettings() {
+  return useQuery({ queryKey: queryKeys.settings, queryFn: () => api.getSettings() })
+}
+
+/// Currency touches every number on screen, so a switch invalidates everything that
+/// carries money — not just the settings screen that made the change.
+export function useSetDisplayCurrency() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (currency: string) => api.setDisplayCurrency(currency),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.settings })
+      qc.invalidateQueries({ queryKey: queryKeys.summary })
+      qc.invalidateQueries({ queryKey: queryKeys.transactions })
+      qc.invalidateQueries({ queryKey: queryKeys.budget })
+      qc.invalidateQueries({ queryKey: queryKeys.savings })
+      qc.invalidateQueries({ queryKey: queryKeys.allocations })
+    },
+  })
+}
+
 export function useSaveAllocation() {
   const qc = useQueryClient()
   return useMutation({
