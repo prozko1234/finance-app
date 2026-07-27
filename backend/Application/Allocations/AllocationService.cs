@@ -1,4 +1,6 @@
 using FinanceApp.Application.Abstractions;
+using FinanceApp.Application.Contracts;
+using FinanceApp.Domain.Common;
 using FinanceApp.Domain.Budgeting;
 using Microsoft.EntityFrameworkCore;
 
@@ -22,6 +24,12 @@ public interface IAllocationService
 
     /// How this month's budget divides across the active scheme.
     Task<AllocationBreakdown> BreakdownAsync(decimal budget, CancellationToken ct = default);
+
+    /// The active scheme plus the presets to choose from.
+    Task<AllocationResponse> GetAsync(CancellationToken ct = default);
+
+    /// Switch to a preset or to the user's own split.
+    Task<Result<AllocationResponse>> SaveAsync(SaveAllocationRequest req, CancellationToken ct = default);
 }
 
 public sealed class AllocationService(IAppDbContext db) : IAllocationService
@@ -55,4 +63,98 @@ public sealed class AllocationService(IAppDbContext db) : IAllocationService
             AllocationCalculator.Reserved(shares),
             savings.Count == 0 ? null : savings.Sum(s => s.Amount));
     }
+
+    public async Task<AllocationResponse> GetAsync(CancellationToken ct = default)
+    {
+        var active = await GetActiveAsync(ct);
+
+        return new AllocationResponse(
+            new AllocationSchemeResponse(active.Name, active.Preset, ToContract(active.Buckets)),
+            AllocationPresets.All
+                .Select(p => new AllocationPresetResponse(
+                    p.Key, p.Name, p.Hint,
+                    p.Buckets.Select(b => new AllocationBucketResponse(
+                        b.Name, b.Kind.ToString(), b.Percent)).ToList()))
+                .ToList());
+    }
+
+    public async Task<Result<AllocationResponse>> SaveAsync(
+        SaveAllocationRequest req, CancellationToken ct = default)
+    {
+        var parsed = Parse(req);
+        if (!parsed.IsSuccess) return parsed.Error;
+        var (name, preset, buckets) = parsed.Value!;
+
+        // The active scheme is edited in place rather than replaced: one row means the
+        // "exactly one active" index is never briefly violated, and no orphan schemes pile up.
+        var scheme = await db.AllocationSchemes
+            .Include(s => s.Buckets)
+            .FirstOrDefaultAsync(s => s.IsActive, ct);
+
+        if (scheme is null)
+        {
+            scheme = new AllocationScheme { IsActive = true };
+            db.AllocationSchemes.Add(scheme);
+        }
+        else
+        {
+            db.AllocationBuckets.RemoveRange(scheme.Buckets);
+            scheme.Buckets.Clear();
+        }
+
+        scheme.Name = name;
+        scheme.Preset = preset;
+        scheme.UpdatedAt = DateTimeOffset.UtcNow;
+        scheme.Buckets.AddRange(buckets);
+
+        await db.SaveChangesAsync(ct);
+        return Result<AllocationResponse>.Ok(await GetAsync(ct));
+    }
+
+    /// Turns a request into a valid scheme or an error. A scheme that does not add up to
+    /// 100% would silently lose or invent money, so that is a hard rule, not a warning.
+    private static Result<(string Name, string? Preset, List<AllocationBucket> Buckets)> Parse(
+        SaveAllocationRequest req)
+    {
+        if (!string.IsNullOrWhiteSpace(req.Preset))
+        {
+            var preset = AllocationPresets.Find(req.Preset);
+            if (preset is null) return Error.Validation($"Невідома схема: {req.Preset}.");
+
+            return Result<(string, string?, List<AllocationBucket>)>.Ok(
+                (preset.Name, preset.Key, preset.ToScheme(isActive: true).Buckets));
+        }
+
+        var rows = req.Buckets ?? [];
+        if (rows.Count == 0) return Error.Validation("Схема має містити хоча б один кошик.");
+
+        var buckets = new List<AllocationBucket>();
+        foreach (var (row, i) in rows.Select((r, i) => (r, i)))
+        {
+            if (string.IsNullOrWhiteSpace(row.Name))
+                return Error.Validation("У кожного кошика має бути назва.");
+            if (!Enum.TryParse<BucketKind>(row.Kind, ignoreCase: true, out var kind))
+                return Error.Validation($"Невідомий тип кошика: {row.Kind}.");
+            if (row.Percent <= 0)
+                return Error.Validation($"Частка кошика «{row.Name}» має бути більшою за нуль.");
+
+            buckets.Add(new AllocationBucket
+            {
+                Name = row.Name.Trim(), Kind = kind, Percent = row.Percent, SortOrder = i,
+            });
+        }
+
+        if (!AllocationCalculator.AddsUpTo100(buckets))
+            return Error.Validation(
+                $"Разом має бути 100%, а зараз {buckets.Sum(b => b.Percent):0.##}%.");
+
+        var name = string.IsNullOrWhiteSpace(req.Name) ? "Свій розподіл" : req.Name.Trim();
+        return Result<(string, string?, List<AllocationBucket>)>.Ok((name, null, buckets));
+    }
+
+    private static List<AllocationBucketResponse> ToContract(IEnumerable<AllocationBucket> buckets) =>
+        buckets
+            .OrderBy(b => b.SortOrder).ThenBy(b => b.Id)
+            .Select(b => new AllocationBucketResponse(b.Name, b.Kind.ToString(), b.Percent))
+            .ToList();
 }

@@ -93,6 +93,23 @@ public record AllocationSummary(
 public record BucketShareResponse(
     int Id, string Name, string Kind, decimal Percent, decimal Amount);
 
+/// The scheme screen: what is active now, and the ready-made schemes to switch to.
+public record AllocationResponse(
+    AllocationSchemeResponse Active,
+    IReadOnlyList<AllocationPresetResponse> Presets);
+
+public record AllocationSchemeResponse(
+    string Name, string? Preset, IReadOnlyList<AllocationBucketResponse> Buckets);
+
+public record AllocationBucketResponse(string Name, string Kind, decimal Percent);
+
+public record AllocationPresetResponse(
+    string Key, string Name, string Hint, IReadOnlyList<AllocationBucketResponse> Buckets);
+
+/// Either a preset key, or a name plus the user's own buckets.
+public record SaveAllocationRequest(
+    string? Preset = null, string? Name = null, IReadOnlyList<AllocationBucketResponse>? Buckets = null);
+
 /// The savings envelope, shown on its own: a balance that survives across months,
 /// plus how much of this month's goal is still being held back from safe-to-spend.
 public record SavingsSummary(

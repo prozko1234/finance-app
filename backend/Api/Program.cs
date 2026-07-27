@@ -56,6 +56,7 @@ app.MapSummaryEndpoints();
 app.MapRecurringEndpoints();
 app.MapTaxEndpoints();
 app.MapSavingsEndpoints();
+app.MapAllocationEndpoints();
 
 // Reset/seed helpers — local development only, never in a deployed build.
 if (app.Environment.IsDevelopment()) app.MapDevEndpoints();
