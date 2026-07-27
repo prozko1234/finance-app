@@ -136,6 +136,8 @@ export interface Savings {
   stillToReserve: number
   currency: string
   recent: SavingsEntry[]
+  /// Назва схеми розподілу, якщо ціль тепер диктує вона, а не план нижче.
+  goalFromScheme: string | null
 }
 
 export interface SaveSavingsPlan {
@@ -150,6 +152,54 @@ export interface SaveSavingsEntry {
   date?: string | null
   note?: string | null
   currency?: string | null
+}
+
+export type BucketKind = 'Spending' | 'Savings' | 'Investing' | 'Debt' | 'Other'
+
+export interface AllocationBucket {
+  name: string
+  kind: BucketKind
+  percent: number
+}
+
+/// Кошик із сумою, що реально в нього потрапила цього місяця.
+export interface BucketShare extends AllocationBucket {
+  id: number
+  amount: number
+}
+
+/// Куди пішов бюджет ще до того, як порахувалась денна норма.
+export interface AllocationSummary {
+  schemeName: string
+  preset: string | null
+  spendable: number
+  reserved: number
+  buckets: BucketShare[]
+}
+
+export interface AllocationScheme {
+  name: string
+  preset: string | null
+  buckets: AllocationBucket[]
+}
+
+export interface AllocationPreset {
+  key: string
+  name: string
+  hint: string
+  buckets: AllocationBucket[]
+}
+
+export interface Allocation {
+  active: AllocationScheme
+  presets: AllocationPreset[]
+}
+
+/// Або ключ пресета, або назва плюс власні кошики.
+export interface SaveAllocation {
+  preset?: string | null
+  name?: string | null
+  buckets?: AllocationBucket[] | null
 }
 
 export interface SafeToSpend {
@@ -168,6 +218,7 @@ export interface SafeToSpend {
   tomorrowIfOnPlan: number | null
   monthTaxes: MonthTaxes | null
   savings: SavingsSummary
+  allocation: AllocationSummary | null
 }
 
 export interface Recurring {

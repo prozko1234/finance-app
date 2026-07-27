@@ -162,6 +162,13 @@ function PlanForm({ data, onSave }: { data: SavingsData; onSave: (p: SaveSavings
     <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm space-y-3">
       <h2 className="text-sm font-medium text-neutral-400">Скільки у заощадження щомісяця</h2>
 
+      {data.goalFromScheme && (
+        <p className="rounded-xl bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 px-3 py-2 text-xs">
+          Ціль зараз задає схема «{data.goalFromScheme}» — {money(data.monthGoal, data.currency)} на місяць.
+          Те, що вписано нижче, не діє, поки в схемі є кошик заощаджень.
+        </p>
+      )}
+
       <div className="flex gap-2">
         {(['Fixed', 'Percent'] as const).map((m) => (
           <button

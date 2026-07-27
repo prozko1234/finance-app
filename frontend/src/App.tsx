@@ -4,6 +4,7 @@ import {
   useBudget, useCategories, useCreateRecurring, useCreateTransaction, useDeleteRecurring,
   useCreateCategory, useCreateIncome, useUpdateTransaction, useDeleteCategory, useDeleteTransaction, useRecurring, useUpdateCategory, useSafeToSpend, useSetBudget, useTransactions,
   useUpdateRecurring, useTaxProfile, useTaxDefaults, useSaveTaxProfile,
+  useAllocations, useSaveAllocation,
   useSavings, useSaveSavingsPlan, useAddSavingsEntry, useUpdateSavingsEntry, useDeleteSavingsEntry,
 } from './hooks'
 import { Home } from './components/Home'
@@ -13,6 +14,7 @@ import { Recurring } from './components/Recurring'
 import { TaxProfile } from './components/TaxProfile'
 import { Categories } from './components/Categories'
 import { Savings } from './components/Savings'
+import { Allocation } from './components/Allocation'
 import { DevTools } from './components/DevTools'
 import { Nav } from './components/Nav'
 import type { View } from './components/Nav'
@@ -29,6 +31,8 @@ function App() {
   const budget = useBudget()
   const recurring = useRecurring()
   const savings = useSavings()
+  const allocations = useAllocations()
+  const saveAllocation = useSaveAllocation()
   const saveSavingsPlan = useSaveSavingsPlan()
   const addSavingsEntry = useAddSavingsEntry()
   const updateSavingsEntry = useUpdateSavingsEntry()
@@ -99,6 +103,7 @@ function App() {
             onDelete={(id) => deleteTx.mutate(id)}
             onGoSettings={() => setView('settings')}
             onGoSavings={() => setView('savings')}
+            onGoAllocation={() => setView('allocation')}
             onQuickCategory={(categoryId) => { setPresetCategoryId(categoryId); setView('add') }}
             onEdit={startEdit}
           />
@@ -131,6 +136,15 @@ function App() {
             onAddEntry={(e) => addSavingsEntry.mutateAsync(e).then(() => {})}
             onUpdateEntry={(id, e) => updateSavingsEntry.mutateAsync({ id, data: e }).then(() => {})}
             onDeleteEntry={(id) => deleteSavingsEntry.mutateAsync(id).then(() => {})}
+            onBack={() => setView('home')}
+          />
+        )}
+        {view === 'allocation' && (
+          <Allocation
+            data={allocations.data ?? null}
+            budget={summary.data?.monthlyBudget ?? null}
+            currency={summary.data?.currency ?? 'PLN'}
+            onSave={(a) => saveAllocation.mutateAsync(a).then(() => {})}
             onBack={() => setView('home')}
           />
         )}

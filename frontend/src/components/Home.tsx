@@ -1,4 +1,4 @@
-import type { MonthTaxes, SafeToSpend, SavingsSummary, Transaction } from '../types'
+import type { AllocationSummary, MonthTaxes, SafeToSpend, SavingsSummary, Transaction } from '../types'
 import { BASE_CURRENCY } from '../types'
 import { money } from '../format'
 import { buildQuickCategories, type QuickCategory } from '../quickCategories'
@@ -11,15 +11,26 @@ interface Props {
   onQuickCategory: (categoryId: number) => void
   onEdit: (t: Transaction) => void
   onGoSavings: () => void
+  onGoAllocation: () => void
 }
 
-export function Home({ summary, transactions, onDelete, onGoSettings, onQuickCategory, onEdit, onGoSavings }: Props) {
+export function Home({
+  summary, transactions, onDelete, onGoSettings, onQuickCategory, onEdit, onGoSavings, onGoAllocation,
+}: Props) {
   const quick = buildQuickCategories(transactions, (name) => ICONS[name] ?? '📦')
 
   return (
     <div className="space-y-6">
       <SafeToSpendCard summary={summary} onGoSettings={onGoSettings} />
       {summary?.monthTaxes && <MonthSummary summary={summary} taxes={summary.monthTaxes} />}
+      {summary?.allocation && (
+        <AllocationCard
+          allocation={summary.allocation}
+          currency={summary.currency}
+          budgetSet={summary.budgetSet}
+          onOpen={onGoAllocation}
+        />
+      )}
       {summary && <SavingsCard savings={summary.savings} currency={summary.currency} onOpen={onGoSavings} />}
       {quick.length > 0 && <QuickRow categories={quick} onPick={onQuickCategory} />}
       <RecentList transactions={transactions} onDelete={onDelete} onEdit={onEdit} />
@@ -145,6 +156,13 @@ function MonthSummary({ summary, taxes }: { summary: SafeToSpend; taxes: MonthTa
         {summary.reservedRecurring > 0 && (
           <Row label="Зарезервовано на підписки" value={`− ${money(summary.reservedRecurring, c)}`} muted />
         )}
+        {otherReserved(summary.allocation) > 0 && (
+          <Row
+            label={`Відкладено за схемою «${summary.allocation!.schemeName}»`}
+            value={`− ${money(otherReserved(summary.allocation), c)}`}
+            muted
+          />
+        )}
         {summary.savings.stillToReserve > 0 && (
           <Row label="Ще у заощадження цього місяця" value={`− ${money(summary.savings.stillToReserve, c)}`} muted />
         )}
@@ -152,6 +170,54 @@ function MonthSummary({ summary, taxes }: { summary: SafeToSpend; taxes: MonthTa
       </dl>
     </div>
   )
+}
+
+/// Куди пішов бюджет ще до денної норми. Схема за замовчуванням (один кошик на 100%)
+/// нічого не ділить, тож картка мовчить — показувати «на витрати 100%» немає сенсу.
+function AllocationCard({ allocation, currency, budgetSet, onOpen }: {
+  allocation: AllocationSummary; currency: string; budgetSet: boolean; onOpen: () => void
+}) {
+  if (allocation.buckets.length < 2) {
+    return (
+      <button
+        onClick={onOpen}
+        className="w-full rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700 p-4 text-sm text-neutral-500"
+      >
+        + Ділити бюджет за схемою (50/30/20 та інші)
+      </button>
+    )
+  }
+
+  return (
+    <button onClick={onOpen} className="w-full rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm text-left">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-sm text-neutral-400">Куди пішов бюджет</span>
+        <span className="text-xs text-neutral-400 truncate">{allocation.schemeName}</span>
+      </div>
+      <ul className="mt-2 space-y-1 text-sm">
+        {allocation.buckets.map((b) => (
+          <li key={b.id} className="flex justify-between gap-3">
+            <span className="truncate">
+              {b.name}
+              <span className="text-neutral-400 text-xs"> · {b.percent}%</span>
+            </span>
+            <span className={`tabular-nums shrink-0 ${b.kind === 'Spending' ? '' : 'text-neutral-400'}`}>
+              {budgetSet ? money(b.amount, currency) : `${b.percent}%`}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </button>
+  )
+}
+
+/// Кошики, що резервуються саме схемою. Заощадження тут не рахуються — у них свій
+/// рядок, де вже враховано, скільки з цілі вже відкладено вручну.
+function otherReserved(a: AllocationSummary | null): number {
+  if (!a) return 0
+  return a.buckets
+    .filter((b) => b.kind !== 'Spending' && b.kind !== 'Savings')
+    .reduce((s, b) => s + b.amount, 0)
 }
 
 /// The envelope gets its own card, not a line in the summary: Bohdan asked to see it

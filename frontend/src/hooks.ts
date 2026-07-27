@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api'
 import type {
-  SaveCategory, SaveIncome, SaveRecurring, SaveSavingsEntry, SaveSavingsPlan, SaveTaxProfile, SaveTransaction,
+  SaveAllocation, SaveCategory, SaveIncome, SaveRecurring, SaveSavingsEntry, SaveSavingsPlan, SaveTaxProfile, SaveTransaction,
 } from './types'
 
 export const queryKeys = {
@@ -14,6 +14,7 @@ export const queryKeys = {
   taxProfile: ['taxProfile'] as const,
   taxDefaults: ['taxDefaults'] as const,
   savings: ['savings'] as const,
+  allocations: ['allocations'] as const,
   incomePreview: ['incomePreview'] as const,
 }
 
@@ -58,6 +59,24 @@ export function useBudget() {
 
 export function useSafeToSpend() {
   return useQuery({ queryKey: queryKeys.summary, queryFn: () => api.getSafeToSpend() })
+}
+
+export function useAllocations() {
+  return useQuery({ queryKey: queryKeys.allocations, queryFn: () => api.getAllocations() })
+}
+
+/// Changing the scheme changes the daily norm and the savings goal, so both derived
+/// queries have to go — not just the allocation itself.
+export function useSaveAllocation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (a: SaveAllocation) => api.saveAllocation(a),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.allocations })
+      qc.invalidateQueries({ queryKey: queryKeys.summary })
+      qc.invalidateQueries({ queryKey: queryKeys.savings })
+    },
+  })
 }
 
 export function useRecurring() {

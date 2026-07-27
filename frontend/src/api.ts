@@ -1,6 +1,6 @@
 import type {
   Budget, Category, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
-  IncomePreview, SaveSavingsEntry, SaveSavingsPlan, Savings, TaxDefaults, TaxProfile, Transaction,
+  Allocation, SaveAllocation, IncomePreview, SaveSavingsEntry, SaveSavingsPlan, Savings, TaxDefaults, TaxProfile, Transaction,
 } from './types'
 
 async function http<T>(url: string, options?: RequestInit): Promise<T> {
@@ -68,6 +68,10 @@ export const api = {
     http<Savings>(`/api/savings/entries/${id}`, { method: 'DELETE' }),
   updateSavingsEntry: (id: number, e: SaveSavingsEntry) =>
     http<Savings>(`/api/savings/entries/${id}`, { method: 'PUT', body: JSON.stringify(e) }),
+
+  getAllocations: () => http<Allocation>('/api/allocations'),
+  saveAllocation: (a: SaveAllocation) =>
+    http<Allocation>('/api/allocations', { method: 'PUT', body: JSON.stringify(a) }),
 
   resetDevData: () => http<{ message: string }>('/api/dev/reset', { method: 'POST' }),
   seedDevData: () => http<{ message: string }>('/api/dev/seed', { method: 'POST' }),

@@ -10,13 +10,14 @@ function summary(over: Partial<SafeToSpend> = {}): SafeToSpend {
     dailyNorm: 375, spentToday: 0, leftToday: 375, tomorrowIfStop: 375, tomorrowIfOnPlan: 375,
     monthTaxes: null,
     savings: { balance: 0, monthGoal: 0, depositedThisMonth: 0, stillToReserve: 0 },
+    allocation: null,
     ...over,
   }
 }
 
 const props = {
   transactions: [], onDelete: vi.fn(), onGoSettings: vi.fn(), onQuickCategory: vi.fn(), onEdit: vi.fn(),
-  onGoSavings: vi.fn(),
+  onGoSavings: vi.fn(), onGoAllocation: vi.fn(),
 }
 
 describe('Home', () => {
