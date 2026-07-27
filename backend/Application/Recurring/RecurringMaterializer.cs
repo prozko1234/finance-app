@@ -57,8 +57,9 @@ public sealed class RecurringMaterializer(IAppDbContext db, IFxConverter fx) : I
         var conv = await fx.ConvertToBaseAsync(r.AmountOriginal, r.CurrencyOriginal, occ, ct);
         if (!conv.IsSuccess) return;
 
-        db.Transactions.Add(new Transaction
+        var tx = new Transaction
         {
+            Kind = r.Kind,
             AmountOriginal = r.AmountOriginal,
             CurrencyOriginal = r.CurrencyOriginal,
             AmountBase = conv.Value!.AmountBase,
@@ -72,7 +73,30 @@ public sealed class RecurringMaterializer(IAppDbContext db, IFxConverter fx) : I
             Date = occ,
             Note = r.Note,
             CreatedAt = DateTimeOffset.UtcNow,
-        });
+        };
+
+        // A recurring salary is income like any other: VAT is split out and AmountBase holds
+        // the revenue, exactly as the manual income form does. Anything else and the month's
+        // taxes would be computed on a number that includes VAT.
+        if (r.Kind == TransactionKind.Income)
+        {
+            var profile = await db.TaxProfiles.OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
+            var vatRate = profile is { VatPayer: true } ? profile.VatRate : 0m;
+            var entered = conv.Value!.AmountBase;
+
+            var revenue = r.AmountIncludesVat
+                ? Math.Round(entered / (1 + vatRate), 2, MidpointRounding.AwayFromZero)
+                : entered;
+            var gross = r.AmountIncludesVat
+                ? entered
+                : Math.Round(entered * (1 + vatRate), 2, MidpointRounding.AwayFromZero);
+
+            tx.AmountBase = revenue;
+            tx.GrossWithVat = gross;
+            tx.VatAmount = Math.Round(gross - revenue, 2, MidpointRounding.AwayFromZero);
+        }
+
+        db.Transactions.Add(tx);
         await db.SaveChangesAsync(ct);
     }
 }

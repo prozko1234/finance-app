@@ -44,7 +44,7 @@ export function Recurring({ categories, items, onCreate, onToggle, onDelete, onB
     <div className="space-y-5">
       <div className="flex items-center gap-2">
         <button onClick={onBack} className="text-neutral-400 text-2xl leading-none">←</button>
-        <h1 className="text-lg font-semibold">Підписки й регулярні</h1>
+        <h1 className="text-lg font-semibold">Регулярні: підписки й дохід</h1>
       </div>
 
       <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm space-y-3">
@@ -103,7 +103,7 @@ export function Recurring({ categories, items, onCreate, onToggle, onDelete, onB
       </div>
 
       {items.length === 0 ? (
-        <p className="text-center text-neutral-400 text-sm">Ще немає підписок.</p>
+        <p className="text-center text-neutral-400 text-sm">Ще немає нічого регулярного.</p>
       ) : (
         <ul className="space-y-2">
           {items.map((r) => (
@@ -113,9 +113,13 @@ export function Recurring({ categories, items, onCreate, onToggle, onDelete, onB
             >
               <div className="flex-1 min-w-0">
                 <p className="font-medium truncate">{r.note || r.categoryName}</p>
-                <p className="text-xs text-neutral-400">кожного {r.dayOfMonth}-го · {r.categoryName}</p>
+                <p className="text-xs text-neutral-400">
+                  кожного {r.dayOfMonth}-го · {r.kind === 'Income' ? 'дохід' : r.categoryName}
+                </p>
               </div>
-              <p className="font-semibold tabular-nums">{money(r.amountOriginal, r.currencyOriginal)}</p>
+              <p className={`font-semibold tabular-nums ${r.kind === 'Income' ? 'text-emerald-600' : ''}`}>
+                {r.kind === 'Income' ? '+' : ''}{money(r.amountOriginal, r.currencyOriginal)}
+              </p>
               <button onClick={() => onToggle(r)} className="text-sm text-neutral-400 px-1" title={r.active ? 'Призупинити' : 'Відновити'}>
                 {r.active ? '⏸' : '▶'}
               </button>

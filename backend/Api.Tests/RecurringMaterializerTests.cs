@@ -1,6 +1,7 @@
 using FinanceApp.Api.Tests.Integration;
 using FinanceApp.Application.Recurring;
 using FinanceApp.Domain;
+using FinanceApp.Domain.Tax;
 using Microsoft.EntityFrameworkCore;
 
 namespace FinanceApp.Api.Tests;
@@ -58,5 +59,43 @@ public class RecurringMaterializerTests
         await new RecurringMaterializer(mem.Db, new FakeFxConverter()).MaterializeDueAsync();
 
         Assert.Empty(await mem.Db.Transactions.Where(t => t.Source == TxSource.Recurring).ToListAsync());
+    }
+
+    /// A stable salary is recurring too. It must land as INCOME with VAT split out —
+    /// materializing it as an expense would subtract the salary from the budget.
+    [Fact]
+    public async Task Materializes_recurring_income_with_vat_split_out()
+    {
+        using var mem = new SqliteInMemory();
+        var today = DateOnly.FromDateTime(DateTime.Now);
+
+        mem.Db.TaxProfiles.Add(new TaxProfile
+        {
+            Regime = TaxRegime.Ryczalt,
+            RyczaltRate = 0.12m,
+            VatPayer = true,
+            VatRate = 0.23m,
+            ValidFrom = new DateOnly(today.Year, 1, 1),
+        });
+        mem.Db.RecurringExpenses.Add(new RecurringExpense
+        {
+            Kind = TransactionKind.Income,
+            AmountIncludesVat = true,
+            AmountOriginal = 24_600m,
+            CurrencyOriginal = "PLN",
+            CategoryId = 1,
+            DayOfMonth = today.Day,
+            Active = true,
+            CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-1),
+        });
+        await mem.Db.SaveChangesAsync();
+
+        await new RecurringMaterializer(mem.Db, new FakeFxConverter()).MaterializeDueAsync();
+
+        var tx = await mem.Db.Transactions.SingleAsync(t => t.Source == TxSource.Recurring);
+        Assert.Equal(TransactionKind.Income, tx.Kind);
+        Assert.Equal(20_000m, tx.AmountBase);      // przychód, VAT excluded
+        Assert.Equal(24_600m, tx.GrossWithVat);
+        Assert.Equal(4_600m, tx.VatAmount);
     }
 }

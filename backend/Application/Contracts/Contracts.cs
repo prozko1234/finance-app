@@ -110,7 +110,10 @@ public record SaveRecurringRequest(
     int CategoryId,
     int DayOfMonth,
     string? Note,
-    bool Active);
+    bool Active,
+    // "Expense" (default) or "Income" — a stable monthly salary is recurring too.
+    string? Kind = null,
+    bool AmountIncludesVat = true);
 
 public record TaxProfileResponse(
     string Regime,
@@ -175,4 +178,6 @@ public record RecurringResponse(
     string CategoryName,
     int DayOfMonth,
     bool Active,
-    string? Note);
+    string? Note,
+    string Kind,
+    bool AmountIncludesVat);

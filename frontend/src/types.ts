@@ -174,6 +174,8 @@ export interface Recurring {
   dayOfMonth: number
   active: boolean
   note?: string | null
+  kind: 'Expense' | 'Income'
+  amountIncludesVat: boolean
 }
 
 export interface SaveRecurring {
@@ -183,6 +185,9 @@ export interface SaveRecurring {
   dayOfMonth: number
   note?: string | null
   active: boolean
+  /// Omitted = 'Expense'. 'Income' is a stable monthly salary or contract.
+  kind?: 'Expense' | 'Income'
+  amountIncludesVat?: boolean
 }
 
 export const BASE_CURRENCY = 'PLN'

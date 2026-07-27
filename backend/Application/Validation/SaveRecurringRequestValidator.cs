@@ -15,5 +15,9 @@ public sealed class SaveRecurringRequestValidator : AbstractValidator<SaveRecurr
         RuleFor(x => x.DayOfMonth)
             .InclusiveBetween(1, 31).WithMessage("День місяця має бути від 1 до 31.");
         RuleFor(x => x.Note).MaximumLength(500);
+        RuleFor(x => x.Kind)
+            .Must(k => k is null || k.Equals("Expense", StringComparison.OrdinalIgnoreCase)
+                                 || k.Equals("Income", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("Тип має бути Expense або Income.");
     }
 }

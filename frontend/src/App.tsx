@@ -110,6 +110,7 @@ function App() {
             categories={categories.data ?? []}
             onSave={handleSave}
             onSaveIncome={async (i: SaveIncome) => { await createIncome.mutateAsync(i); setView('home') }}
+            onSaveRecurring={async (r) => { await createRecurring.mutateAsync(r); setView('home') }}
             onCreateCategory={(c: SaveCategory) => createCategory.mutateAsync(c)}
             onCancel={() => { setEditingTx(null); setPresetCategoryId(null); setView('home') }}
             editing={editingTx}

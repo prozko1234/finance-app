@@ -6,6 +6,10 @@ namespace FinanceApp.Domain;
 public class RecurringExpense
 {
     public int Id { get; set; }
+    /// Expense (subscription) or Income (a stable monthly salary/contract).
+    public TransactionKind Kind { get; set; } = TransactionKind.Expense;
+    /// Income only: whether AmountOriginal already contains VAT. Ignored for expenses.
+    public bool AmountIncludesVat { get; set; } = true;
     public decimal AmountOriginal { get; set; }
     public required string CurrencyOriginal { get; set; }
     public int CategoryId { get; set; }

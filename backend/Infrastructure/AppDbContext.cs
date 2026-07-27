@@ -84,6 +84,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             e.Property(r => r.AmountOriginal).HasPrecision(18, 2);
             e.Property(r => r.CurrencyOriginal).HasMaxLength(3).IsRequired();
+            e.Property(r => r.Kind).HasConversion<string>().HasMaxLength(10);
             e.Property(r => r.Note).HasMaxLength(500);
             e.HasOne(r => r.Category)
                 .WithMany()

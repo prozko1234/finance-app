@@ -1,14 +1,17 @@
 import { useState } from 'react'
-import type { Category, IncomePreview, Priority, SaveCategory, SaveIncome, SaveTransaction, Transaction } from '../types'
+import type {
+  Category, IncomePreview, Priority, SaveCategory, SaveIncome, SaveRecurring, SaveTransaction, Transaction,
+} from '../types'
 import { BASE_CURRENCY, CURRENCIES, shiftIso, todayIso } from '../types'
 import { money } from '../format'
 import { useIncomePreview, useSaveSavingsPlan } from '../hooks'
-import { readLastUsed, writeLastUsed } from '../lastUsed'
+import { readIncomeSources, readLastUsed, rememberIncomeSource, writeLastUsed } from '../lastUsed'
 
 interface Props {
   categories: Category[]
   onSave: (tx: SaveTransaction) => Promise<void>
   onSaveIncome: (income: SaveIncome) => Promise<void>
+  onSaveRecurring: (r: SaveRecurring) => Promise<void>
   onCreateCategory: (c: SaveCategory) => Promise<Category>
   onCancel: () => void
   /// When set, the form edits this transaction instead of creating a new one.
@@ -17,17 +20,28 @@ interface Props {
   presetCategoryId?: number | null
 }
 
+/// One form, three things you can add — so everything is one tap from "+".
+type Kind = 'expense' | 'income' | 'subscription'
+const KIND_LABEL: Record<Kind, string> = {
+  expense: '↑ Витрата', income: '↓ Дохід', subscription: '↻ Підписка',
+}
+const KIND_TITLE: Record<Kind, string> = {
+  expense: 'Нова транзакція', income: 'Новий дохід', subscription: 'Нова підписка',
+}
+
 const PRIORITIES: Priority[] = ['Must', 'Should', 'Want']
 const PRIORITY_LABEL: Record<Priority, string> = { Must: 'Треба', Should: 'Варто', Want: 'Хочу' }
 
 export function AddTransaction({
-  categories, onSave, onSaveIncome, onCreateCategory, onCancel, editing, presetCategoryId,
+  categories, onSave, onSaveIncome, onSaveRecurring, onCreateCategory, onCancel, editing, presetCategoryId,
 }: Props) {
   const [newCatOpen, setNewCatOpen] = useState(false)
   const [newCatName, setNewCatName] = useState('')
   const [newCatIcon, setNewCatIcon] = useState('')
   const last = readLastUsed()
-  const [isIncome, setIsIncome] = useState(false)
+  const [kind, setKind] = useState<Kind>('expense')
+  const isIncome = kind === 'income'
+  const isSubscription = kind === 'subscription'
   const [amount, setAmount] = useState(editing ? String(editing.amountOriginal) : '')
   // Open pre-filled with what was used last time — fewer taps per entry.
   const [currency, setCurrency] = useState(editing?.currencyOriginal ?? last.currency ?? 'PLN')
@@ -39,27 +53,52 @@ export function AddTransaction({
       ?? null,
   )
   const [date, setDate] = useState(editing?.date ?? todayIso())
+  const [dayOfMonth, setDayOfMonth] = useState('1')
+  const [incomeRepeats, setIncomeRepeats] = useState(false)
   const [priority, setPriority] = useState<Priority>(editing?.priority ?? 'Should')
   const [includesVat, setIncludesVat] = useState(true)
   const [note, setNote] = useState(editing?.note ?? '')
+  // Remembered once per mount: the list only changes on save, and the form closes then.
+  const [incomeSources] = useState(readIncomeSources)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const amountNum = Number(amount.replace(',', '.'))
-  const valid = amountNum > 0 && (isIncome || categoryId !== null)
+  const dayNum = Number(dayOfMonth)
+  const repeats = isSubscription || (isIncome && incomeRepeats)
+  const valid = amountNum > 0
+    && (isIncome || categoryId !== null)
+    && (!isSubscription || categoryId !== null)
+    && (!repeats || (dayNum >= 1 && dayNum <= 31))
 
   async function submit() {
     if (!valid) return
     setSaving(true)
     setError(null)
     try {
-      if (isIncome) {
+      if (repeats) {
+        await onSaveRecurring({
+          amount: amountNum,
+          currency,
+          // Income rows still need a category to hang off; the first one is the income
+          // category the manual income flow already uses.
+          categoryId: categoryId ?? categories[0].id,
+          dayOfMonth: dayNum,
+          note: note.trim() || null,
+          active: true,
+          kind: isIncome ? 'Income' : 'Expense',
+          amountIncludesVat: includesVat,
+        })
+        if (isIncome) rememberIncomeSource(note)
+        else writeLastUsed({ categoryId: categoryId!, currency })
+      } else if (isIncome) {
         await onSaveIncome({
           amount: amountNum,
           amountIncludesVat: includesVat,
           currency,
           note: note.trim() || null,
         })
+        rememberIncomeSource(note)
       } else {
         await onSave({
           amount: amountNum,
@@ -78,30 +117,33 @@ export function AddTransaction({
     }
   }
 
-  const accent = isIncome ? 'bg-emerald-600' : 'bg-emerald-600'
-
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-2">
         <button onClick={onCancel} className="text-neutral-400 text-2xl leading-none">←</button>
         <h1 className="text-lg font-semibold">
-          {editing ? 'Редагувати' : isIncome ? 'Новий дохід' : 'Нова транзакція'}
+          {editing ? 'Редагувати' : KIND_TITLE[kind]}
         </h1>
       </div>
 
-      {/* Expense / income switch — not offered while editing an existing row */}
+      {/* What is being added — not offered while editing an existing row */}
       <div className={`flex gap-2 ${editing ? 'hidden' : ''}`}>
-        {[false, true].map((v) => (
+        {(['expense', 'income', 'subscription'] as const).map((k) => (
           <button
-            key={String(v)}
-            onClick={() => setIsIncome(v)}
-            className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-medium ${
-              isIncome === v
+            key={k}
+            onClick={() => {
+              setKind(k)
+              // The income note is a client name; it has no business in an expense.
+              if (k === 'income' && !note.trim()) setNote(incomeSources[0] ?? '')
+              if (k !== 'income' && incomeSources.includes(note.trim())) setNote('')
+            }}
+            className={`flex-1 rounded-xl px-2 py-2.5 text-sm font-medium ${
+              kind === k
                 ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
                 : 'bg-neutral-100 dark:bg-neutral-800'
             }`}
           >
-            {v ? '↓ Дохід' : '↑ Витрата'}
+            {KIND_LABEL[k]}
           </button>
         ))}
       </div>
@@ -147,7 +189,23 @@ export function AddTransaction({
                 ))}
               </div>
             </div>
-            <IncomePreviewBlock amount={amountNum} includesVat={includesVat} currency={currency} />
+            <label className="flex items-center gap-2 text-sm text-neutral-500">
+              <input
+                type="checkbox"
+                checked={incomeRepeats}
+                onChange={(e) => setIncomeRepeats(e.target.checked)}
+              />
+              Приходить щомісяця (стабільний дохід)
+            </label>
+
+            {incomeRepeats
+              ? (
+                <p className="text-xs text-neutral-400">
+                  Зарахується автоматично кожного місяця. Бюджет перерахується сам —
+                  вписувати щомісяця не треба.
+                </p>
+              )
+              : <IncomePreviewBlock amount={amountNum} includesVat={includesVat} currency={currency} />}
           </>
         ) : (
           <>
@@ -215,8 +273,8 @@ export function AddTransaction({
               )}
             </div>
 
-            {/* Priority */}
-            <div>
+            {/* Priority — only for one-off spending; a subscription is already decided */}
+            <div className={isSubscription ? 'hidden' : ''}>
               <label className="text-xs text-neutral-400">Пріоритет</label>
               <div className="mt-1 flex gap-2">
                 {PRIORITIES.map((p) => (
@@ -237,8 +295,21 @@ export function AddTransaction({
           </>
         )}
 
+        {repeats && (
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-neutral-500">кожного</span>
+            <input
+              inputMode="numeric"
+              value={dayOfMonth}
+              onChange={(e) => setDayOfMonth(e.target.value)}
+              className="w-14 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-2 py-1 text-center"
+            />
+            <span className="text-neutral-500">числа</span>
+          </div>
+        )}
+
         {/* Date — logging yesterday must be as easy as today */}
-        {!isIncome && (
+        {!isIncome && !isSubscription && (
           <div>
             <label className="text-xs text-neutral-400">Коли</label>
             <div className="mt-1 flex gap-2 items-center">
@@ -270,13 +341,36 @@ export function AddTransaction({
         )}
 
         {/* Note */}
-        <input
-          type="text"
-          placeholder={isIncome ? 'Від кого / за що' : "Нотатка (необов'язково)"}
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          className="w-full rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-sm outline-none"
-        />
+        <div>
+          <input
+            type="text"
+            placeholder={
+              isIncome ? 'Від кого / за що'
+                : isSubscription ? 'Назва (Netflix, оренда…)'
+                  : "Нотатка (необов'язково)"
+            }
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            className="w-full rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-sm outline-none"
+          />
+          {isIncome && incomeSources.length > 1 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {incomeSources.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setNote(s)}
+                  className={`rounded-lg px-2.5 py-1 text-xs ${
+                    note.trim() === s
+                      ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+                      : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500'
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
       </div>
@@ -284,9 +378,14 @@ export function AddTransaction({
       <button
         onClick={submit}
         disabled={!valid || saving}
-        className={`w-full rounded-2xl ${accent} text-white py-4 font-semibold disabled:opacity-40`}
+        className="w-full rounded-2xl bg-emerald-600 text-white py-4 font-semibold disabled:opacity-40"
       >
-        {saving ? 'Зберігаю…' : editing ? 'Зберегти зміни' : 'Зберегти'}
+        {saving
+          ? 'Зберігаю…'
+          : editing ? 'Зберегти зміни'
+            : isSubscription ? 'Додати підписку'
+              : repeats ? 'Додати регулярний дохід'
+                : 'Зберегти'}
       </button>
     </div>
   )

@@ -61,11 +61,15 @@ public sealed class SummaryService(
                 savingsStatus.DepositedThisMonth, savingsStatus.StillToReserve));
     }
 
-    /// Active recurring whose this-month charge is still in the future = not yet spent.
+    /// Active recurring EXPENSES whose this-month charge is still in the future = not yet
+    /// spent. Recurring income is excluded: it raises the budget when it lands, and
+    /// reserving it here would subtract the salary from what the user may spend.
     /// Converted at today's rate (an estimate; the real rate is locked when it materializes).
     private async Task<decimal> ReservedRecurringAsync(DateOnly today, CancellationToken ct)
     {
-        var recurring = await db.RecurringExpenses.Where(r => r.Active).ToListAsync(ct);
+        var recurring = await db.RecurringExpenses
+            .Where(r => r.Active && r.Kind == TransactionKind.Expense)
+            .ToListAsync(ct);
         var reserved = 0m;
 
         foreach (var r in recurring)

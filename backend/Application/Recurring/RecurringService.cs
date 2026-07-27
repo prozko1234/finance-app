@@ -31,8 +31,13 @@ public sealed class RecurringService(IAppDbContext db) : IRecurringService
         if (!await db.Categories.AnyAsync(c => c.Id == req.CategoryId, ct))
             return Error.Validation($"Категорію {req.CategoryId} не знайдено.");
 
+        if (!TryParseKind(req.Kind, out var kind))
+            return Error.Validation($"Невідомий тип: {req.Kind}.");
+
         var r = new RecurringExpense
         {
+            Kind = kind,
+            AmountIncludesVat = req.AmountIncludesVat,
             AmountOriginal = req.Amount,
             CurrencyOriginal = req.Currency.ToUpperInvariant(),
             CategoryId = req.CategoryId,
@@ -54,6 +59,11 @@ public sealed class RecurringService(IAppDbContext db) : IRecurringService
         if (!await db.Categories.AnyAsync(c => c.Id == req.CategoryId, ct))
             return Error.Validation($"Категорію {req.CategoryId} не знайдено.");
 
+        if (!TryParseKind(req.Kind, out var kind))
+            return Error.Validation($"Невідомий тип: {req.Kind}.");
+
+        r.Kind = kind;
+        r.AmountIncludesVat = req.AmountIncludesVat;
         r.AmountOriginal = req.Amount;
         r.CurrencyOriginal = req.Currency.ToUpperInvariant();
         r.CategoryId = req.CategoryId;
@@ -74,6 +84,18 @@ public sealed class RecurringService(IAppDbContext db) : IRecurringService
         db.RecurringExpenses.Remove(r);
         await db.SaveChangesAsync(ct);
         return Result<bool>.Ok(true);
+    }
+
+    /// Missing kind means expense — that is what every row created before recurring
+    /// income existed is, and what the plain "+ Підписка" flow sends.
+    private static bool TryParseKind(string? kind, out TransactionKind parsed)
+    {
+        if (string.IsNullOrWhiteSpace(kind))
+        {
+            parsed = TransactionKind.Expense;
+            return true;
+        }
+        return Enum.TryParse(kind, ignoreCase: true, out parsed);
     }
 
     private async Task LoadCategoryAsync(RecurringExpense r, CancellationToken ct) =>
