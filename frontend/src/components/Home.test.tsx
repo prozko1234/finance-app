@@ -70,14 +70,14 @@ describe('Home', () => {
       />,
     )
 
-    expect(screen.getByText('Відкладено')).toBeInTheDocument()
+    expect(screen.getByText('Заощадження')).toBeInTheDocument()
     expect(screen.getByText(/5000,00/)).toBeInTheDocument()
-    expect(screen.getByText('Ще відкласти цього місяця')).toBeInTheDocument()
+    expect(screen.getByText('Ще у заощадження цього місяця')).toBeInTheDocument()
   })
 
   it('offers to set up saving when the envelope is empty', () => {
     render(<Home {...props} summary={summary()} />)
-    expect(screen.getByText(/Відкладати щомісяця/)).toBeInTheDocument()
+    expect(screen.getByText(/Відкладати у заощадження щомісяця/)).toBeInTheDocument()
   })
 
   it('names today\'s overspending and what it costs tomorrow', () => {

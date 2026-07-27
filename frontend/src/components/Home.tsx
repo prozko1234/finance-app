@@ -143,10 +143,10 @@ function MonthSummary({ summary, taxes }: { summary: SafeToSpend; taxes: MonthTa
         <Row label="Бюджет місяця" value={money(taxes.takeHome, c)} strong />
         <Row label="Витрачено" value={`− ${money(summary.spentThisMonth, c)}`} muted />
         {summary.reservedRecurring > 0 && (
-          <Row label="Зарезервовано на фіксовані" value={`− ${money(summary.reservedRecurring, c)}`} muted />
+          <Row label="Зарезервовано на підписки" value={`− ${money(summary.reservedRecurring, c)}`} muted />
         )}
         {summary.savings.stillToReserve > 0 && (
-          <Row label="Ще відкласти цього місяця" value={`− ${money(summary.savings.stillToReserve, c)}`} muted />
+          <Row label="Ще у заощадження цього місяця" value={`− ${money(summary.savings.stillToReserve, c)}`} muted />
         )}
         <Row label="Лишилось" value={money(summary.remainingThisMonth ?? 0, c)} strong />
       </dl>
@@ -167,7 +167,7 @@ function SavingsCard({ savings, currency, onOpen }: {
         onClick={onOpen}
         className="w-full rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700 p-4 text-sm text-neutral-500"
       >
-        + Відкладати щомісяця
+        + Відкладати у заощадження щомісяця
       </button>
     )
   }
@@ -177,7 +177,7 @@ function SavingsCard({ savings, currency, onOpen }: {
   return (
     <button onClick={onOpen} className="w-full rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm text-left">
       <div className="flex items-baseline justify-between gap-3">
-        <span className="text-sm text-neutral-400">Відкладено</span>
+        <span className="text-sm text-neutral-400">Заощадження</span>
         <span className="text-2xl font-bold tabular-nums">{money(savings.balance, currency)}</span>
       </div>
       {savings.monthGoal > 0 && (

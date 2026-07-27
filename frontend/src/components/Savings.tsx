@@ -18,16 +18,16 @@ export function Savings({ data, onSavePlan, onAddEntry, onDeleteEntry, onBack }:
     <div className="space-y-5">
       <div className="flex items-center gap-2">
         <button onClick={onBack} className="text-neutral-400 text-2xl leading-none">←</button>
-        <h1 className="text-lg font-semibold">Відкладено</h1>
+        <h1 className="text-lg font-semibold">Заощадження</h1>
       </div>
 
       <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm text-center">
-        <p className="text-sm uppercase tracking-wide text-neutral-400">У конверті</p>
+        <p className="text-sm uppercase tracking-wide text-neutral-400">У заощадженнях</p>
         <p className="mt-1 text-4xl font-bold tabular-nums">{money(data.balance, data.currency)}</p>
         {data.monthGoal > 0 && (
           <p className="mt-2 text-xs text-neutral-400">
             Цього місяця {money(data.depositedThisMonth, data.currency)} з {money(data.monthGoal, data.currency)}
-            {data.stillToReserve > 0 && ` · ще ${money(data.stillToReserve, data.currency)} відкладено з бюджету`}
+            {data.stillToReserve > 0 && ` · ще ${money(data.stillToReserve, data.currency)} з бюджету тримається тут`}
           </p>
         )}
       </div>
@@ -108,7 +108,7 @@ function MoveMoney({ currency, balance, onAdd }: {
         </button>
       </div>
       <p className="text-xs text-neutral-400">
-        Відкладене не входить у «безпечно сьогодні». Зняти можна будь-коли — це твої гроші,
+        Заощадження не входять у «Ще сьогодні». Зняти можна будь-коли — це твої гроші,
         не податки. Максимум до зняття: {money(balance, currency)}.
       </p>
     </div>
@@ -136,7 +136,7 @@ function PlanForm({ data, onSave }: { data: SavingsData; onSave: (p: SaveSavings
 
   return (
     <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm space-y-3">
-      <h2 className="text-sm font-medium text-neutral-400">Скільки відкладати щомісяця</h2>
+      <h2 className="text-sm font-medium text-neutral-400">Скільки у заощадження щомісяця</h2>
 
       <div className="flex gap-2">
         {(['Fixed', 'Percent'] as const).map((m) => (
@@ -149,7 +149,7 @@ function PlanForm({ data, onSave }: { data: SavingsData; onSave: (p: SaveSavings
                 : 'bg-neutral-100 dark:bg-neutral-800'
             }`}
           >
-            {m === 'Fixed' ? 'Сума' : '% від чистого'}
+            {m === 'Fixed' ? 'Сума' : '% від бюджету'}
           </button>
         ))}
       </div>
@@ -173,7 +173,7 @@ function PlanForm({ data, onSave }: { data: SavingsData; onSave: (p: SaveSavings
 
       {mode === 'Percent' && (
         <p className="text-xs text-neutral-400">
-          Відсоток рахується від чистого доходу за місяць — уже після податків.
+          Відсоток рахується від бюджета місяця — уже після податків.
           Поки доходу немає, ціль нульова.
         </p>
       )}
@@ -200,7 +200,7 @@ function History({ data, onDelete }: { data: SavingsData; onDelete: (id: number)
           <li key={e.id} className="flex items-center gap-3 rounded-xl bg-white dark:bg-neutral-900 px-4 py-3 shadow-sm">
             <span className="text-xl">{e.kind === 'Deposit' ? '🐖' : '↩️'}</span>
             <div className="flex-1 min-w-0">
-              <p className="font-medium truncate">{e.kind === 'Deposit' ? 'Відкладено' : 'Знято'}</p>
+              <p className="font-medium truncate">{e.kind === 'Deposit' ? 'У заощадження' : 'Знято'}</p>
               <p className="text-xs text-neutral-400 truncate">{e.note || (e.date === todayIso() ? 'сьогодні' : e.date)}</p>
             </div>
             <p className={`font-semibold tabular-nums ${e.kind === 'Deposit' ? 'text-emerald-600' : ''}`}>

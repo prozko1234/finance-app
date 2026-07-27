@@ -100,6 +100,10 @@ export interface IncomePreview {
   budgetDelta: number
   isFirstIncomeThisMonth: boolean
   monthAfter: MonthTaxes
+  savingsMode: 'Fixed' | 'Percent'
+  savingsValue: number
+  savingsActive: boolean
+  savingsGoalAfter: number
   currency: string
 }
 
@@ -208,17 +212,4 @@ export interface TaxDefaults {
   healthUnder60k: number
   health60kTo300k: number
   healthOver300k: number
-}
-
-export interface TakeHome {
-  grossWithVat: number
-  vatAmount: number
-  revenue: number
-  zusSocial: number
-  healthContribution: number
-  healthDeducted: number
-  taxBase: number
-  tax: number
-  takeHome: number
-  currency: string
 }

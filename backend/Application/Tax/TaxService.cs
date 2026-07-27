@@ -4,6 +4,7 @@ using FinanceApp.Application.Contracts;
 using FinanceApp.Application.Mapping;
 using FinanceApp.Domain;
 using FinanceApp.Domain.Common;
+using FinanceApp.Domain.Savings;
 using FinanceApp.Domain.Tax;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,7 +14,6 @@ public interface ITaxService
 {
     Task<TaxProfileResponse> GetProfileAsync(CancellationToken ct = default);
     Task<Result<TaxProfileResponse>> SaveProfileAsync(SaveTaxProfileRequest req, CancellationToken ct = default);
-    Task<Result<TakeHomeResponse>> CalculateAsync(CalculateTakeHomeRequest req, CancellationToken ct = default);
     Task<Result<IncomePreviewResponse>> PreviewIncomeAsync(CalculateTakeHomeRequest req, CancellationToken ct = default);
     TaxDefaultsResponse GetDefaults();
 }
@@ -56,19 +56,6 @@ public sealed class TaxService(IAppDbContext db) : ITaxService
         return Result<TaxProfileResponse>.Ok(ToResponse(p));
     }
 
-    public async Task<Result<TakeHomeResponse>> CalculateAsync(
-        CalculateTakeHomeRequest req, CancellationToken ct = default)
-    {
-        var p = await LoadOrDefaultAsync(ct);
-        var r = TakeHomeCalculator.Calculate(p, req.Amount, req.AmountIncludesVat);
-        if (!r.IsSuccess) return r.Error;
-
-        var b = r.Value!;
-        return Result<TakeHomeResponse>.Ok(new TakeHomeResponse(
-            b.GrossWithVat, b.VatAmount, b.Revenue, b.ZusSocial, b.HealthContribution,
-            b.HealthDeducted, b.TaxBase, b.Tax, b.TakeHome, Money.BaseCurrency));
-    }
-
     /// Live feedback while typing an invoice: what it adds to THIS MONTH's budget.
     /// The delta is taxed(revenue so far + this invoice) - taxed(revenue so far), so ZUS and
     /// health are never charged twice — the second invoice of a month legitimately adds more
@@ -98,11 +85,18 @@ public sealed class TaxService(IAppDbContext db) : ITaxService
             budgetBefore = before.Value!.TakeHome;
         }
 
+        // The savings goal follows the budget, so it has to be computed against the budget
+        // this invoice produces — not the one on screen a second ago.
+        var plan = await db.SavingsPlans.OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
+        var goalAfter = SavingsCalculator.MonthGoal(plan, after.Value!.TakeHome);
+
         var b = invoice.Value!;
         return Result<IncomePreviewResponse>.Ok(new IncomePreviewResponse(
             b.GrossWithVat, b.VatAmount, b.Revenue,
             budgetBefore, after.Value!.TakeHome, after.Value!.TakeHome - budgetBefore,
-            revenueSoFar == 0m, after.Value!.ToMonthBreakdown(), Money.BaseCurrency));
+            revenueSoFar == 0m, after.Value!.ToMonthBreakdown(),
+            (plan?.Mode ?? SavingsMode.Percent).ToString(), plan?.Value ?? 0m, plan?.Active ?? false,
+            goalAfter, Money.BaseCurrency));
     }
 
     public TaxDefaultsResponse GetDefaults() => new(

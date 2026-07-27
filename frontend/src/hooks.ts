@@ -14,6 +14,7 @@ export const queryKeys = {
   taxProfile: ['taxProfile'] as const,
   taxDefaults: ['taxDefaults'] as const,
   savings: ['savings'] as const,
+  incomePreview: ['incomePreview'] as const,
 }
 
 export function useCategories() {
@@ -136,19 +137,12 @@ export function useSaveTaxProfile() {
   })
 }
 
-export function useCalculateTakeHome() {
-  return useMutation({
-    mutationFn: ({ amount, includesVat }: { amount: number; includesVat: boolean }) =>
-      api.calculateTakeHome(amount, includesVat),
-  })
-}
-
 /// Live income preview. Debounced so typing "24600" is one request, not five.
 /// Only meaningful in the base currency — the tax engine works in PLN.
 export function useIncomePreview(amount: number, includesVat: boolean, enabled: boolean) {
   const debounced = useDebounced(amount, 350)
   return useQuery({
-    queryKey: ['incomePreview', debounced, includesVat],
+    queryKey: [...queryKeys.incomePreview, debounced, includesVat],
     queryFn: () => api.previewIncome(debounced, includesVat),
     enabled: enabled && debounced > 0,
     staleTime: 60_000,
@@ -168,7 +162,8 @@ export function useSavings() {
   return useQuery({ queryKey: queryKeys.savings, queryFn: api.getSavings })
 }
 
-/// Both the plan and manual entries change safe-to-spend, so the summary must refetch too.
+/// Both the plan and manual entries change safe-to-spend, so the summary must refetch too —
+/// and the income preview, which shows the savings goal while the form is still open.
 function useSavingsMutation<T>(fn: (v: T) => Promise<unknown>) {
   const qc = useQueryClient()
   return useMutation({
@@ -176,6 +171,7 @@ function useSavingsMutation<T>(fn: (v: T) => Promise<unknown>) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.savings })
       qc.invalidateQueries({ queryKey: queryKeys.summary })
+      qc.invalidateQueries({ queryKey: queryKeys.incomePreview })
     },
   })
 }

@@ -1,6 +1,7 @@
 using FinanceApp.Application.Contracts;
 using FinanceApp.Application.Tax;
 using FinanceApp.Domain;
+using FinanceApp.Domain.Savings;
 using FinanceApp.Domain.Tax;
 
 namespace FinanceApp.Api.Tests;
@@ -84,5 +85,39 @@ public class IncomePreviewTests
         var monthly = TakeHomeCalculator.Calculate(Profile(), 20_000m, amountIncludesVat: false).Value!;
         Assert.Equal(monthly.TakeHome, secondPreview.Value!.MonthAfter.TakeHome);
         Assert.Equal(monthly.TakeHome, firstPreview.Value!.BudgetDelta + secondPreview.Value!.BudgetDelta);
+    }
+
+    /// M17: the form has to show where the money goes without a second screen, and the
+    /// percentage applies to the budget this invoice produces — not the one before it.
+    [Fact]
+    public async Task Preview_reports_the_savings_goal_for_the_budget_after_this_invoice()
+    {
+        using var mem = new SqliteInMemory();
+        mem.Db.TaxProfiles.Add(Profile());
+        mem.Db.SavingsPlans.Add(new SavingsPlan { Mode = SavingsMode.Percent, Value = 10m, Active = true });
+        await mem.Db.SaveChangesAsync();
+        var svc = new TaxService(mem.Db);
+
+        var r = await svc.PreviewIncomeAsync(new CalculateTakeHomeRequest(20_000m, AmountIncludesVat: false));
+
+        var p = r.Value!;
+        Assert.Equal("Percent", p.SavingsMode);
+        Assert.Equal(10m, p.SavingsValue);
+        Assert.True(p.SavingsActive);
+        Assert.Equal(Math.Round(p.BudgetAfter * 0.10m, 2, MidpointRounding.AwayFromZero), p.SavingsGoalAfter);
+    }
+
+    [Fact]
+    public async Task Preview_reports_no_savings_goal_when_there_is_no_plan()
+    {
+        using var mem = new SqliteInMemory();
+        mem.Db.TaxProfiles.Add(Profile());
+        await mem.Db.SaveChangesAsync();
+        var svc = new TaxService(mem.Db);
+
+        var p = (await svc.PreviewIncomeAsync(new CalculateTakeHomeRequest(20_000m, false))).Value!;
+
+        Assert.False(p.SavingsActive);
+        Assert.Equal(0m, p.SavingsGoalAfter);
     }
 }

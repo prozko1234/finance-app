@@ -116,7 +116,7 @@ export function Recurring({ categories, items, onCreate, onToggle, onDelete, onB
                 <p className="text-xs text-neutral-400">кожного {r.dayOfMonth}-го · {r.categoryName}</p>
               </div>
               <p className="font-semibold tabular-nums">{money(r.amountOriginal, r.currencyOriginal)}</p>
-              <button onClick={() => onToggle(r)} className="text-sm text-neutral-400 px-1" title="Увімкнути / вимкнути">
+              <button onClick={() => onToggle(r)} className="text-sm text-neutral-400 px-1" title={r.active ? 'Призупинити' : 'Відновити'}>
                 {r.active ? '⏸' : '▶'}
               </button>
               <button onClick={() => onDelete(r.id)} className="text-neutral-300 hover:text-red-500 px-1" aria-label="Видалити">✕</button>

@@ -22,12 +22,6 @@ public static class TaxEndpoints
         // Suggested rates for the current year — data to prefill the form, not the source of truth.
         g.MapGet("/defaults", (ITaxService svc) => Results.Ok(svc.GetDefaults()));
 
-        g.MapPost("/take-home", async (CalculateTakeHomeRequest req, ITaxService svc, CancellationToken ct) =>
-        {
-            var r = await svc.CalculateAsync(req, ct);
-            return r.IsSuccess ? Results.Ok(r.Value) : r.Error.ToProblem();
-        });
-
         // Live preview while typing an invoice — what it adds to this month's budget.
         g.MapPost("/income-preview", async (CalculateTakeHomeRequest req, ITaxService svc, CancellationToken ct) =>
         {

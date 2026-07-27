@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import type { Category, Priority, SaveCategory, SaveIncome, SaveTransaction, Transaction } from '../types'
+import type { Category, IncomePreview, Priority, SaveCategory, SaveIncome, SaveTransaction, Transaction } from '../types'
 import { BASE_CURRENCY, CURRENCIES, shiftIso, todayIso } from '../types'
 import { money } from '../format'
-import { useIncomePreview } from '../hooks'
+import { useIncomePreview, useSaveSavingsPlan } from '../hooks'
 import { readLastUsed, writeLastUsed } from '../lastUsed'
 
 interface Props {
@@ -349,6 +349,88 @@ function IncomePreviewBlock({ amount, includesVat, currency }: {
         <span className="text-neutral-400">Бюджет місяця стане</span>
         <span className="tabular-nums font-medium">{money(data.budgetAfter, data.currency)}</span>
       </div>
+
+      <SavingsRow preview={data} />
+    </div>
+  )
+}
+
+/// M17 / story 2: where the money goes has to be visible — and changeable — without
+/// leaving the form. The separate savings screen stays for the history of movements.
+function SavingsRow({ preview }: { preview: IncomePreview }) {
+  const savePlan = useSaveSavingsPlan()
+  const [editing, setEditing] = useState(false)
+  const [mode, setMode] = useState<'Fixed' | 'Percent'>(preview.savingsMode)
+  const [value, setValue] = useState(preview.savingsValue > 0 ? String(preview.savingsValue) : '')
+
+  const num = Number(value.replace(',', '.'))
+  const valid = num >= 0 && (mode !== 'Percent' || num <= 100)
+
+  async function save() {
+    if (!valid || savePlan.isPending) return
+    await savePlan.mutateAsync({ mode, value: num, active: num > 0 })
+    setEditing(false)
+  }
+
+  if (!editing) {
+    const share = preview.savingsActive && preview.savingsMode === 'Percent' && preview.savingsValue > 0
+      ? ` (${preview.savingsValue}%)`
+      : ''
+    return (
+      <button
+        onClick={() => setEditing(true)}
+        className="w-full flex justify-between gap-3 border-t border-neutral-200 dark:border-neutral-700 pt-1.5 text-xs text-left"
+      >
+        <span className="text-neutral-400">
+          {preview.savingsGoalAfter > 0 ? `У заощадження піде${share}` : 'У заощадження нічого не піде'}
+          <span className="text-neutral-300 dark:text-neutral-600"> · змінити</span>
+        </span>
+        <span className="tabular-nums font-medium">
+          {money(preview.savingsGoalAfter, preview.currency)}
+        </span>
+      </button>
+    )
+  }
+
+  return (
+    <div className="border-t border-neutral-200 dark:border-neutral-700 pt-2 space-y-2">
+      <div className="flex gap-2">
+        {(['Percent', 'Fixed'] as const).map((m) => (
+          <button
+            key={m}
+            onClick={() => setMode(m)}
+            className={`flex-1 rounded-lg px-2 py-1.5 text-xs ${
+              mode === m
+                ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+                : 'bg-neutral-100 dark:bg-neutral-700'
+            }`}
+          >
+            {m === 'Percent' ? '% від бюджету' : 'Сума'}
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          inputMode="decimal"
+          autoFocus
+          placeholder="0"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          className="flex-1 text-xl font-bold tabular-nums bg-transparent outline-none"
+        />
+        <span className="text-xs text-neutral-400">{mode === 'Percent' ? '%' : preview.currency}</span>
+        <button
+          onClick={save}
+          disabled={!valid || savePlan.isPending}
+          className="rounded-lg bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 px-3 py-1.5 text-xs font-medium disabled:opacity-40"
+        >
+          OK
+        </button>
+      </div>
+      <p className="text-xs text-neutral-400">
+        Заощадження ховаються з «Ще сьогодні» — але лишаються твоїми, зняти можна будь-коли.
+      </p>
     </div>
   )
 }

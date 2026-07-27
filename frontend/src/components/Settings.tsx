@@ -1,8 +1,12 @@
 import { useState } from 'react'
 import type { Budget } from '../types'
+import { money } from '../format'
 
 interface Props {
   budget: Budget | null
+  /// This month's budget derived from income, when there is income. While it is set,
+  /// the manual amount below is ignored — M17 stopped the UI from pretending otherwise.
+  incomeBudget: number | null
   onSave: (amount: number) => Promise<void>
   onBack: () => void
   onGoRecurring: () => void
@@ -12,7 +16,7 @@ interface Props {
   onGoDev?: () => void
 }
 
-export function Settings({ budget, onSave, onBack, onGoRecurring, onGoTax, onGoCategories, onGoDev }: Props) {
+export function Settings({ budget, incomeBudget, onSave, onBack, onGoRecurring, onGoTax, onGoCategories, onGoDev }: Props) {
   const [amount, setAmount] = useState(budget?.monthlyAmount != null ? String(budget.monthlyAmount) : '')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -44,7 +48,12 @@ export function Settings({ budget, onSave, onBack, onGoRecurring, onGoTax, onGoC
       </div>
 
       <div className="rounded-2xl bg-white dark:bg-neutral-900 p-5 shadow-sm space-y-3">
-        <label className="text-sm text-neutral-500">Місячний бюджет (PLN)</label>
+        <label className="text-sm text-neutral-500">Запасний бюджет (PLN)</label>
+        <p className="text-xs text-neutral-400">
+          {incomeBudget !== null
+            ? `Цього місяця не діє: бюджет уже порахований з доходу — ${money(incomeBudget, budget?.currency ?? 'PLN')}. Ця сума спрацює в місяці без доходу.`
+            : 'Діє, поки за місяць немає доходу. Щойно впишеш дохід, бюджет порахується з нього.'}
+        </p>
         <div className="flex gap-2 items-baseline">
           <input
             type="text"
@@ -88,7 +97,7 @@ export function Settings({ budget, onSave, onBack, onGoRecurring, onGoTax, onGoC
         onClick={onGoTax}
         className="w-full flex items-center justify-between rounded-2xl bg-white dark:bg-neutral-900 px-5 py-4 shadow-sm"
       >
-        <span className="font-medium">Податки й take-home (B2B)</span>
+        <span className="font-medium">Податковий профіль</span>
         <span className="text-neutral-400">→</span>
       </button>
 
@@ -103,7 +112,8 @@ export function Settings({ budget, onSave, onBack, onGoRecurring, onGoTax, onGoC
       )}
 
       <p className="text-xs text-neutral-400 text-center">
-        Safe-to-spend рахується від цього бюджета. Банківський синк — у майбутніх версіях.
+        «Ще сьогодні» рахується від бюджета місяця: з доходу, якщо він є, інакше — із
+        запасного. Банківський синк — у майбутніх версіях.
       </p>
     </div>
   )

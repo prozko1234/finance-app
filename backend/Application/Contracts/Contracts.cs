@@ -159,18 +159,12 @@ public record IncomePreviewResponse(
     decimal BudgetDelta,      // += до бюджету за цю фактуру
     bool IsFirstIncomeThisMonth,
     MonthTaxBreakdown MonthAfter,
-    string Currency);
-
-public record TakeHomeResponse(
-    decimal GrossWithVat,
-    decimal VatAmount,
-    decimal Revenue,
-    decimal ZusSocial,
-    decimal HealthContribution,
-    decimal HealthDeducted,
-    decimal TaxBase,
-    decimal Tax,
-    decimal TakeHome,
+    // The savings plan as it would apply to the month's budget after this invoice — shown
+    // (and editable) right in the income form, so putting money aside is not a second trip.
+    string SavingsMode,
+    decimal SavingsValue,
+    bool SavingsActive,
+    decimal SavingsGoalAfter,
     string Currency);
 
 public record RecurringResponse(
