@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api'
 import type {
-  SaveAllocation, SaveCategory, SaveIncome, SaveRecurring, SaveSavingsEntry, SaveSavingsPlan, SaveTaxProfile, SaveTransaction,
+  SaveAllocation, SaveCategory, SaveIncome, SaveOpeningBalance, SaveRecurring, SaveSavingsEntry, SaveSavingsPlan, SaveTaxProfile, SaveTransaction,
 } from './types'
 
 export const queryKeys = {
   categories: ['categories'] as const,
   transactions: ['transactions'] as const,
   budget: ['budget'] as const,
+  openingBalance: ['openingBalance'] as const,
   summary: ['summary'] as const,
   recurring: ['recurring'] as const,
   taxProfile: ['taxProfile'] as const,
@@ -181,6 +182,34 @@ export function useDeleteTransaction() {
 export function useSetBudget() {
   const invalidate = useInvalidate()
   return useMutation({ mutationFn: (amount: number) => api.setBudget(amount), onSuccess: invalidate })
+}
+
+export function useOpeningBalance() {
+  return useQuery({ queryKey: queryKeys.openingBalance, queryFn: () => api.getOpeningBalance() })
+}
+
+/// Counting what is left changes the budget itself, so it invalidates everything the
+/// ordinary money mutations do — plus the count.
+function useInvalidateOpeningBalance() {
+  const invalidate = useInvalidate()
+  const qc = useQueryClient()
+  return () => {
+    invalidate()
+    qc.invalidateQueries({ queryKey: queryKeys.openingBalance })
+  }
+}
+
+export function useSetOpeningBalance() {
+  const invalidate = useInvalidateOpeningBalance()
+  return useMutation({
+    mutationFn: (b: SaveOpeningBalance) => api.setOpeningBalance(b),
+    onSuccess: invalidate,
+  })
+}
+
+export function useClearOpeningBalance() {
+  const invalidate = useInvalidateOpeningBalance()
+  return useMutation({ mutationFn: () => api.clearOpeningBalance(), onSuccess: invalidate })
 }
 
 export function useCreateRecurring() {

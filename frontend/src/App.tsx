@@ -10,7 +10,9 @@ import {
   useAllocations, useSaveAllocation, useSettings, useSetDisplayCurrency,
   useSavings, useSaveSavingsPlan, useAddSavingsEntry, useUpdateSavingsEntry, useDeleteSavingsEntry,
   useStats, useAuthStatus, useLogin, useLogout, queryKeys,
+  useOpeningBalance, useSetOpeningBalance,
 } from './hooks'
+import { Onboarding } from './components/Onboarding'
 import { Home } from './components/Home'
 import { AddTransaction } from './components/AddTransaction'
 import { Settings } from './components/Settings'
@@ -31,6 +33,9 @@ function App() {
   const [presetCategoryId, setPresetCategoryId] = useState<number | null>(null)
   // null = whichever month the server considers current; set once the user taps a bar.
   const [statsMonth, setStatsMonth] = useState<string | null>(null)
+  // Survives a reload: "я сам розберусь" must not be asked again on every refresh.
+  const [skippedOnboarding, setSkipped] = useState(() => localStorage.getItem('onboarded') === '1')
+  const skipOnboarding = () => { localStorage.setItem('onboarded', '1'); setSkipped(true) }
 
   const qc = useQueryClient()
   const auth = useAuthStatus()
@@ -44,6 +49,8 @@ function App() {
   const summary = useSafeToSpend()
   const transactions = useTransactions()
   const budget = useBudget()
+  const openingBalance = useOpeningBalance()
+  const setOpeningBalance = useSetOpeningBalance()
   const recurring = useRecurring()
   const savings = useSavings()
   const allocations = useAllocations()
@@ -103,6 +110,33 @@ function App() {
   if (auth.isPending) return null
   if (auth.data?.required && !auth.data.authenticated)
     return <Login onSubmit={(p) => login.mutateAsync(p).then(() => {})} />
+
+  // An empty app is indistinguishable from a broken one: the old home said "бюджет ще не
+  // заданий" and left the rest of the screen blank. Derived from the data rather than from
+  // a stored flag, so it cannot get stuck on for someone who already has a budget.
+  const untouched =
+    !skippedOnboarding &&
+    budget.isSuccess && !budget.data.set &&
+    openingBalance.isSuccess && !openingBalance.data.isSet &&
+    transactions.isSuccess && transactions.data.length === 0
+
+  if (untouched) {
+    return (
+      <div className="min-h-screen">
+        <div className="mx-auto max-w-md px-4 py-10">
+          <Onboarding
+            currency={settings.data?.displayCurrency ?? 'PLN'}
+            onSkip={skipOnboarding}
+            onFinish={async ({ budget: b, balance }) => {
+              if (b !== null) await setBudget.mutateAsync(b)
+              if (balance !== null) await setOpeningBalance.mutateAsync({ amount: balance })
+              skipOnboarding()
+            }}
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen">

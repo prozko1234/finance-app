@@ -1,6 +1,6 @@
 import type {
   AuthStatus, AppSettings, Budget, Category, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
-  Allocation, SaveAllocation, IncomePreview, SaveSavingsEntry, SaveSavingsPlan, Savings, Stats, TaxDefaults, TaxProfile, Transaction,
+  Allocation, SaveAllocation, IncomePreview, OpeningBalance, SaveOpeningBalance, SaveSavingsEntry, SaveSavingsPlan, Savings, Stats, TaxDefaults, TaxProfile, Transaction,
 } from './types'
 
 /// Called whenever the server says "not you" — a cookie can expire mid-session, and the
@@ -57,6 +57,11 @@ export const api = {
   getBudget: () => http<Budget>('/api/budget'),
   setBudget: (amount: number) =>
     http<Budget>('/api/budget', { method: 'PUT', body: JSON.stringify({ amount }) }),
+
+  getOpeningBalance: () => http<OpeningBalance>('/api/opening-balance'),
+  setOpeningBalance: (b: SaveOpeningBalance) =>
+    http<OpeningBalance>('/api/opening-balance', { method: 'PUT', body: JSON.stringify(b) }),
+  clearOpeningBalance: () => http<OpeningBalance>('/api/opening-balance', { method: 'DELETE' }),
 
   getSafeToSpend: () => http<SafeToSpend>('/api/summary/safe-to-spend'),
 

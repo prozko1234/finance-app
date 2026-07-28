@@ -30,9 +30,15 @@ public sealed class SummaryService(
         await materializer.MaterializeDueAsync(ct);
 
         var today = DateOnly.FromDateTime(DateTime.Now);
-        var (first, last) = MonthRange.Of(today);
+        var (_, last) = MonthRange.Of(today);
 
-        var monthRows = db.Transactions.Where(t => t.Date >= first && t.Date <= last);
+        var month = await monthlyBudget.ResolveAsync(ct);
+        var (budget, taxes) = (month.Budget, month.Taxes);
+
+        // Spending is counted from the window start, not from the 1st. When the user started
+        // mid-month by counting what they had, the days before that are already inside that
+        // figure — summing them again would charge those expenses twice.
+        var monthRows = db.Transactions.Where(t => t.Date >= month.WindowStart && t.Date <= last);
 
         var spent = await monthRows
             .Where(t => t.Kind == TransactionKind.Expense)
@@ -41,8 +47,6 @@ public sealed class SummaryService(
         var spentToday = await monthRows
             .Where(t => t.Kind == TransactionKind.Expense && t.Date == today)
             .SumAsync(t => (decimal?)t.AmountBase, ct) ?? 0m;
-
-        var (budget, taxes) = await monthlyBudget.ResolveAsync(ct);
 
         // Savings the user has committed to but not yet moved: hidden from safe-to-spend,
         // exactly like a not-yet-charged subscription.
@@ -97,7 +101,9 @@ public sealed class SummaryService(
                 await show(allocation.Spendable), await show(allocation.Reserved),
                 await Task.WhenAll(allocation.Shares
                     .Select(async s => new BucketShareResponse(
-                        s.BucketId, s.Name, s.Kind.ToString(), s.Percent, await show(s.Amount))))));
+                        s.BucketId, s.Name, s.Kind.ToString(), s.Percent, await show(s.Amount))))),
+            month.WindowStart,
+            month.FromOpeningBalance);
     }
 
     /// Active recurring EXPENSES whose this-month charge is still in the future = not yet

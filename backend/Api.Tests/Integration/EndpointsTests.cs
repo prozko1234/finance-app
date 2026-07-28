@@ -188,4 +188,42 @@ public class EndpointsTests(TestApiFactory factory) : IClassFixture<TestApiFacto
             await _client.PutAsJsonAsync("/api/settings/currency", new { currency = "PLN" });
         }
     }
+
+    [Fact]
+    public async Task Counting_what_is_left_takes_over_the_month_and_moves_the_window()
+    {
+        // Starting mid-month: what is in the account beats the budget on file, and spending
+        // is counted from the day of the count — the rest is already inside that figure.
+        await _client.PutAsJsonAsync("/api/budget", new { amount = 6000m });
+        try
+        {
+            var res = await _client.PutAsJsonAsync("/api/opening-balance", new { amount = 1800m });
+            res.EnsureSuccessStatusCode();
+
+            var body = await res.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.True(body.GetProperty("appliesNow").GetBoolean());
+
+            var summary = await _client.GetFromJsonAsync<JsonElement>("/api/summary/safe-to-spend");
+            Assert.Equal(1800m, summary.GetProperty("monthlyBudget").GetDecimal());
+            Assert.True(summary.GetProperty("fromOpeningBalance").GetBoolean());
+            Assert.Equal(
+                DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd"),
+                summary.GetProperty("windowStart").GetString());
+        }
+        finally
+        {
+            await _client.DeleteAsync("/api/opening-balance");
+        }
+    }
+
+    [Fact]
+    public async Task A_count_dated_tomorrow_is_refused()
+    {
+        var res = await _client.PutAsJsonAsync("/api/opening-balance", new
+        {
+            amount = 100m, date = DateOnly.FromDateTime(DateTime.Now).AddDays(1),
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+    }
 }

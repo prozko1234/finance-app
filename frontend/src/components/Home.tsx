@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import type { AllocationSummary, SafeToSpend, SavingsSummary, Transaction } from '../types'
-import { money } from '../format'
+import { dayMonth, money } from '../format'
 import { buildQuickCategories, type QuickCategory } from '../quickCategories'
 
 interface Props {
@@ -61,11 +61,15 @@ function SafeToSpendCard({ summary, onGoSettings }: { summary: SafeToSpend | nul
 
   if (!summary.budgetSet) {
     return (
-      <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm text-center">
-        <p className="text-neutral-500">Бюджет ще не заданий.</p>
+      <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm text-center space-y-3">
+        <p className="font-medium">Ще нема з чого рахувати</p>
+        <p className="text-sm text-neutral-500 leading-relaxed">
+          Додатку потрібно знати, скільки грошей у тебе на цей місяць. Тоді він щодня
+          казатиме одну цифру: скільки можна витратити сьогодні.
+        </p>
         <button
           onClick={onGoSettings}
-          className="mt-3 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 px-4 py-2 font-medium"
+          className="rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 px-4 py-2 font-medium"
         >
           Задати місячний бюджет
         </button>
@@ -77,31 +81,38 @@ function SafeToSpendCard({ summary, onGoSettings }: { summary: SafeToSpend | nul
   const positive = left >= 0
   const c = summary.currency
 
+  // Одне речення замість чотирьох рядків дрібних чисел. Залишок місяця, бюджет і
+  // витрачене живуть у картці «Місяць» — до M24 вони були в обох, і два місця з тією
+  // самою арифметикою читались як дві різні цифри.
   return (
     <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm text-center">
       <p className="text-sm uppercase tracking-wide text-neutral-400">
-        {positive ? 'Ще сьогодні' : 'Понад норму сьогодні'}
+        {positive ? 'Можна витратити сьогодні' : 'Понад норму сьогодні'}
       </p>
       <p className={`mt-1 text-5xl font-bold tabular-nums ${positive ? 'text-emerald-600' : 'text-red-600'}`}>
         {money(positive ? left : -left, c)}
       </p>
-      <p className="mt-2 text-xs text-neutral-400">
-        Норма на сьогодні {money(summary.dailyNorm ?? 0, c)}
-        {summary.spentToday > 0 && ` · витрачено ${money(summary.spentToday, c)}`}
+      <p className="mt-2 text-sm text-neutral-500 leading-relaxed">
+        {summary.spentToday > 0
+          ? `З норми ${money(summary.dailyNorm ?? 0, c)} на сьогодні вже витрачено ${money(summary.spentToday, c)}.`
+          : `Це норма на сьогодні. До кінця місяця ${summary.daysLeftInMonth} дн.`}
       </p>
       <TomorrowNote summary={summary} />
-      <p className="mt-3 text-sm text-neutral-500">
-        Залишок {money(summary.remainingThisMonth ?? 0, c)} · {summary.daysLeftInMonth} дн.
-      </p>
-      <p className="text-xs text-neutral-400">
-        Витрачено {money(summary.spentThisMonth, summary.currency)} з {money(summary.monthlyBudget ?? 0, summary.currency)}
-      </p>
-      {summary.reservedRecurring > 0 && !summary.monthTaxes && (
-        <p className="text-xs text-neutral-400">
-          Зарезервовано на підписки: {money(summary.reservedRecurring, summary.currency)}
-        </p>
-      )}
+      <WindowNote summary={summary} />
     </div>
+  )
+}
+
+/// Коли рахунок іде не з 1 числа, це треба сказати прямо — інакше «витрачено» виглядає
+/// підозріло малим, і незрозуміло, чи додаток щось загубив.
+function WindowNote({ summary }: { summary: SafeToSpend }) {
+  if (!summary.fromOpeningBalance || !summary.windowStart) return null
+
+  return (
+    <p className="mt-3 text-xs text-neutral-400 leading-relaxed">
+      Рахуємо з {dayMonth(summary.windowStart)} — від суми, яку ти тоді порахував.
+      Те, що витрачено раніше, вже в ній.
+    </p>
   )
 }
 
@@ -130,10 +141,15 @@ function MonthCard({ summary, onGoAllocation }: { summary: SafeToSpend; onGoAllo
   const taxes = summary.monthTaxes
   const a = summary.allocation
   const split = a !== null && a.buckets.length > 1
+  const from = summary.fromOpeningBalance && summary.windowStart
+    ? dayMonth(summary.windowStart)
+    : null
 
   return (
     <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm">
-      <h2 className="text-sm font-medium text-neutral-400 mb-3">Місяць</h2>
+      <h2 className="text-sm font-medium text-neutral-400 mb-3">
+        {from ? `З ${from}` : 'Місяць'}
+      </h2>
       <dl className="space-y-1.5 text-sm">
         {taxes && (
           <>
@@ -156,8 +172,12 @@ function MonthCard({ summary, onGoAllocation }: { summary: SafeToSpend; onGoAllo
           </>
         )}
 
-        <Row label="Бюджет місяця" value={money(summary.monthlyBudget ?? 0, c)} strong />
-        <Row label="Витрачено" value={`− ${money(summary.spentThisMonth, c)}`} muted />
+        <Row
+          label={from ? 'Було на руках' : 'Бюджет місяця'}
+          value={money(summary.monthlyBudget ?? 0, c)}
+          strong
+        />
+        <Row label={from ? `Витрачено з ${from}` : 'Витрачено'} value={`− ${money(summary.spentThisMonth, c)}`} muted />
 
         {summary.reservedRecurring > 0 && (
           <Row label="Зарезервовано на підписки" value={`− ${money(summary.reservedRecurring, c)}`} muted />

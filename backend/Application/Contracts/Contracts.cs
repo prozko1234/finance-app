@@ -85,7 +85,11 @@ public record SafeToSpendResponse(
     decimal? TomorrowIfOnPlan,
     MonthTaxBreakdown? MonthTaxes,
     SavingsSummary Savings,
-    AllocationSummary? Allocation = null);
+    AllocationSummary? Allocation = null,
+    /// The day the count starts from — the 1st, unless the user began mid-month.
+    DateOnly? WindowStart = null,
+    /// True when the budget is "what I have right now" rather than income or a set budget.
+    bool FromOpeningBalance = false);
 
 /// Where the month's budget went before the daily norm was computed — the "куди пішов
 /// бюджет" row. Null-ish case (the default one-bucket scheme) still comes through, so the
@@ -124,6 +128,13 @@ public record SavingsSummary(
     decimal MonthGoal,
     decimal DepositedThisMonth,
     decimal StillToReserve);
+
+/// "How much I have right now, until the end of the month" — the mid-month start.
+/// Currency is optional and defaults to the one the user is reading in.
+public record SetOpeningBalanceRequest(decimal Amount, string? Currency = null, DateOnly? Date = null);
+
+public record OpeningBalanceResponse(
+    bool IsSet, decimal? Amount, string Currency, DateOnly? Date, bool AppliesNow);
 
 public record SaveSavingsPlanRequest(string Mode, decimal Value, bool Active);
 

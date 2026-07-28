@@ -17,6 +17,20 @@ public static class BudgetEndpoints
             Results.Ok(await svc.SetAsync(req.Amount, ct)))
             .AddEndpointFilter<ValidationFilter<SetBudgetRequest>>();
 
+        var o = app.MapGroup("/api/opening-balance").WithTags("Budget");
+
+        o.MapGet("/", async (IOpeningBalanceService svc, CancellationToken ct) =>
+            Results.Ok(await svc.GetAsync(ct)));
+
+        o.MapPut("/", async (SetOpeningBalanceRequest req, IOpeningBalanceService svc, CancellationToken ct) =>
+        {
+            var r = await svc.SetAsync(req, ct);
+            return r.IsSuccess ? Results.Ok(r.Value) : r.Error.ToProblem();
+        });
+
+        o.MapDelete("/", async (IOpeningBalanceService svc, CancellationToken ct) =>
+            Results.Ok(await svc.ClearAsync(ct)));
+
         return app;
     }
 }

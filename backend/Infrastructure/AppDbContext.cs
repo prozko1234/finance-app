@@ -12,6 +12,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<FxRate> FxRates => Set<FxRate>();
     public DbSet<Budget> Budgets => Set<Budget>();
+    public DbSet<OpeningBalance> OpeningBalances => Set<OpeningBalance>();
     public DbSet<RecurringExpense> RecurringExpenses => Set<RecurringExpense>();
     public DbSet<TaxProfile> TaxProfiles => Set<TaxProfile>();
     public DbSet<SavingsPlan> SavingsPlans => Set<SavingsPlan>();
@@ -115,6 +116,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         b.Entity<AppSettings>(e =>
         {
             e.Property(x => x.DisplayCurrency).HasMaxLength(3).IsRequired();
+        });
+
+        b.Entity<OpeningBalance>(e =>
+        {
+            e.Property(x => x.AmountOriginal).HasPrecision(18, 2);
+            e.Property(x => x.AmountBase).HasPrecision(18, 2);
+            e.Property(x => x.CurrencyOriginal).HasMaxLength(3).IsRequired();
         });
 
         b.Entity<AllocationScheme>(e =>

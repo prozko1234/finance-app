@@ -225,6 +225,26 @@ export interface SafeToSpend {
   monthTaxes: MonthTaxes | null
   savings: SavingsSummary
   allocation: AllocationSummary | null
+  /// День, з якого рахуються витрати — 1 число або день, коли порахував залишок.
+  windowStart: string | null
+  /// Бюджет узятий із «скільки в мене зараз є», а не з доходу чи заданої суми.
+  fromOpeningBalance: boolean
+}
+
+/// «Скільки в мене зараз є до кінця місяця» — старт не з 1 числа.
+export interface OpeningBalance {
+  isSet: boolean
+  amount: number | null
+  currency: string
+  date: string | null
+  /// Порахований цього місяця, тобто саме він зараз керує денною нормою.
+  appliesNow: boolean
+}
+
+export interface SaveOpeningBalance {
+  amount: number
+  currency?: string
+  date?: string
 }
 
 export interface Recurring {

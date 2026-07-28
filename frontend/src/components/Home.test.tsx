@@ -11,6 +11,7 @@ function summary(over: Partial<SafeToSpend> = {}): SafeToSpend {
     monthTaxes: null,
     savings: { balance: 0, monthGoal: 0, depositedThisMonth: 0, stillToReserve: 0 },
     allocation: null,
+    windowStart: '2026-07-01', fromOpeningBalance: false,
     ...over,
   }
 }
@@ -23,7 +24,7 @@ const props = {
 describe('Home', () => {
   it('shows the safe-to-spend number when a budget is set', () => {
     render(<Home {...props} summary={summary()} />)
-    expect(screen.getByText('Ще сьогодні')).toBeInTheDocument()
+    expect(screen.getByText('Можна витратити сьогодні')).toBeInTheDocument()
     expect(screen.getByText(/^375,00/)).toBeInTheDocument() // the headline figure itself
   })
 
@@ -102,7 +103,7 @@ describe('Home', () => {
   it('stays quiet about tomorrow when nothing was spent today', () => {
     render(<Home {...props} summary={summary()} />)
     expect(screen.queryByText(/Завтра/)).not.toBeInTheDocument()
-    expect(screen.getByText('Ще сьогодні')).toBeInTheDocument()
+    expect(screen.getByText('Можна витратити сьогодні')).toBeInTheDocument()
   })
 
   it('offers frequent categories without guessing an amount', () => {
@@ -155,6 +156,27 @@ describe('Home', () => {
     expect(screen.getByText(/Відкладено за схемою «70\/20\/10»/)).toBeInTheDocument()
     expect(screen.getByText('− 600,00 zł')).toBeInTheDocument()
     expect(screen.getByText(/куди пішов бюджет/)).toBeInTheDocument()
+  })
+
+  it('says out loud that the count starts mid-month', () => {
+    render(
+      <Home
+        {...props}
+        summary={summary({ fromOpeningBalance: true, windowStart: '2026-07-20', spentThisMonth: 400 })}
+      />,
+    )
+
+    // Інакше «витрачено 400» за місяць виглядає так, ніби додаток щось загубив.
+    expect(screen.getByText(/Рахуємо з 20 липня/)).toBeInTheDocument()
+    expect(screen.getByText('Було на руках')).toBeInTheDocument()
+    expect(screen.getByText(/Витрачено з 20 липня/)).toBeInTheDocument()
+  })
+
+  it('keeps the ordinary month wording when the count started on the 1st', () => {
+    render(<Home {...props} summary={summary({ spentThisMonth: 400 })} />)
+
+    expect(screen.queryByText(/Рахуємо з/)).not.toBeInTheDocument()
+    expect(screen.getByText('Бюджет місяця')).toBeInTheDocument()
   })
 
   it('offers to split the budget while the default scheme is on', () => {

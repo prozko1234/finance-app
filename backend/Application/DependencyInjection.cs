@@ -22,6 +22,7 @@ public static class DependencyInjection
     {
         services.AddScoped<ITransactionService, TransactionService>();
         services.AddScoped<IBudgetService, BudgetService>();
+        services.AddScoped<IOpeningBalanceService, OpeningBalanceService>();
         services.AddScoped<ISummaryService, SummaryService>();
         services.AddScoped<IStatsService, StatsService>();
         services.AddScoped<IMonthlyBudget, MonthlyBudget>();
