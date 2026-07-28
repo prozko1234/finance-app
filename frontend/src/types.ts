@@ -93,6 +93,8 @@ export interface MonthTaxes {
   takeHome: number
   /// Завжди базова валюта: польський рушій рахує у злотих, і це ті цифри, що в книгової.
   currency: string
+  /// Рік, на який перевірені вшиті ставки ZUS і пороги PIT.
+  ratesYear: number
 }
 
 /// Live feedback while typing an invoice: what it adds to THIS month's budget.

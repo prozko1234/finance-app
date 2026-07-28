@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { SaveTaxProfile, TaxDefaults, TaxRegime, TaxProfile as TaxProfileData } from '../types'
 import { money } from '../format'
-import { Card, CardSkeleton, FormError, PrimaryButton, Screen } from './Screen'
+import { Card, CardSkeleton, FormError, PrimaryButton, RatesNote, Screen } from './Screen'
 
 interface Props {
   profile: TaxProfileData | null
@@ -20,7 +20,7 @@ export function TaxProfile({ profile, defaults, onSave, onBack }: Props) {
       onBack={onBack}
       subtitle="Звідси береться твій бюджет місяця, коли ти вписуєш дохід."
       footnote={profile && profile.regime !== 'None'
-        ? `Розрахунок орієнтовний. Ставки на ${defaults?.year ?? '—'} рік — звір із книговою: вони змінюються щороку.`
+        ? 'Розрахунок орієнтовний — звір із книговою. Рік, на який перевірені ставки, підписаний під ними.'
         : undefined}
     >
       {profile
@@ -198,6 +198,7 @@ function RyczaltFields({ form, set, defaults }: {
         <div className="text-xs text-neutral-400 space-y-1 pt-2 border-t border-neutral-100 dark:border-neutral-800">
           <p>Підказки {defaults.year}: duży без chorobowego {money(defaults.duzyWithoutChorobowe, 'PLN')}, з ним {money(defaults.duzyWithChorobowe, 'PLN')}.</p>
           <p>Здоровотна: до 60k {money(defaults.healthUnder60k, 'PLN')} · 60–300k {money(defaults.health60kTo300k, 'PLN')} · 300k+ {money(defaults.healthOver300k, 'PLN')}.</p>
+          <RatesNote year={defaults.year} />
         </div>
       )}
     </>

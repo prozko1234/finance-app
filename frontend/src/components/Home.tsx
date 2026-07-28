@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import type { EnvelopeSummary, SafeToSpend, Transaction } from '../types'
 import { dayMonth, money } from '../format'
 import { buildQuickCategories, type QuickCategory } from '../quickCategories'
+import { RatesNote } from './Screen'
 
 interface Props {
   summary: SafeToSpend | null
@@ -164,6 +165,7 @@ function MonthCard({ summary, onGoAllocation }: { summary: SafeToSpend; onGoAllo
               <Row label="ZUS, соціальні внески" value={money(taxes.zusSocial, taxes.currency)} small />
               <Row label="Здоровотна" value={money(taxes.health, taxes.currency)} small />
               <Row label="Податок (ryczałt)" value={money(taxes.tax, taxes.currency)} small />
+              <RatesNote year={taxes.ratesYear} />
             </Details>
             {taxes.currency !== c && (
               <p className="text-xs text-neutral-400 leading-relaxed pt-0.5">

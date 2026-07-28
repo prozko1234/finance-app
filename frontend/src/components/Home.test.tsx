@@ -47,7 +47,7 @@ describe('Home', () => {
           monthTaxes: {
             gross: 24600, revenue: 20000, vat: 4600, zusSocial: 1788.19,
             health: 830.58, tax: 2136.23, setAside: 9355, takeHome: 15245,
-            currency: 'PLN',
+            currency: 'PLN', ratesYear: 2026,
           },
         })}
       />,
@@ -71,7 +71,7 @@ describe('Home', () => {
           monthTaxes: {
             gross: 24600, revenue: 20000, vat: 4600, zusSocial: 1788.19,
             health: 830.58, tax: 2136.23, setAside: 9355, takeHome: 15245,
-            currency: 'PLN',
+            currency: 'PLN', ratesYear: 2026,
           },
         })}
       />,

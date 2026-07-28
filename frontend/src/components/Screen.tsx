@@ -70,3 +70,20 @@ export function FormError({ children }: { children: React.ReactNode }) {
 export function CardSkeleton() {
   return <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm animate-pulse h-40" />
 }
+
+/// Ставки ZUS, здоровотної й порогів PIT вшиті в код: машинного API на них немає — ZUS і
+/// Ministerstwo Finansów публікують комунікати й PDF. Тому єдиний захист від тихо
+/// застарілих цифр — підписати рік і дати додатку самому помітити, що рік уже інший.
+export function RatesNote({ year }: { year: number }) {
+  if (!year) return null
+  const now = new Date().getFullYear()
+
+  return now > year ? (
+    <p className="text-xs text-amber-600 leading-relaxed pt-1">
+      Ставки перевірені на {year} рік, а вже {now}. Вони змінюються щосічня — перевір ZUS
+      і пороги PIT, поки цифри не почали брехати.
+    </p>
+  ) : (
+    <p className="text-xs text-neutral-400 pt-1">Ставки актуальні на {year} рік</p>
+  )
+}
