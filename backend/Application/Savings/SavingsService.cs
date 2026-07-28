@@ -155,14 +155,14 @@ public sealed class SavingsService(
     /// The default envelope, which is what the plan on this screen feeds.
     private async Task<EnvelopeStatus> DefaultStatusAsync(decimal monthlyTakeHome, CancellationToken ct)
     {
-        var all = await envelopes.StatusAsync(monthlyTakeHome, ct);
+        var all = await envelopes.StatusAsync(monthlyTakeHome, ct: ct);
         return all.FirstOrDefault(e => e.IsDefault) ?? all[0];
     }
 
     private async Task<SavingsResponse> BuildAsync(decimal monthlyTakeHome, CancellationToken ct)
     {
         var plan = await db.SavingsPlans.OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
-        var all = await envelopes.StatusAsync(monthlyTakeHome, ct);
+        var all = await envelopes.StatusAsync(monthlyTakeHome, ct: ct);
         var status = all.FirstOrDefault(e => e.IsDefault) ?? all[0];
 
         // A scheme bucket named like the default envelope owns its goal, and then the plan's

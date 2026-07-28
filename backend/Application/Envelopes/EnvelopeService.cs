@@ -29,16 +29,25 @@ public record EnvelopeStatus(
 public interface IEnvelopeService
 {
     /// Every envelope with its balance and this month's goal, in scheme order.
-    Task<IReadOnlyList<EnvelopeStatus>> StatusAsync(decimal monthlyBudget, CancellationToken ct = default);
+    /// <param name="countedOn">The day an opening balance was taken, when the month started
+    /// mid-way. That figure is what is left to LIVE on: whatever was meant to be put aside
+    /// either already was — and is therefore already outside the counted money — or is out
+    /// of reach this month. So goals stand down, and only deposits made SINCE the count are
+    /// held back. Reserving percentages of the remainder again would drop the daily norm to
+    /// almost nothing, which is the exact problem the opening balance exists to fix.</param>
+    Task<IReadOnlyList<EnvelopeStatus>> StatusAsync(
+        decimal monthlyBudget, DateOnly? countedOn = null, CancellationToken ct = default);
 }
 
 public sealed class EnvelopeService(IAppDbContext db, IAllocationService allocations) : IEnvelopeService
 {
     public async Task<IReadOnlyList<EnvelopeStatus>> StatusAsync(
-        decimal monthlyBudget, CancellationToken ct = default)
+        decimal monthlyBudget, DateOnly? countedOn = null, CancellationToken ct = default)
     {
         var scheme = await allocations.GetActiveAsync(ct);
-        var goals = await GoalsAsync(scheme, monthlyBudget, ct);
+        var goals = countedOn is null
+            ? await GoalsAsync(scheme, monthlyBudget, ct)
+            : [];
         var envelopes = await SyncAsync(scheme, ct);
 
         var balances = await db.SavingsEntries
@@ -51,8 +60,9 @@ public sealed class EnvelopeService(IAppDbContext db, IAllocationService allocat
             .ToDictionaryAsync(x => x.EnvelopeId, x => x.Balance, ct);
 
         var (first, last) = MonthRange.Of(DateOnly.FromDateTime(DateTime.Now));
+        var from = countedOn ?? first;
         var thisMonth = await db.SavingsEntries
-            .Where(x => x.Date >= first && x.Date <= last)
+            .Where(x => x.Date >= from && x.Date <= last)
             .GroupBy(x => x.EnvelopeId)
             .Select(g => new
             {

@@ -105,6 +105,25 @@ public class EnvelopeTests
     }
 
     [Fact]
+    public async Task Starting_mid_month_stands_the_goals_down_but_keeps_the_balances()
+    {
+        using var mem = new SqliteInMemory();
+        await ActivateAsync(mem, "60-solution");
+
+        var pension = (await Sut(mem).StatusAsync(Budget)).Single(e => e.Name == "Пенсія");
+        var yesterday = DateOnly.FromDateTime(DateTime.Now).AddDays(-1);
+        await Savings(mem).AddEntryAsync(new("Deposit", 400m, yesterday, null, null, pension.Id));
+
+        // 1800 left to LIVE on, counted today. Reserving another 10% of it for four pots
+        // would drop the daily norm to almost nothing — the exact thing the opening balance
+        // is there to fix. The 400 put aside yesterday is already outside that 1800.
+        var after = await Sut(mem).StatusAsync(1_800m, DateOnly.FromDateTime(DateTime.Now));
+
+        Assert.All(after, e => Assert.Equal(0m, e.HeldBack));
+        Assert.Equal(400m, after.Single(e => e.Name == "Пенсія").Balance);
+    }
+
+    [Fact]
     public async Task A_pot_left_behind_by_an_old_scheme_keeps_its_balance_and_stops_reserving()
     {
         using var mem = new SqliteInMemory();
