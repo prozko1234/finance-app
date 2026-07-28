@@ -19,6 +19,7 @@ public interface IAppDbContext
     DbSet<TaxProfile> TaxProfiles { get; }
     DbSet<SavingsPlan> SavingsPlans { get; }
     DbSet<SavingsEntry> SavingsEntries { get; }
+    DbSet<Envelope> Envelopes { get; }
     DbSet<AllocationScheme> AllocationSchemes { get; }
     DbSet<AllocationBucket> AllocationBuckets { get; }
     DbSet<AppSettings> AppSettings { get; }

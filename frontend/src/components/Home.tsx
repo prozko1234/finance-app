@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { AllocationSummary, SafeToSpend, SavingsSummary, Transaction } from '../types'
+import type { EnvelopeSummary, SafeToSpend, Transaction } from '../types'
 import { dayMonth, money } from '../format'
 import { buildQuickCategories, type QuickCategory } from '../quickCategories'
 
@@ -23,7 +23,9 @@ export function Home({
     <div className="space-y-6">
       <SafeToSpendCard summary={summary} onGoSettings={onGoSettings} />
       {summary?.budgetSet && <MonthCard summary={summary} onGoAllocation={onGoAllocation} />}
-      {summary && <SavingsCard savings={summary.savings} currency={summary.currency} onOpen={onGoSavings} />}
+      {summary && (
+        <EnvelopesCard envelopes={summary.envelopes} currency={summary.currency} onOpen={onGoSavings} />
+      )}
       {quick.length > 0 && <QuickRow categories={quick} onPick={onQuickCategory} />}
       <RecentList transactions={transactions} onDelete={onDelete} onEdit={onEdit} />
     </div>
@@ -182,11 +184,8 @@ function MonthCard({ summary, onGoAllocation }: { summary: SafeToSpend; onGoAllo
         {summary.reservedRecurring > 0 && (
           <Row label="Зарезервовано на підписки" value={`− ${money(summary.reservedRecurring, c)}`} muted />
         )}
-        {otherReserved(a) > 0 && (
-          <Row label={`Відкладено за схемою «${a!.schemeName}»`} value={`− ${money(otherReserved(a), c)}`} muted />
-        )}
-        {summary.savings.stillToReserve > 0 && (
-          <Row label="Ще у заощадження цього місяця" value={`− ${money(summary.savings.stillToReserve, c)}`} muted />
+        {heldBack(summary) > 0 && (
+          <Row label="Відкладено у конверти" value={`− ${money(heldBack(summary), c)}`} muted />
         )}
 
         {split && (
@@ -217,50 +216,68 @@ function Details({ summary, children }: { summary: string; children: ReactNode }
   )
 }
 
-/// Кошики, що резервуються саме схемою. Заощадження тут не рахуються — у них свій
-/// рядок, де вже враховано, скільки з цілі вже відкладено вручну.
-function otherReserved(a: AllocationSummary | null): number {
-  if (!a) return 0
-  return a.buckets
-    .filter((b) => b.kind !== 'Spending' && b.kind !== 'Savings')
-    .reduce((s, b) => s + b.amount, 0)
+/// Скільки місячна арифметика тримає в конвертах. Одним рядком, а не по кошиках: вже
+/// відкладене вручну і те, що ще тримається з бюджету, — це та сама зарезервована сума,
+/// і два рядки читались би як подвійне утримання.
+function heldBack(summary: SafeToSpend): number {
+  return summary.envelopes.reduce((s, e) => s + e.depositedThisMonth + e.stillToReserve, 0)
 }
 
-/// The envelope gets its own card, not a line in the summary: Bohdan asked to see it
-/// separately, and a balance that survives across months is a different kind of number
-/// from this month's arithmetic.
-function SavingsCard({ savings, currency, onOpen }: {
-  savings: SavingsSummary; currency: string; onOpen: () => void
+/// Envelopes get their own card, not lines in the month summary: a balance that survives
+/// across months is a different kind of number from this month's arithmetic.
+///
+/// Every pot is listed, not just savings. A scheme with a pension bucket used to hold money
+/// back every month and never show where it went — the whole point of the card is that the
+/// pile is visible.
+function EnvelopesCard({ envelopes, currency, onOpen }: {
+  envelopes: EnvelopeSummary[]; currency: string; onOpen: () => void
 }) {
-  const nothingSetUp = savings.balance === 0 && savings.monthGoal === 0
-  if (nothingSetUp) {
+  const alive = envelopes.filter((e) => e.balance !== 0 || e.monthGoal > 0)
+
+  if (alive.length === 0) {
     return (
       <button
         onClick={onOpen}
         className="w-full rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700 p-4 text-sm text-neutral-500"
       >
-        + Відкладати у заощадження щомісяця
+        + Відкладати щомісяця — на подушку, пенсію чи бажання
       </button>
     )
   }
 
-  const goalMet = savings.monthGoal > 0 && savings.stillToReserve === 0
+  const total = alive.reduce((s, e) => s + e.balance, 0)
 
   return (
     <button onClick={onOpen} className="w-full rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm text-left">
       <div className="flex items-baseline justify-between gap-3">
-        <span className="text-sm text-neutral-400">Заощадження</span>
-        <span className="text-2xl font-bold tabular-nums">{money(savings.balance, currency)}</span>
+        <span className="text-sm text-neutral-400">Відкладено</span>
+        <span className="text-2xl font-bold tabular-nums">{money(total, currency)}</span>
       </div>
-      {savings.monthGoal > 0 && (
-        <p className="mt-1 text-xs text-neutral-400">
-          {goalMet
-            ? `Ціль місяця ${money(savings.monthGoal, currency)} — виконано ✓`
-            : `Цього місяця ${money(savings.depositedThisMonth, currency)} з ${money(savings.monthGoal, currency)}`}
-        </p>
-      )}
+
+      <dl className="mt-3 space-y-1.5 text-sm">
+        {alive.map((e) => (
+          <div key={e.id} className="flex justify-between gap-3">
+            <dt className="truncate">
+              {ENVELOPE_ICONS[e.kind]} {e.name}
+              {e.monthGoal > 0 && (
+                <span className="text-neutral-400 text-xs">
+                  {' · '}
+                  {e.stillToReserve === 0
+                    ? 'ціль місяця ✓'
+                    : `${money(e.depositedThisMonth, currency)} з ${money(e.monthGoal, currency)}`}
+                </span>
+              )}
+            </dt>
+            <dd className="tabular-nums shrink-0">{money(e.balance, currency)}</dd>
+          </div>
+        ))}
+      </dl>
     </button>
   )
+}
+
+const ENVELOPE_ICONS: Record<string, string> = {
+  Savings: '🐖', Investing: '📈', Debt: '🏦', Other: '📦', Spending: '💳',
 }
 
 function Row({ label, value, muted, strong, small }: {

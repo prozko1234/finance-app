@@ -84,7 +84,7 @@ public record SafeToSpendResponse(
     decimal? TomorrowIfStop,
     decimal? TomorrowIfOnPlan,
     MonthTaxBreakdown? MonthTaxes,
-    SavingsSummary Savings,
+    IReadOnlyList<EnvelopeSummary> Envelopes,
     AllocationSummary? Allocation = null,
     /// The day the count starts from — the 1st, unless the user began mid-month.
     DateOnly? WindowStart = null,
@@ -129,6 +129,17 @@ public record SavingsSummary(
     decimal DepositedThisMonth,
     decimal StillToReserve);
 
+/// One pot on the home screen: what has piled up in it, and how this month is going.
+public record EnvelopeSummary(
+    int Id,
+    string Name,
+    string Kind,
+    bool IsDefault,
+    decimal Balance,
+    decimal MonthGoal,
+    decimal DepositedThisMonth,
+    decimal StillToReserve);
+
 /// "How much I have right now, until the end of the month" — the mid-month start.
 /// Currency is optional and defaults to the one the user is reading in.
 public record SetOpeningBalanceRequest(decimal Amount, string? Currency = null, DateOnly? Date = null);
@@ -141,7 +152,9 @@ public record SaveSavingsPlanRequest(string Mode, decimal Value, bool Active);
 /// Currency is optional: most movements are in base currency, and an omitted field
 /// must not turn into a validation error on the common path.
 public record SaveSavingsEntryRequest(
-    string Kind, decimal Amount, DateOnly? Date, string? Note, string? Currency = null);
+    string Kind, decimal Amount, DateOnly? Date, string? Note, string? Currency = null,
+    /// Which pot the money goes into. Omitted = the default envelope.
+    int? EnvelopeId = null);
 
 public record SavingsEntryResponse(
     int Id,
@@ -152,7 +165,9 @@ public record SavingsEntryResponse(
     /// What the user actually typed, and in which currency.
     decimal AmountOriginal,
     string CurrencyOriginal,
-    string? Note);
+    string? Note,
+    int EnvelopeId = 0,
+    string EnvelopeName = "");
 
 public record SavingsResponse(
     string Mode,
@@ -164,6 +179,9 @@ public record SavingsResponse(
     decimal StillToReserve,
     string Currency,
     IReadOnlyList<SavingsEntryResponse> Recent,
+    /// Every pot, not only the default one — the screen has to let money into the pension
+    /// bucket too, or the scheme reserves for something that can never be filled.
+    IReadOnlyList<EnvelopeSummary> Envelopes,
     /// Name of the allocation scheme that dictates the goal, or null when the plan below
     /// still decides it. Set = the plan's own value is ignored, and the UI must say so.
     string? GoalFromScheme = null);

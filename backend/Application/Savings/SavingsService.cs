@@ -1,5 +1,6 @@
 using FinanceApp.Application.Abstractions;
 using FinanceApp.Application.Allocations;
+using FinanceApp.Application.Envelopes;
 using FinanceApp.Application.Common;
 using FinanceApp.Application.Contracts;
 using FinanceApp.Application.Display;
@@ -26,7 +27,8 @@ public interface ISavingsService
 
 public sealed class SavingsService(
     IAppDbContext db, IMonthlyBudget monthlyBudget, IFxConverter fx,
-    IAllocationService allocations, IMoneyViewFactory moneyViews) : ISavingsService
+    IAllocationService allocations, IEnvelopeService envelopes,
+    IMoneyViewFactory moneyViews) : ISavingsService
 {
     public async Task<SavingsResponse> GetAsync(CancellationToken ct = default) =>
         await BuildAsync(await TakeHomeAsync(ct), ct);
@@ -105,13 +107,23 @@ public sealed class SavingsService(
             ? Money.BaseCurrency
             : req.Currency.ToUpperInvariant();
 
+        // An entry keeps its envelope when the request does not name one, so editing a
+        // pension deposit cannot silently move it into savings.
+        var envelopeId = req.EnvelopeId ?? (entry.EnvelopeId != 0 ? entry.EnvelopeId : await DefaultEnvelopeIdAsync(ct));
+        if (!await db.Envelopes.AnyAsync(e => e.Id == envelopeId, ct))
+            return Error.NotFound($"Конверт {envelopeId} не знайдено.");
+
         var conv = await fx.ConvertToBaseAsync(req.Amount, currency, date, ct);
         if (!conv.IsSuccess) return conv.Error;
 
-        var available = await BalanceAsync(ct) - replacing;
+        // Only what this same entry already contributes to THIS envelope can be replaced;
+        // moving an entry to another pot has to earn its room in the new one.
+        var available = await BalanceAsync(envelopeId, ct)
+            - (entry.EnvelopeId == envelopeId ? replacing : 0m);
         if (kind == SavingsEntryKind.Withdrawal && conv.Value!.AmountBase > available)
             return Error.Validation($"У конверті лише {available:0.00}. Стільки зняти не вийде.");
 
+        entry.EnvelopeId = envelopeId;
         entry.Date = date;
         entry.Kind = kind;
         entry.AmountOriginal = req.Amount;
@@ -134,31 +146,33 @@ public sealed class SavingsService(
         return Result<SavingsResponse>.Ok(await BuildAsync(await TakeHomeAsync(ct), ct));
     }
 
-    public async Task<SavingsStatus> StatusAsync(decimal monthlyTakeHome, CancellationToken ct = default) =>
-        (await GoalStatusAsync(monthlyTakeHome, ct)).Status;
-
-    /// The month's goal, from whichever source owns it. An active scheme with a Savings
-    /// bucket wins: two mechanisms reserving for savings at once would hold the money twice.
-    private async Task<(SavingsStatus Status, string? FromScheme)> GoalStatusAsync(
-        decimal monthlyTakeHome, CancellationToken ct)
+    public async Task<SavingsStatus> StatusAsync(decimal monthlyTakeHome, CancellationToken ct = default)
     {
-        var breakdown = await allocations.BreakdownAsync(monthlyTakeHome, ct);
-        var goal = breakdown.SavingsGoal
-            ?? SavingsCalculator.MonthGoal(
-                await db.SavingsPlans.OrderBy(x => x.Id).FirstOrDefaultAsync(ct), monthlyTakeHome);
+        var e = await DefaultStatusAsync(monthlyTakeHome, ct);
+        return new SavingsStatus(e.Balance, e.MonthGoal, e.DepositedThisMonth, e.StillToReserve);
+    }
 
-        var status = SavingsCalculator.Status(
-            goal, await BalanceAsync(ct), await DepositedThisMonthAsync(ct));
-
-        return (status, breakdown.SavingsGoal is null ? null : breakdown.SchemeName);
+    /// The default envelope, which is what the plan on this screen feeds.
+    private async Task<EnvelopeStatus> DefaultStatusAsync(decimal monthlyTakeHome, CancellationToken ct)
+    {
+        var all = await envelopes.StatusAsync(monthlyTakeHome, ct);
+        return all.FirstOrDefault(e => e.IsDefault) ?? all[0];
     }
 
     private async Task<SavingsResponse> BuildAsync(decimal monthlyTakeHome, CancellationToken ct)
     {
         var plan = await db.SavingsPlans.OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
-        var (status, fromScheme) = await GoalStatusAsync(monthlyTakeHome, ct);
+        var all = await envelopes.StatusAsync(monthlyTakeHome, ct);
+        var status = all.FirstOrDefault(e => e.IsDefault) ?? all[0];
+
+        // A scheme bucket named like the default envelope owns its goal, and then the plan's
+        // own value is ignored — the screen has to say so rather than show a number that does
+        // nothing.
+        var breakdown = await allocations.BreakdownAsync(monthlyTakeHome, ct);
+        var fromScheme = breakdown.SavingsGoal is null ? null : breakdown.SchemeName;
 
         var rows = await db.SavingsEntries
+            .Include(x => x.Envelope)
             .OrderByDescending(x => x.Date).ThenByDescending(x => x.Id)
             .Take(100)
             .ToListAsync(ct);
@@ -171,7 +185,17 @@ public sealed class SavingsService(
         foreach (var x in rows)
             entries.Add(new SavingsEntryResponse(
                 x.Id, x.Date, x.Kind.ToString(), await view.FromBaseAsync(x.AmountBase, x.Date, ct),
-                x.AmountOriginal, x.CurrencyOriginal, x.Note));
+                x.AmountOriginal, x.CurrencyOriginal, x.Note,
+                x.EnvelopeId, x.Envelope?.Name ?? ""));
+
+        var summaries = new List<EnvelopeSummary>(all.Count);
+        foreach (var e in all)
+            summaries.Add(new EnvelopeSummary(
+                e.Id, e.Name, e.Kind.ToString(), e.IsDefault,
+                await view.FromBaseTodayAsync(e.Balance, ct),
+                await view.FromBaseTodayAsync(e.MonthGoal, ct),
+                await view.FromBaseTodayAsync(e.DepositedThisMonth, ct),
+                await view.FromBaseTodayAsync(e.StillToReserve, ct)));
 
         return new SavingsResponse(
             plan?.Mode.ToString() ?? SavingsMode.Fixed.ToString(),
@@ -183,6 +207,7 @@ public sealed class SavingsService(
             await view.FromBaseTodayAsync(status.StillToReserve, ct),
             view.Currency,
             entries,
+            summaries,
             fromScheme);
     }
 
@@ -190,23 +215,17 @@ public sealed class SavingsService(
     private async Task<decimal> TakeHomeAsync(CancellationToken ct) =>
         (await monthlyBudget.ResolveAsync(ct)).Budget ?? 0m;
 
-    private async Task<decimal> BalanceAsync(CancellationToken ct)
-    {
-        var deposits = await db.SavingsEntries
-            .Where(x => x.Kind == SavingsEntryKind.Deposit)
-            .SumAsync(x => (decimal?)x.AmountBase, ct) ?? 0m;
-        var withdrawals = await db.SavingsEntries
-            .Where(x => x.Kind == SavingsEntryKind.Withdrawal)
-            .SumAsync(x => (decimal?)x.AmountBase, ct) ?? 0m;
+    /// Where money goes when nobody said. StatusAsync creates the envelopes if they are
+    /// missing, so this can never come back empty.
+    private async Task<int> DefaultEnvelopeIdAsync(CancellationToken ct) =>
+        (await DefaultStatusAsync(await TakeHomeAsync(ct), ct)).Id;
 
-        return deposits - withdrawals;
-    }
-
-    /// Net deposits of the current month — what already left safe-to-spend towards the goal.
-    private async Task<decimal> DepositedThisMonthAsync(CancellationToken ct)
+    /// Balance of ONE envelope. Withdrawing is checked against the pot the money is being
+    /// taken from, never against the total — otherwise a full pension envelope would let
+    /// someone empty a savings envelope that has nothing in it.
+    private async Task<decimal> BalanceAsync(int envelopeId, CancellationToken ct)
     {
-        var (first, last) = MonthRange.Of(DateOnly.FromDateTime(DateTime.Now));
-        var rows = db.SavingsEntries.Where(x => x.Date >= first && x.Date <= last);
+        var rows = db.SavingsEntries.Where(x => x.EnvelopeId == envelopeId);
 
         var deposits = await rows
             .Where(x => x.Kind == SavingsEntryKind.Deposit)

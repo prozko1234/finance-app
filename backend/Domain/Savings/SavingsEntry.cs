@@ -4,8 +4,11 @@ using FinanceApp.Domain;
 
 public enum SavingsEntryKind { Deposit, Withdrawal }
 
-/// One real movement of the savings pot. The balance is the sum of these — never a
+/// One real movement in or out of an envelope. The balance is the sum of these — never a
 /// stored figure, so it can always be reconstructed and audited.
+///
+/// Still called SavingsEntry: the table predates envelopes and renaming it would rebuild
+/// it on SQLite for no behavioural gain. <see cref="EnvelopeId"/> is what makes it general.
 ///
 /// Money is stored exactly as on a transaction: what the user typed, plus the base amount
 /// and the rate it was converted at. Someone saving in USD wants to see the USD they put
@@ -13,6 +16,11 @@ public enum SavingsEntryKind { Deposit, Withdrawal }
 public class SavingsEntry
 {
     public int Id { get; set; }
+
+    /// Which pot this movement belongs to.
+    public int EnvelopeId { get; set; }
+    public Envelope? Envelope { get; set; }
+
     public DateOnly Date { get; set; }
     public SavingsEntryKind Kind { get; set; }
 

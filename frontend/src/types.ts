@@ -120,6 +120,19 @@ export interface SavingsSummary {
   stillToReserve: number
 }
 
+/// Один конверт: скільки в ньому назбиралось і як іде цей місяць.
+export interface EnvelopeSummary {
+  id: number
+  name: string
+  kind: BucketKind
+  /// Конверт, який існує завжди і який годує план заощаджень.
+  isDefault: boolean
+  balance: number
+  monthGoal: number
+  depositedThisMonth: number
+  stillToReserve: number
+}
+
 export interface SavingsEntry {
   id: number
   date: string
@@ -130,6 +143,8 @@ export interface SavingsEntry {
   amountOriginal: number
   currencyOriginal: string
   note: string | null
+  envelopeId: number
+  envelopeName: string
 }
 
 export interface Savings {
@@ -142,6 +157,8 @@ export interface Savings {
   stillToReserve: number
   currency: string
   recent: SavingsEntry[]
+  /// Усі конверти, не тільки заощадження — інакше в пенсійний нічого не покласти.
+  envelopes: EnvelopeSummary[]
   /// Назва схеми розподілу, якщо ціль тепер диктує вона, а не план нижче.
   goalFromScheme: string | null
 }
@@ -158,6 +175,8 @@ export interface SaveSavingsEntry {
   date?: string | null
   note?: string | null
   currency?: string | null
+  /// У який конверт. Не вказано — у той, що за замовчуванням.
+  envelopeId?: number
 }
 
 export type BucketKind = 'Spending' | 'Savings' | 'Investing' | 'Debt' | 'Other'
@@ -223,7 +242,7 @@ export interface SafeToSpend {
   tomorrowIfStop: number | null
   tomorrowIfOnPlan: number | null
   monthTaxes: MonthTaxes | null
-  savings: SavingsSummary
+  envelopes: EnvelopeSummary[]
   allocation: AllocationSummary | null
   /// День, з якого рахуються витрати — 1 число або день, коли порахував залишок.
   windowStart: string | null

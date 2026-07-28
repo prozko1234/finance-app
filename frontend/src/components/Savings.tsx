@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { Savings as SavingsData, SaveSavingsEntry, SavingsEntry, SaveSavingsPlan } from '../types'
+import type { EnvelopeSummary, Savings as SavingsData, SaveSavingsEntry, SavingsEntry, SaveSavingsPlan } from '../types'
 import { BASE_CURRENCY, CURRENCIES, todayIso } from '../types'
 import { money } from '../format'
 import { Card, CardSkeleton, FormError, PrimaryButton, Screen, SectionTitle } from './Screen'
@@ -16,37 +16,66 @@ interface Props {
 export function Savings({ data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteEntry, onBack }: Props) {
   // Which movement is open for editing — at most one, so the list stays readable.
   const [editing, setEditing] = useState<SavingsEntry | null>(null)
+  // null = the default envelope, whatever its id turns out to be once the data lands.
+  const [pickedId, setPickedId] = useState<number | null>(null)
 
   // The header stays while loading — the way back must not depend on the data arriving.
   if (!data) {
     return (
-      <Screen title="Заощадження" onBack={onBack}>
+      <Screen title="Конверти" onBack={onBack}>
         <CardSkeleton />
       </Screen>
     )
   }
 
+  const current =
+    data.envelopes.find((e) => e.id === pickedId) ??
+    data.envelopes.find((e) => e.isDefault) ??
+    data.envelopes[0]
+
+  // Only the default envelope is fed by the plan below; the others get their goal from the
+  // scheme's percentages, and showing the plan form under them would promise an edit that
+  // changes nothing.
+  const isDefault = current?.isDefault ?? true
+
   return (
     <Screen
-      title="Заощадження"
+      title="Конверти"
       onBack={onBack}
-      footnote="Заощадження не входять у «Ще сьогодні». Зняти можна будь-коли — це твої гроші, не податки."
+      footnote="Відкладене не входить у «Можна витратити сьогодні». Зняти можна будь-коли — це твої гроші, не податки."
     >
-      <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm text-center">
-        <p className="text-sm uppercase tracking-wide text-neutral-400">У заощадженнях</p>
-        <p className="mt-1 text-4xl font-bold tabular-nums">{money(data.balance, data.currency)}</p>
-        {data.monthGoal > 0 && (
-          <p className="mt-2 text-xs text-neutral-400">
-            Цього місяця {money(data.depositedThisMonth, data.currency)} з {money(data.monthGoal, data.currency)}
-            {data.stillToReserve > 0 && ` · ще ${money(data.stillToReserve, data.currency)} з бюджету тримається тут`}
-          </p>
-        )}
-      </div>
+      {data.envelopes.length > 1 && (
+        <EnvelopePicker
+          envelopes={data.envelopes}
+          currency={data.currency}
+          currentId={current?.id ?? 0}
+          onPick={setPickedId}
+        />
+      )}
 
-      <MoveMoney currency={data.currency} balance={data.balance} onAdd={onAddEntry} />
-      <PlanForm data={data} onSave={onSavePlan} />
+      {current && (
+        <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm text-center">
+          <p className="text-sm uppercase tracking-wide text-neutral-400">{current.name}</p>
+          <p className="mt-1 text-4xl font-bold tabular-nums">{money(current.balance, data.currency)}</p>
+          {current.monthGoal > 0 && (
+            <p className="mt-2 text-xs text-neutral-400">
+              Цього місяця {money(current.depositedThisMonth, data.currency)} з {money(current.monthGoal, data.currency)}
+              {current.stillToReserve > 0 && ` · ще ${money(current.stillToReserve, data.currency)} з бюджету тримається тут`}
+            </p>
+          )}
+        </div>
+      )}
+
+      <MoveMoney
+        currency={data.currency}
+        balance={current?.balance ?? 0}
+        envelopeId={current?.id}
+        onAdd={onAddEntry}
+      />
+      {isDefault && <PlanForm data={data} onSave={onSavePlan} />}
       <History
         data={data}
+        envelopeId={current?.id}
         editing={editing}
         onEdit={setEditing}
         onSave={async (id, e) => { await onUpdateEntry(id, e); setEditing(null) }}
@@ -56,11 +85,40 @@ export function Savings({ data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteE
   )
 }
 
+/// Чипси, а не випадайка: конвертів одиниці, і в списку одразу видно, де скільки лежить —
+/// заради цього конверти й робились.
+function EnvelopePicker({ envelopes, currency, currentId, onPick }: {
+  envelopes: EnvelopeSummary[]
+  currency: string
+  currentId: number
+  onPick: (id: number) => void
+}) {
+  return (
+    <div className="flex gap-2 flex-wrap">
+      {envelopes.map((e) => (
+        <button
+          key={e.id}
+          onClick={() => onPick(e.id)}
+          className={`rounded-xl px-3 py-2 text-sm text-left ${
+            e.id === currentId
+              ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+              : 'bg-neutral-100 dark:bg-neutral-800'
+          }`}
+        >
+          <span className="block font-medium truncate">{e.name}</span>
+          <span className="block text-xs tabular-nums opacity-70">{money(e.balance, currency)}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
 /// Manual movement. Deposits count towards this month's goal rather than stacking on top
 /// of it, so putting money aside by hand never costs safe-to-spend twice.
-function MoveMoney({ currency, balance, onAdd }: {
+function MoveMoney({ currency, balance, envelopeId, onAdd }: {
   currency: string
   balance: number
+  envelopeId: number | undefined
   onAdd: (e: SaveSavingsEntry) => Promise<void>
 }) {
   const [amount, setAmount] = useState('')
@@ -78,7 +136,7 @@ function MoveMoney({ currency, balance, onAdd }: {
     setBusy(true)
     setError(null)
     try {
-      await onAdd({ kind, amount: value, currency: entryCurrency, note: note.trim() || null })
+      await onAdd({ kind, amount: value, currency: entryCurrency, note: note.trim() || null, envelopeId })
       setAmount('')
       setNote('')
     } catch (e) {
@@ -227,20 +285,23 @@ function PlanForm({ data, onSave }: { data: SavingsData; onSave: (p: SaveSavings
   )
 }
 
-function History({ data, editing, onEdit, onSave, onDelete }: {
+function History({ data, envelopeId, editing, onEdit, onSave, onDelete }: {
   data: SavingsData
+  envelopeId: number | undefined
   editing: SavingsEntry | null
   onEdit: (e: SavingsEntry | null) => void
   onSave: (id: number, e: SaveSavingsEntry) => Promise<void>
   onDelete: (id: number) => Promise<void>
 }) {
-  if (data.recent.length === 0) return null
+  // Рухи саме цього конверта: список усіх разом не сходився б із балансом над ним.
+  const rows = data.recent.filter((e) => e.envelopeId === envelopeId)
+  if (rows.length === 0) return null
 
   return (
     <div>
       <h2 className="text-sm font-medium text-neutral-400 mb-2 px-1">Рухи</h2>
       <ul className="space-y-2">
-        {data.recent.map((e) => (
+        {rows.map((e) => (
           <li key={e.id} className="rounded-xl bg-white dark:bg-neutral-900 px-4 py-3 shadow-sm">
             {editing?.id === e.id ? (
               <EditEntry entry={e} onSave={(payload) => onSave(e.id, payload)} onCancel={() => onEdit(null)} />

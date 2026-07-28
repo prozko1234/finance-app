@@ -4,6 +4,7 @@ using FinanceApp.Application.Budgets;
 using FinanceApp.Application.Categories;
 using FinanceApp.Application.Recurring;
 using FinanceApp.Application.Dev;
+using FinanceApp.Application.Envelopes;
 using FinanceApp.Application.Display;
 using FinanceApp.Application.Savings;
 using FinanceApp.Application.Settings;
@@ -27,6 +28,7 @@ public static class DependencyInjection
         services.AddScoped<IStatsService, StatsService>();
         services.AddScoped<IMonthlyBudget, MonthlyBudget>();
         services.AddScoped<ISavingsService, SavingsService>();
+        services.AddScoped<IEnvelopeService, EnvelopeService>();
         services.AddScoped<IAllocationService, AllocationService>();
         services.AddScoped<IDevDataService, DevDataService>();
         services.AddScoped<ICategoryService, CategoryService>();

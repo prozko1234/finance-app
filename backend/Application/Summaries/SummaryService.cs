@@ -1,5 +1,6 @@
 using FinanceApp.Application.Abstractions;
 using FinanceApp.Application.Allocations;
+using FinanceApp.Application.Envelopes;
 using FinanceApp.Application.Common;
 using FinanceApp.Application.Contracts;
 using FinanceApp.Application.Display;
@@ -21,7 +22,7 @@ public interface ISummaryService
 
 public sealed class SummaryService(
     IAppDbContext db, IFxConverter fx, IRecurringMaterializer materializer,
-    IMonthlyBudget monthlyBudget, ISavingsService savings,
+    IMonthlyBudget monthlyBudget, IEnvelopeService envelopeService,
     IAllocationService allocations, IMoneyViewFactory moneyViews) : ISummaryService
 {
     public async Task<SafeToSpendResponse> GetSafeToSpendAsync(CancellationToken ct = default)
@@ -48,25 +49,19 @@ public sealed class SummaryService(
             .Where(t => t.Kind == TransactionKind.Expense && t.Date == today)
             .SumAsync(t => (decimal?)t.AmountBase, ct) ?? 0m;
 
-        // Savings the user has committed to but not yet moved: hidden from safe-to-spend,
-        // exactly like a not-yet-charged subscription.
-        var savingsStatus = await savings.StatusAsync(budget ?? 0m, ct);
         var recurring = await ReservedRecurringAsync(today, ct);
-
-        // The active scheme decides how much of the budget is spendable at all. Its Savings
-        // buckets are NOT added here: they already come through savingsStatus, where deposits
-        // made this month reduce what is still held back.
         var allocation = await allocations.BreakdownAsync(budget ?? 0m, ct);
-        var allocated = allocation.Reserved - (allocation.SavingsGoal ?? 0m);
 
-        // Deposits already made count as held back too, not only what is left to reserve.
-        // A deposit is not an expense transaction, so without this the money that moved into
-        // the envelope would come back as spendable — the goal would reserve less the more
-        // of it was actually saved.
-        var savingsHeld = savingsStatus.DepositedThisMonth + savingsStatus.StillToReserve;
+        // Everything the scheme does NOT hand to spending is an envelope, and every envelope
+        // holds back the same way: what is still to reserve, plus what has already been moved
+        // by hand. Deposits count too — a deposit is not an expense transaction, so without
+        // them the money that left the account would come back as spendable, and the goal
+        // would reserve less the more of it was actually saved.
+        var envelopes = await envelopeService.StatusAsync(budget ?? 0m, ct);
+        var heldBack = envelopes.Sum(e => e.HeldBack);
 
         var r = SafeToSpendCalculator.Calculate(
-            budget, spent, spentToday, recurring + savingsHeld + allocated, today);
+            budget, spent, spentToday, recurring + heldBack, today);
 
         // Reported separately from the recurring reserve: the month summary shows them as
         // two different rows, and lumping them together would make the column unreadable.
@@ -93,9 +88,10 @@ public sealed class SummaryService(
             // Taxes stay in PLN: the engine is Polish and the split is what the accountant
             // will see. The UI says so out loud rather than converting it quietly.
             taxes?.ToMonthBreakdown(),
-            new SavingsSummary(
-                await show(savingsStatus.Balance), await show(savingsStatus.MonthGoal),
-                await show(savingsStatus.DepositedThisMonth), await show(savingsStatus.StillToReserve)),
+            await Task.WhenAll(envelopes.Select(async e => new EnvelopeSummary(
+                e.Id, e.Name, e.Kind.ToString(), e.IsDefault,
+                await show(e.Balance), await show(e.MonthGoal),
+                await show(e.DepositedThisMonth), await show(e.StillToReserve)))),
             new AllocationSummary(
                 allocation.SchemeName, allocation.Preset,
                 await show(allocation.Spendable), await show(allocation.Reserved),

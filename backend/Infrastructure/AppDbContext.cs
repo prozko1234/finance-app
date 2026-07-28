@@ -16,6 +16,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<RecurringExpense> RecurringExpenses => Set<RecurringExpense>();
     public DbSet<TaxProfile> TaxProfiles => Set<TaxProfile>();
     public DbSet<SavingsPlan> SavingsPlans => Set<SavingsPlan>();
+    public DbSet<Envelope> Envelopes => Set<Envelope>();
     public DbSet<SavingsEntry> SavingsEntries => Set<SavingsEntry>();
     public DbSet<AllocationScheme> AllocationSchemes => Set<AllocationScheme>();
     public DbSet<AllocationBucket> AllocationBuckets => Set<AllocationBucket>();
@@ -86,6 +87,21 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.Note).HasMaxLength(500);
             e.HasIndex(x => x.Date);
+            // Restrict, not Cascade: deleting an envelope must never take a history of real
+            // money movements with it.
+            e.HasOne(x => x.Envelope)
+                .WithMany()
+                .HasForeignKey(x => x.EnvelopeId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<Envelope>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(60).IsRequired();
+            e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(20);
+            // The name is the identity a scheme's bucket is matched against, so two
+            // envelopes called the same thing would split one balance in two.
+            e.HasIndex(x => x.Name).IsUnique();
         });
 
         b.Entity<RecurringExpense>(e =>

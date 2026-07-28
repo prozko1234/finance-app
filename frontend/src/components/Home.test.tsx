@@ -9,7 +9,7 @@ function summary(over: Partial<SafeToSpend> = {}): SafeToSpend {
     spentThisMonth: 0, reservedRecurring: 0, remainingThisMonth: 3000, daysLeftInMonth: 8,
     dailyNorm: 375, spentToday: 0, leftToday: 375, tomorrowIfStop: 375, tomorrowIfOnPlan: 375,
     monthTaxes: null,
-    savings: { balance: 0, monthGoal: 0, depositedThisMonth: 0, stillToReserve: 0 },
+    envelopes: [],
     allocation: null,
     windowStart: '2026-07-01', fromOpeningBalance: false,
     ...over,
@@ -59,12 +59,15 @@ describe('Home', () => {
     expect(screen.getByText(/− 9355,00/)).toBeInTheDocument()
   })
 
-  it('shows the savings envelope as its own number, plus what is still held back', () => {
+  it('shows every pot with what has piled up in it', () => {
     render(
       <Home
         {...props}
         summary={summary({
-          savings: { balance: 5000, monthGoal: 2000, depositedThisMonth: 500, stillToReserve: 1500 },
+          envelopes: [
+            { id: 1, name: 'Заощадження', kind: 'Savings', isDefault: true, balance: 5000, monthGoal: 2000, depositedThisMonth: 500, stillToReserve: 1500 },
+            { id: 2, name: 'Пенсія', kind: 'Investing', isDefault: false, balance: 1200, monthGoal: 600, depositedThisMonth: 0, stillToReserve: 600 },
+          ],
           monthTaxes: {
             gross: 24600, revenue: 20000, vat: 4600, zusSocial: 1788.19,
             health: 830.58, tax: 2136.23, setAside: 9355, takeHome: 15245,
@@ -74,14 +77,17 @@ describe('Home', () => {
       />,
     )
 
-    expect(screen.getByText('Заощадження')).toBeInTheDocument()
+    expect(screen.getByText(/Заощадження/)).toBeInTheDocument()
     expect(screen.getByText(/5000,00/)).toBeInTheDocument()
-    expect(screen.getByText('Ще у заощадження цього місяця')).toBeInTheDocument()
+    // Пенсія раніше тільки віднімалась від норми і ніде не було видно, що вона росте.
+    expect(screen.getByText(/Пенсія/)).toBeInTheDocument()
+    expect(screen.getByText(/1200,00/)).toBeInTheDocument()
+    expect(screen.getByText('Відкладено у конверти')).toBeInTheDocument()
   })
 
   it('offers to set up saving when the envelope is empty', () => {
     render(<Home {...props} summary={summary()} />)
-    expect(screen.getByText(/Відкладати у заощадження щомісяця/)).toBeInTheDocument()
+    expect(screen.getByText(/Відкладати щомісяця/)).toBeInTheDocument()
   })
 
   it('names today\'s overspending and what it costs tomorrow', () => {
@@ -146,15 +152,20 @@ describe('Home', () => {
               { id: 3, name: 'Борг', kind: 'Debt', percent: 10, amount: 600 },
             ],
           },
+          envelopes: [
+            { id: 1, name: 'Заощадження', kind: 'Savings', isDefault: true, balance: 0, monthGoal: 1200, depositedThisMonth: 0, stillToReserve: 1200 },
+            { id: 2, name: 'Борг', kind: 'Debt', isDefault: false, balance: 0, monthGoal: 600, depositedThisMonth: 0, stillToReserve: 600 },
+          ],
         })}
       />,
     )
 
     expect(screen.getByText('Місяць')).toBeInTheDocument()
     expect(screen.getByText('Бюджет місяця')).toBeInTheDocument()
-    // Заощадження мають свій рядок, тож схема резервує лише борг.
-    expect(screen.getByText(/Відкладено за схемою «70\/20\/10»/)).toBeInTheDocument()
-    expect(screen.getByText('− 600,00 zł')).toBeInTheDocument()
+    // Одним рядком: 1200 у заощадження + 600 у борг. Два рядки читались би як
+    // подвійне утримання тих самих грошей.
+    expect(screen.getByText('Відкладено у конверти')).toBeInTheDocument()
+    expect(screen.getByText('− 1800,00 zł')).toBeInTheDocument()
     expect(screen.getByText(/куди пішов бюджет/)).toBeInTheDocument()
   })
 
