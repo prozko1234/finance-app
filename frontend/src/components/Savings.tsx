@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import type { EnvelopeSummary, Savings as SavingsData, SaveSavingsEntry, SavingsEntry, SaveSavingsPlan } from '../types'
+import type { EnvelopePeriod as EnvelopePeriodType, EnvelopeSummary, Savings as SavingsData, SaveSavingsEntry, SavingsEntry, SaveSavingsPlan } from '../types'
 import { BASE_CURRENCY, CURRENCIES, todayIso } from '../types'
-import { money } from '../format'
+import { dayMonth, money } from '../format'
+import { useEnvelopeHistory } from '../hooks'
 import { Card, CardSkeleton, FormError, PrimaryButton, Screen, SectionTitle } from './Screen'
 
 interface Props {
@@ -13,11 +14,15 @@ interface Props {
   onBack: () => void
 }
 
+/// Два екрани замість одного перевантаженого. Раніше тут одночасно жили чипси вибору,
+/// велика цифра, форма «покласти/зняти», форма плану і список рухів — п'ять блоків, і
+/// незрозуміло, який конверт зараз на екрані.
+///
+/// Тепер: список усіх конвертів → тап → екран одного конверта з історією по періодах.
+/// Списком відповідаємо на «де скільки лежить», екраном конверта — на «за місяць скільки
+/// пішло і скільки там тепер».
 export function Savings({ data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteEntry, onBack }: Props) {
-  // Which movement is open for editing — at most one, so the list stays readable.
-  const [editing, setEditing] = useState<SavingsEntry | null>(null)
-  // null = the default envelope, whatever its id turns out to be once the data lands.
-  const [pickedId, setPickedId] = useState<number | null>(null)
+  const [openId, setOpenId] = useState<number | null>(null)
 
   // The header stays while loading — the way back must not depend on the data arriving.
   if (!data) {
@@ -28,15 +33,21 @@ export function Savings({ data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteE
     )
   }
 
-  const current =
-    data.envelopes.find((e) => e.id === pickedId) ??
-    data.envelopes.find((e) => e.isDefault) ??
-    data.envelopes[0]
+  const open = data.envelopes.find((e) => e.id === openId)
 
-  // Only the default envelope is fed by the plan below; the others get their goal from the
-  // scheme's percentages, and showing the plan form under them would promise an edit that
-  // changes nothing.
-  const isDefault = current?.isDefault ?? true
+  if (open) {
+    return (
+      <EnvelopeDetail
+        envelope={open}
+        data={data}
+        onSavePlan={onSavePlan}
+        onAddEntry={onAddEntry}
+        onUpdateEntry={onUpdateEntry}
+        onDeleteEntry={onDeleteEntry}
+        onBack={() => setOpenId(null)}
+      />
+    )
+  }
 
   return (
     <Screen
@@ -44,38 +55,94 @@ export function Savings({ data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteE
       onBack={onBack}
       footnote="Відкладене не входить у «Можна витратити сьогодні». Зняти можна будь-коли — це твої гроші, не податки."
     >
-      {data.envelopes.length > 1 && (
-        <EnvelopePicker
-          envelopes={data.envelopes}
-          currency={data.currency}
-          currentId={current?.id ?? 0}
-          onPick={setPickedId}
-        />
-      )}
+      <EnvelopeList envelopes={data.envelopes} currency={data.currency} onOpen={setOpenId} />
+    </Screen>
+  )
+}
 
-      {current && (
-        <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm text-center">
-          <p className="text-sm uppercase tracking-wide text-neutral-400">{current.name}</p>
-          <p className="mt-1 text-4xl font-bold tabular-nums">{money(current.balance, data.currency)}</p>
-          {current.monthGoal > 0 && (
-            <p className="mt-2 text-xs text-neutral-400">
-              Цього періоду відкладено {money(current.depositedThisMonth, data.currency)}, за планом {money(current.monthGoal, data.currency)}
-              {current.stillToReserve > 0 && ` · ще ${money(current.stillToReserve, data.currency)} з бюджету тримається тут`}
-            </p>
-          )}
-        </div>
-      )}
+/// Усе видно одразу: скільки відкладено разом і де саме воно лежить.
+function EnvelopeList({ envelopes, currency, onOpen }: {
+  envelopes: EnvelopeSummary[]
+  currency: string
+  onOpen: (id: number) => void
+}) {
+  const total = envelopes.reduce((s, e) => s + e.balance, 0)
+
+  return (
+    <>
+      <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm text-center">
+        <p className="text-sm uppercase tracking-wide text-neutral-400">Відкладено всього</p>
+        <p className="mt-1 text-4xl font-bold tabular-nums">{money(total, currency)}</p>
+      </div>
+
+      <div className="space-y-2">
+        {envelopes.map((e) => (
+          <button
+            key={e.id}
+            onClick={() => onOpen(e.id)}
+            className="w-full rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm text-left flex items-baseline justify-between gap-3"
+          >
+            <span className="min-w-0">
+              <span className="block font-medium truncate">{e.name}</span>
+              {/* Одне число під назвою — рух саме цього періоду. Ціль і «ще тримається»
+                  прибрані: під схемою вони майже завжди збігаються й нічого не додають. */}
+              <span className={`block text-xs tabular-nums ${e.depositedThisMonth < 0 ? 'text-red-600' : 'text-neutral-400'}`}>
+                {e.depositedThisMonth === 0
+                  ? 'цього періоду без змін'
+                  : `${e.depositedThisMonth > 0 ? '+' : '−'}${money(Math.abs(e.depositedThisMonth), currency)} цього періоду`}
+              </span>
+            </span>
+            <span className="tabular-nums font-semibold shrink-0">{money(e.balance, currency)}</span>
+          </button>
+        ))}
+      </div>
+    </>
+  )
+}
+
+/// Один конверт: баланс, історія по періодах і все, що з ним можна зробити.
+function EnvelopeDetail({ envelope, data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteEntry, onBack }: {
+  envelope: EnvelopeSummary
+  data: SavingsData
+  onSavePlan: (p: SaveSavingsPlan) => Promise<void>
+  onAddEntry: (e: SaveSavingsEntry) => Promise<void>
+  onUpdateEntry: (id: number, e: SaveSavingsEntry) => Promise<void>
+  onDeleteEntry: (id: number) => Promise<void>
+  onBack: () => void
+}) {
+  // Which movement is open for editing — at most one, so the list stays readable.
+  const [editing, setEditing] = useState<SavingsEntry | null>(null)
+  const history = useEnvelopeHistory(envelope.id)
+
+  return (
+    <Screen title={envelope.name} onBack={onBack}>
+      <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm text-center">
+        <p className="text-sm uppercase tracking-wide text-neutral-400">Зараз у конверті</p>
+        <p className="mt-1 text-4xl font-bold tabular-nums">{money(envelope.balance, data.currency)}</p>
+        {envelope.monthGoal > 0 && (
+          <p className="mt-2 text-xs text-neutral-400">
+            За планом сюди йде {money(envelope.monthGoal, data.currency)} кожного періоду — додаток
+            відкладає це сам.
+          </p>
+        )}
+      </div>
+
+      <PeriodHistory periods={history.data ?? []} currency={data.currency} />
 
       <MoveMoney
         currency={data.currency}
-        balance={current?.balance ?? 0}
-        envelopeId={current?.id}
+        balance={envelope.balance}
+        envelopeId={envelope.id}
         onAdd={onAddEntry}
       />
-      {isDefault && <PlanForm data={data} onSave={onSavePlan} />}
+
+      {/* Тільки для конверта за замовчуванням: решті ціль диктує схема, і форма плану
+          обіцяла б зміну, яка нічого не робить. */}
+      {envelope.isDefault && <PlanForm data={data} onSave={onSavePlan} />}
+
       <History
         data={data}
-        envelopeId={current?.id}
+        envelopeId={envelope.id}
         editing={editing}
         onEdit={setEditing}
         onSave={async (id, e) => { await onUpdateEntry(id, e); setEditing(null) }}
@@ -85,36 +152,32 @@ export function Savings({ data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteE
   )
 }
 
-/// Чипси, а не випадайка: конвертів одиниці, і в списку одразу видно, де скільки лежить —
-/// заради цього конверти й робились.
-function EnvelopePicker({ envelopes, currency, currentId, onPick }: {
-  envelopes: EnvelopeSummary[]
-  currency: string
-  currentId: number
-  onPick: (id: number) => void
-}) {
+/// Те, заради чого екран переробляли: за кожен період — скільки пішло і скільки стало.
+function PeriodHistory({ periods, currency }: { periods: EnvelopePeriodType[]; currency: string }) {
+  if (periods.length === 0) return null
+
   return (
-    <div className="flex gap-2 flex-wrap">
-      {envelopes.map((e) => (
-        <button
-          key={e.id}
-          onClick={() => onPick(e.id)}
-          className={`rounded-xl px-3 py-2 text-sm text-left ${
-            e.id === currentId
-              ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
-              : 'bg-neutral-100 dark:bg-neutral-800'
-          }`}
-        >
-          <span className="block font-medium truncate">{e.name}</span>
-          <span className="block text-xs tabular-nums opacity-70">{money(e.balance, currency)}</span>
-        </button>
-      ))}
-    </div>
+    <Card>
+      <SectionTitle>По періодах</SectionTitle>
+      <dl className="text-sm">
+        {periods.map((p) => (
+          <div key={p.start} className="flex items-baseline justify-between gap-3 py-1.5">
+            <dt className="text-neutral-500 shrink-0">{dayMonth(p.start)} – {dayMonth(p.end)}</dt>
+            <dd className="flex items-baseline gap-3 tabular-nums">
+              <span className={p.moved > 0 ? 'text-emerald-600' : p.moved < 0 ? 'text-red-600' : 'text-neutral-400'}>
+                {p.moved === 0 ? '—' : `${p.moved > 0 ? '+' : '−'}${money(Math.abs(p.moved), currency)}`}
+              </span>
+              <span className="font-medium min-w-[5.5rem] text-right">{money(p.balanceAfter, currency)}</span>
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </Card>
   )
 }
 
-/// Manual movement. Deposits count towards this month's goal rather than stacking on top
-/// of it, so putting money aside by hand never costs safe-to-spend twice.
+/// Рух руками. Схема відкладає сама, тож внесок звідси — це «понад план», і він справді
+/// зменшує «можна витратити сьогодні» на свою суму.
 function MoveMoney({ currency, balance, envelopeId, onAdd }: {
   currency: string
   balance: number

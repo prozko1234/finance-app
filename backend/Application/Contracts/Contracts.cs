@@ -310,3 +310,8 @@ public record AppSettingsResponse(
 public record SetDisplayCurrencyRequest(string Currency);
 
 public record SetPeriodStartDayRequest(int Day);
+
+/// One budget period in an envelope's life: what moved in or out, and what was in it when
+/// the period ended.
+public record EnvelopePeriodResponse(
+    DateOnly Start, DateOnly End, decimal Moved, decimal BalanceAfter);

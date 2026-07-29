@@ -38,7 +38,20 @@ public interface IEnvelopeService
     /// almost nothing, which is the exact problem the opening balance exists to fix.</param>
     Task<IReadOnlyList<EnvelopeStatus>> StatusAsync(
         decimal monthlyBudget, DateOnly? countedOn = null, CancellationToken ct = default);
+
+    /// One envelope, period by period: what moved and what the balance became. The screen
+    /// used to show a flat list of movements, which answers "що я робив" but not the
+    /// question actually being asked — «за місяць скільки пішло в заощадження і скільки
+    /// там тепер». Periods, not calendar months, so it lines up with everything else.
+    Task<IReadOnlyList<EnvelopePeriod>> HistoryAsync(
+        int envelopeId, int count = 6, CancellationToken ct = default);
 }
+
+/// <param name="Moved">Net movement over the period: deposits minus withdrawals minus
+/// anything paid straight out of the envelope. Negative means the pot shrank.</param>
+/// <param name="BalanceAfter">What was in the envelope when the period ended — or right
+/// now, for the period still running.</param>
+public record EnvelopePeriod(DateOnly Start, DateOnly End, decimal Moved, decimal BalanceAfter);
 
 public sealed class EnvelopeService(
     IAppDbContext db, IAllocationService allocations, IBudgetPeriods periods) : IEnvelopeService
@@ -111,6 +124,47 @@ public sealed class EnvelopeService(
                     status.Balance, status.MonthGoal, status.DepositedThisMonth, status.StillToReserve);
             })
             .ToList();
+    }
+
+    public async Task<IReadOnlyList<EnvelopePeriod>> HistoryAsync(
+        int envelopeId, int count = 6, CancellationToken ct = default)
+    {
+        count = Math.Clamp(count, 1, 24);
+
+        var entries = await db.SavingsEntries
+            .Where(x => x.EnvelopeId == envelopeId)
+            .Select(x => new { x.Date, Amount = x.Kind == SavingsEntryKind.Deposit ? x.AmountBase : -x.AmountBase })
+            .ToListAsync(ct);
+
+        var spent = await db.Transactions
+            .Where(t => t.EnvelopeId == envelopeId && t.Kind == TransactionKind.Expense)
+            .Select(t => new { t.Date, Amount = -t.AmountBase })
+            .ToListAsync(ct);
+
+        var movements = entries.Concat(spent).ToList();
+
+        // Walked forwards from the oldest period so the running balance is a sum, not a
+        // series of subtractions from today — the same money counted the other way round
+        // is where rounding drift comes from.
+        var current = await periods.CurrentAsync(ct);
+        var window = new List<BudgetPeriod> { current };
+        for (var i = 1; i < count; i++)
+            window.Add(await periods.ForAsync(window[^1].Start.AddDays(-1), ct));
+        window.Reverse();
+
+        var running = movements.Where(m => m.Date < window[0].Start).Sum(m => m.Amount);
+        var result = new List<EnvelopePeriod>(window.Count);
+
+        foreach (var p in window)
+        {
+            var moved = movements.Where(m => m.Date >= p.Start && m.Date <= p.End).Sum(m => m.Amount);
+            running += moved;
+            result.Add(new EnvelopePeriod(p.Start, p.End, moved, running));
+        }
+
+        // Newest first: the period you are living in is the one you came here to look at.
+        result.Reverse();
+        return result;
     }
 
     /// Carries out the scheme instead of asking the user to. Choosing «20% у заощадження»

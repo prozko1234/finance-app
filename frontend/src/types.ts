@@ -378,3 +378,11 @@ export interface Credentials {
   email: string
   password: string
 }
+
+/// Один період у житті конверта: скільки в нього зайшло чи вийшло і що стало з балансом.
+export interface EnvelopePeriod {
+  start: string
+  end: string
+  moved: number
+  balanceAfter: number
+}

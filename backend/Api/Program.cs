@@ -208,6 +208,7 @@ app.MapStatsEndpoints();
 app.MapRecurringEndpoints();
 app.MapTaxEndpoints();
 app.MapSavingsEndpoints();
+app.MapEnvelopeEndpoints();
 app.MapAllocationEndpoints();
 app.MapSettingsEndpoints();
 

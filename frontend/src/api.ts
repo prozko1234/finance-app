@@ -1,5 +1,5 @@
 import type {
-  AuthStatus, AppSettings, Category, Credentials, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
+  AuthStatus, AppSettings, Category, Credentials, EnvelopePeriod, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
   Allocation, SaveAllocation, IncomePreview, OpeningBalance, SaveOpeningBalance, SaveSavingsEntry, SaveSavingsPlan, Savings, Stats, TaxDefaults, TaxProfile, Transaction,
 } from './types'
 
@@ -76,6 +76,9 @@ export const api = {
     http<AppSettings>('/api/settings/currency', { method: 'PUT', body: JSON.stringify({ currency }) }),
   setPeriodStartDay: (day: number) =>
     http<AppSettings>('/api/settings/period-start-day', { method: 'PUT', body: JSON.stringify({ day }) }),
+
+  getEnvelopeHistory: (id: number, periods = 6) =>
+    http<EnvelopePeriod[]>(`/api/envelopes/${id}/history?periods=${periods}`),
 
   getRecurring: () => http<Recurring[]>('/api/recurring'),
   createRecurring: (r: SaveRecurring) =>

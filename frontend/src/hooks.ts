@@ -166,6 +166,17 @@ export function useSetDisplayCurrency() {
   })
 }
 
+/// Історія одного конверта. Id у ключі, тож перемикання між конвертами не мигає — уже
+/// переглянутий лишається в кеші. Ключ починається з savings, тому будь-який рух грошей
+/// (депозит, зняття) інвалідує й історію разом із рештою.
+export function useEnvelopeHistory(envelopeId: number | null) {
+  return useQuery({
+    queryKey: [...queryKeys.savings, 'history', envelopeId],
+    queryFn: () => api.getEnvelopeHistory(envelopeId!),
+    enabled: envelopeId !== null,
+  })
+}
+
 export function useSaveAllocation() {
   const qc = useQueryClient()
   return useMutation({

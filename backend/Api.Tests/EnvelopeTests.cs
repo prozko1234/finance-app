@@ -160,6 +160,44 @@ public class EnvelopeTests
         Assert.Equal(600m, after.HeldBack);
     }
 
+    /// The question the envelope screen exists to answer: за період скільки пішло і
+    /// скільки там тепер.
+    [Fact]
+    public async Task History_reports_what_moved_and_what_the_balance_became()
+    {
+        using var mem = new SqliteInMemory();
+        await ActivateAsync(mem, "60-solution");
+
+        var pension = (await Sut(mem).StatusAsync(Budget)).Single(e => e.Name == "Пенсія");
+        await Savings(mem).AddEntryAsync(new("Deposit", 250m, null, null, null, pension.Id));
+
+        var history = await Sut(mem).HistoryAsync(pension.Id, 3);
+
+        // Newest first, one row per period, and the running balance is what is in the pot.
+        Assert.Equal(3, history.Count);
+        Assert.Equal(850m, history[0].Moved);        // 600 by the scheme + 250 by hand
+        Assert.Equal(850m, history[0].BalanceAfter);
+        Assert.All(history.Skip(1), p => Assert.Equal(0m, p.Moved));
+    }
+
+    [Fact]
+    public async Task History_carries_the_balance_across_periods()
+    {
+        using var mem = new SqliteInMemory();
+        await ActivateAsync(mem, "60-solution");
+
+        var pension = (await Sut(mem).StatusAsync(Budget)).Single(e => e.Name == "Пенсія");
+        // Dated in an earlier period, so it must show up as an opening balance, not as
+        // movement of the period being looked at.
+        await Savings(mem).AddEntryAsync(new(
+            "Deposit", 400m, DateOnly.FromDateTime(DateTime.Now).AddMonths(-2), null, null, pension.Id));
+
+        var history = await Sut(mem).HistoryAsync(pension.Id, 3);
+
+        Assert.Equal(1_000m, history[0].BalanceAfter); // 400 carried in + 600 this period
+        Assert.Equal(600m, history[0].Moved);
+    }
+
     [Fact]
     public async Task Money_cannot_be_taken_out_of_a_pot_it_was_never_put_into()
     {
