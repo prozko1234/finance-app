@@ -1,6 +1,7 @@
 using FinanceApp.Application.Abstractions;
 using FinanceApp.Application.Allocations;
 using FinanceApp.Application.Common;
+using FinanceApp.Domain;
 using FinanceApp.Domain.Budgeting;
 using FinanceApp.Domain.Savings;
 using Microsoft.EntityFrameworkCore;
@@ -50,6 +51,8 @@ public sealed class EnvelopeService(
             ? await GoalsAsync(scheme, monthlyBudget, ct)
             : [];
         var envelopes = await SyncAsync(scheme, ct);
+        var period = await periods.CurrentAsync(ct);
+        await FillAsync(scheme, envelopes, goals, period, ct);
 
         var balances = await db.SavingsEntries
             .GroupBy(x => x.EnvelopeId)
@@ -60,7 +63,7 @@ public sealed class EnvelopeService(
             })
             .ToDictionaryAsync(x => x.EnvelopeId, x => x.Balance, ct);
 
-        var (first, last) = await periods.CurrentAsync(ct);
+        var (first, last) = period;
         var from = countedOn ?? first;
         var thisMonth = await db.SavingsEntries
             .Where(x => x.Date >= from && x.Date <= last)
@@ -92,6 +95,80 @@ public sealed class EnvelopeService(
                     status.Balance, status.MonthGoal, status.DepositedThisMonth, status.StillToReserve);
             })
             .ToList();
+    }
+
+    /// Carries out the scheme instead of asking the user to. Choosing «20% у заощадження»
+    /// used to mean only that 20% was subtracted from the daily norm — the pot itself stayed
+    /// empty until money was moved into it by hand, every single month. That is exactly the
+    /// kind of standing chore this app exists to remove, so the app moves it.
+    ///
+    /// One entry per envelope per period, kept in step with the goal rather than topped up:
+    /// a second invoice raises the budget, and a trail of correcting deposits would make the
+    /// envelope's history unreadable.
+    ///
+    /// A deposit made BY HAND is now extra, on top of the plan — it used to be the only way
+    /// to meet the goal, so it counted towards it. Now the app meets the goal itself, and
+    /// someone who still moves money in means "more than planned". Withdrawals are left
+    /// alone: taking money out is a decision, and refilling it on the next page load would
+    /// silently overrule it.
+    ///
+    /// No goals at all means the plan has stood down — the user started mid-period by
+    /// counting what they have (see the countedOn parameter on StatusAsync). Then what the
+    /// app had already set aside on paper is withdrawn too: the counted figure is money the
+    /// user says is theirs to live on, and holding some of it back again would take the
+    /// daily norm apart from underneath.
+    private async Task FillAsync(
+        AllocationScheme scheme, List<Envelope> envelopes, Dictionary<string, decimal> goals,
+        BudgetPeriod period, CancellationToken ct)
+    {
+        var entries = await db.SavingsEntries
+            .Where(x => x.Date >= period.Start && x.Date <= period.End)
+            .ToListAsync(ct);
+
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var changed = false;
+
+        foreach (var envelope in envelopes)
+        {
+            var amount = goals.GetValueOrDefault(envelope.Name);
+            var auto = entries.FirstOrDefault(x => x.EnvelopeId == envelope.Id && x.IsAuto);
+
+            if (auto is null)
+            {
+                if (amount <= 0) continue;
+
+                db.SavingsEntries.Add(new SavingsEntry
+                {
+                    EnvelopeId = envelope.Id,
+                    Date = today,
+                    Kind = SavingsEntryKind.Deposit,
+                    AmountOriginal = amount,
+                    CurrencyOriginal = Money.BaseCurrency,
+                    AmountBase = amount,
+                    FxRate = 1m,
+                    FxDate = today,
+                    IsAuto = true,
+                    Note = $"За схемою «{scheme.Name}»",
+                    CreatedAt = DateTimeOffset.UtcNow,
+                });
+                changed = true;
+            }
+            else if (amount <= 0)
+            {
+                // Removed, not zeroed: a 0 zł deposit in the envelope's history is a line
+                // that says nothing and still has to be read.
+                db.SavingsEntries.Remove(auto);
+                changed = true;
+            }
+            else if (auto.AmountBase != amount)
+            {
+                auto.AmountOriginal = amount;
+                auto.AmountBase = amount;
+                changed = true;
+            }
+        }
+
+        if (changed) await db.SaveChangesAsync(ct);
     }
 
     /// This month's goal per envelope name. A scheme bucket owns the goal when there is one;

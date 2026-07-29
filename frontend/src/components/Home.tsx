@@ -274,8 +274,10 @@ function EnvelopesCard({ envelopes, currency, onOpen }: {
               {e.monthGoal > 0 && (
                 <span className="text-neutral-400 text-xs">
                   {' · '}
-                  {e.stillToReserve === 0
-                    ? 'ціль місяця ✓'
+                  {/* Схема відкладає сама, тож зазвичай тут «відкладено ✓». Розбіжність
+                      лишається видимою: коли вручну довнесли понад план. */}
+                  {e.depositedThisMonth >= e.monthGoal
+                    ? `відкладено ${money(e.depositedThisMonth, currency)} ✓`
                     : `${money(e.depositedThisMonth, currency)} з ${money(e.monthGoal, currency)}`}
                 </span>
               )}

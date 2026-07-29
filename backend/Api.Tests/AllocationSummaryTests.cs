@@ -93,7 +93,7 @@ public class AllocationSummaryTests
     }
 
     [Fact]
-    public async Task A_deposit_made_this_month_eats_into_the_scheme_reservation()
+    public async Task A_deposit_made_by_hand_is_held_back_on_top_of_the_scheme()
     {
         using var mem = new SqliteInMemory();
         await ActivateAsync(mem, "80-20");
@@ -106,9 +106,10 @@ public class AllocationSummaryTests
 
         var r = await Sut(mem).GetSafeToSpendAsync();
 
-        Assert.Equal(500m, Savings(r).DepositedThisMonth);
-        Assert.Equal(700m, Savings(r).StillToReserve);
-        // Still 4800 spendable: the 500 left the budget as a deposit, not as a second reserve.
-        Assert.Equal(4_800m, r.RemainingThisPeriod);
+        // 1200 the scheme puts aside by itself + 500 moved in by hand on top of it.
+        Assert.Equal(1_700m, Savings(r).DepositedThisMonth);
+        Assert.Equal(0m, Savings(r).StillToReserve);
+        // And the extra 500 really is out of reach: 6000 − 1200 − 500.
+        Assert.Equal(4_300m, r.RemainingThisPeriod);
     }
 }

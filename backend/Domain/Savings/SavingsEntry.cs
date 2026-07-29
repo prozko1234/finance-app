@@ -33,6 +33,12 @@ public class SavingsEntry
     public decimal FxRate { get; set; } = 1m;
     public DateOnly FxDate { get; set; }
 
+    /// Written by the app itself to carry out the allocation scheme, rather than by the user
+    /// moving money by hand. There is at most one per envelope per period, and the app keeps
+    /// its amount in step with the goal — so a budget that grows or shrinks mid-period does
+    /// not leave a trail of correcting deposits.
+    public bool IsAuto { get; set; }
+
     public string? Note { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }

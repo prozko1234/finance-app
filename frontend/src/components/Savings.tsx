@@ -59,7 +59,7 @@ export function Savings({ data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteE
           <p className="mt-1 text-4xl font-bold tabular-nums">{money(current.balance, data.currency)}</p>
           {current.monthGoal > 0 && (
             <p className="mt-2 text-xs text-neutral-400">
-              Цього місяця {money(current.depositedThisMonth, data.currency)} з {money(current.monthGoal, data.currency)}
+              Цього періоду відкладено {money(current.depositedThisMonth, data.currency)}, за планом {money(current.monthGoal, data.currency)}
               {current.stillToReserve > 0 && ` · ще ${money(current.stillToReserve, data.currency)} з бюджету тримається тут`}
             </p>
           )}

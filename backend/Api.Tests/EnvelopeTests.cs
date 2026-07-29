@@ -69,22 +69,65 @@ public class EnvelopeTests
     }
 
     [Fact]
-    public async Task A_deposit_into_the_pension_pot_builds_a_balance_without_reserving_twice()
+    public async Task The_scheme_fills_the_pension_pot_by_itself()
+    {
+        using var mem = new SqliteInMemory();
+        await ActivateAsync(mem, "60-solution");
+
+        // Reading the status is enough: choosing a scheme is the decision, carrying it out
+        // is not a chore to hand back to the user every month.
+        var pension = (await Sut(mem).StatusAsync(Budget)).Single(e => e.Name == "Пенсія");
+
+        Assert.Equal(600m, pension.Balance);
+        Assert.Equal(600m, pension.DepositedThisMonth);
+        Assert.Equal(0m, pension.StillToReserve); // nothing is "still to move" any more
+        Assert.Equal(600m, pension.HeldBack);
+    }
+
+    [Fact]
+    public async Task Reading_the_status_twice_does_not_fill_the_pot_twice()
+    {
+        using var mem = new SqliteInMemory();
+        await ActivateAsync(mem, "60-solution");
+
+        await Sut(mem).StatusAsync(Budget);
+        await Sut(mem).StatusAsync(Budget);
+
+        var pension = (await Sut(mem).StatusAsync(Budget)).Single(e => e.Name == "Пенсія");
+        Assert.Equal(600m, pension.Balance);
+    }
+
+    /// A second invoice raises the budget, so the goal rises with it. The app keeps its own
+    /// deposit in step instead of leaving a trail of correcting top-ups.
+    [Fact]
+    public async Task A_bigger_budget_raises_what_the_app_put_aside()
+    {
+        using var mem = new SqliteInMemory();
+        await ActivateAsync(mem, "60-solution");
+
+        await Sut(mem).StatusAsync(Budget);
+        var pension = (await Sut(mem).StatusAsync(Budget * 2)).Single(e => e.Name == "Пенсія");
+
+        Assert.Equal(1_200m, pension.Balance);
+        Assert.Equal(1_200m, pension.DepositedThisMonth);
+    }
+
+    [Fact]
+    public async Task A_deposit_by_hand_is_extra_on_top_of_the_plan()
     {
         using var mem = new SqliteInMemory();
         await ActivateAsync(mem, "60-solution");
 
         var pension = (await Sut(mem).StatusAsync(Budget)).Single(e => e.Name == "Пенсія");
-        Assert.Equal(600m, pension.HeldBack); // nothing moved yet: the whole goal is held
-
         await Savings(mem).AddEntryAsync(new("Deposit", 250m, null, null, null, pension.Id));
 
         var after = (await Sut(mem).StatusAsync(Budget)).Single(e => e.Name == "Пенсія");
-        Assert.Equal(250m, after.Balance);
-        Assert.Equal(250m, after.DepositedThisMonth);
-        Assert.Equal(350m, after.StillToReserve);
-        // The key property: moving 250 by hand does not cost another 250 of safe-to-spend.
-        Assert.Equal(600m, after.HeldBack);
+
+        // Moving money in by hand used to be the only way to meet the goal, so it counted
+        // towards it. The app meets the goal now, so a hand-made deposit means "more than
+        // planned" — and costs that much more of what is safe to spend.
+        Assert.Equal(850m, after.Balance);
+        Assert.Equal(850m, after.HeldBack);
     }
 
     [Fact]
@@ -117,7 +160,8 @@ public class EnvelopeTests
 
         // 1800 left to LIVE on, counted today. Reserving another 10% of it for four pots
         // would drop the daily norm to almost nothing — the exact thing the opening balance
-        // is there to fix. The 400 put aside yesterday is already outside that 1800.
+        // is there to fix. The 400 put aside yesterday is already outside that 1800, and
+        // what the app itself had set aside on paper this period is taken back out.
         var after = await Sut(mem).StatusAsync(1_800m, DateOnly.FromDateTime(DateTime.Now));
 
         Assert.All(after, e => Assert.Equal(0m, e.HeldBack));
