@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { AppSettings } from '../types'
-import { CURRENCIES } from '../types'
+import { CURRENCIES, todayIso } from '../types'
 import { dayMonth } from '../format'
 import { Card, FormError, Screen, SectionTitle } from './Screen'
 
@@ -36,6 +36,10 @@ export function Settings({ settings, onPickCurrency, onPickPeriodStartDay, onBac
 /// День, коли приходять гроші. Доти додаток вважав, що місяць починається 1 числа — і в
 /// останні дні місяця обіцяв норму з грошей, яких на рахунку вже не було, а 1-го вона
 /// стрибала, хоча зарплата ще не прийшла.
+///
+/// Питаємо не «число від 1 до 28», а дату останнього приходу грошей: її видно в банку і не
+/// треба нічого перекладати в голові. Число дня додаток дістає сам і одразу показує, який
+/// період із цього виходить.
 function PaydayCard({ settings, onPick }: {
   settings: AppSettings | null
   onPick: (day: number) => Promise<void>
@@ -43,9 +47,20 @@ function PaydayCard({ settings, onPick }: {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const day = settings?.periodStartDay ?? 1
+  // Дата, показана в пікері: остання зарплата за нинішнім налаштуванням.
+  const [picked, setPicked] = useState(() => settings?.periodStart ?? todayIso())
 
-  async function pick(value: number) {
-    if (busy || value === day) return
+  const pickedDay = Number(picked.slice(8, 10))
+  // 29–31 є не в кожному місяці: «31 число» тихо означало б чотири різні дати на рік.
+  // Не мовчимо про це і не забороняємо дату — беремо 28-ме і кажемо, що взяли.
+  const effective = Number.isNaN(pickedDay) ? day : Math.min(pickedDay, 28)
+  const clamped = !Number.isNaN(pickedDay) && pickedDay > 28
+
+  async function pick(iso: string) {
+    setPicked(iso)
+    const value = Math.min(Number(iso.slice(8, 10)), 28)
+    if (busy || Number.isNaN(value) || value === day) return
+
     setBusy(true)
     setError(null)
     try {
@@ -59,31 +74,39 @@ function PaydayCard({ settings, onPick }: {
 
   return (
     <Card>
-      <SectionTitle>Коли приходять гроші</SectionTitle>
+      <SectionTitle>Коли востаннє прийшли гроші</SectionTitle>
 
-      <div className="flex gap-2 items-baseline">
-        <select
-          value={day}
-          disabled={busy}
-          onChange={(e) => void pick(Number(e.target.value))}
-          aria-label="День зарплати"
-          className="flex-1 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-transparent px-3 py-2.5 disabled:opacity-40"
-        >
-          {/* Тільки до 28: 29–31 є не в кожному місяці, і «30 число» тихо означало б
-              чотири різні дати на рік. */}
-          {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
-            <option key={d} value={d}>{d} числа</option>
-          ))}
-        </select>
-      </div>
+      <input
+        type="date"
+        value={picked}
+        disabled={busy}
+        onChange={(e) => void pick(e.target.value)}
+        aria-label="Дата останньої зарплати"
+        className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-transparent px-3 py-2.5 disabled:opacity-40"
+      />
 
       <FormError>{error}</FormError>
 
-      <p className="text-xs text-neutral-400">
-        {settings && day !== 1
-          ? `Поточний період: ${dayMonth(settings.periodStart)} – ${dayMonth(settings.periodEnd)}. Бюджет, денна норма й конверти рахуються від зарплати до зарплати.`
-          : 'Зараз місяць рахується з 1 числа. Якщо зп приходить в інший день — постав його, і все почне рахуватись від зарплати до зарплати.'}
-      </p>
+      {/* Головне: людина бачить не «число 10», а що з цього виходить. */}
+      {settings && (
+        <div className="rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2.5 space-y-1">
+          <p className="text-sm font-medium">
+            {busy
+              ? 'Рахую…'
+              : `Період: ${dayMonth(settings.periodStart)} – ${dayMonth(settings.periodEnd)}`}
+          </p>
+          <p className="text-xs text-neutral-500">
+            {effective === 1
+              ? 'Гроші приходять 1 числа — період збігається з календарним місяцем.'
+              : `Далі гроші чекаємо ${effective} числа кожного місяця. Бюджет, денна норма й конверти рахуються від зарплати до зарплати.`}
+          </p>
+          {clamped && (
+            <p className="text-xs text-amber-600">
+              {pickedDay} числа немає в кожному місяці, тому рахуємо з 28-го.
+            </p>
+          )}
+        </div>
+      )}
     </Card>
   )
 }
