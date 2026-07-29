@@ -1,5 +1,7 @@
 using FinanceApp.Application.Abstractions;
+using FinanceApp.Domain.Auth;
 using FinanceApp.Domain.Fx;
+using FinanceApp.Infrastructure.Auth;
 using FinanceApp.Infrastructure.Fx;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,6 +15,9 @@ public static class DependencyInjection
     {
         services.AddDbContext<AppDbContext>(o => o.UseSqlite(connectionString));
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
+
+        // Stateless and thread-safe: one instance is enough.
+        services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
 
         // Rate sources as typed HttpClients (short timeout — never block a transaction entry).
         services.AddHttpClient<NbpRateProvider>(c =>

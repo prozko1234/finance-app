@@ -363,8 +363,15 @@ export interface Stats {
   categories: CategoryStats[]
 }
 
-/// required=false — локальна робота без паролю; тоді екран входу не показуємо взагалі.
+/// required=false — локальна робота без акаунта; тоді екран входу не показуємо взагалі.
 export interface AuthStatus {
   required: boolean
   authenticated: boolean
+  /// Пошта акаунта; null, поки не увійшли.
+  email: string | null
+}
+
+export interface Credentials {
+  email: string
+  password: string
 }

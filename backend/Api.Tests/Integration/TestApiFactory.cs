@@ -1,7 +1,9 @@
 using FinanceApp.Domain;
+using FinanceApp.Domain.Auth;
 using FinanceApp.Domain.Common;
 using FinanceApp.Domain.Fx;
 using FinanceApp.Infrastructure;
+using FinanceApp.Infrastructure.Auth;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -18,15 +20,22 @@ public class TestApiFactory : WebApplicationFactory<Program>
 {
     private readonly SqliteConnection _connection = new("DataSource=:memory:");
 
-    /// The password the app should demand, or null for an open (development-like) app.
+    /// The password the owner account is bootstrapped with, or null for an open
+    /// (development-like) app with no account at all.
     protected virtual string? Password => null;
+
+    /// The address that owner signs in with.
+    public const string OwnerEmail = "owner@finance.test";
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         _connection.Open();
 
         if (Password is not null)
+        {
             builder.UseSetting("Auth:Password", Password);
+            builder.UseSetting("Auth:Email", OwnerEmail);
+        }
 
         builder.ConfigureTestServices(services =>
         {
@@ -36,6 +45,12 @@ public class TestApiFactory : WebApplicationFactory<Program>
 
             services.RemoveAll<IFxConverter>();
             services.AddScoped<IFxConverter, FakeFxConverter>();
+
+            // The real hashing algorithm, at a cost that does not make every test wait a
+            // third of a second per login. What PBKDF2 costs in production is a constant,
+            // covered by its own unit test.
+            services.RemoveAll<IPasswordHasher>();
+            services.AddSingleton<IPasswordHasher>(new Pbkdf2PasswordHasher(iterations: 1_000));
         });
     }
 

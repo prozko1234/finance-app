@@ -10,12 +10,14 @@ import {
   useAllocations, useSaveAllocation, useSettings, useSetDisplayCurrency,
   useSavings, useSaveSavingsPlan, useAddSavingsEntry, useUpdateSavingsEntry, useDeleteSavingsEntry,
   useStats, useAuthStatus, useLogin, useLogout, queryKeys,
+  useChangePassword, useChangeEmail, useSignOutEverywhere,
   useOpeningBalance, useSetOpeningBalance,
 } from './hooks'
 import { Onboarding } from './components/Onboarding'
 import { Home } from './components/Home'
 import { AddTransaction } from './components/AddTransaction'
 import { Settings } from './components/Settings'
+import { Account } from './components/Account'
 import { Recurring } from './components/Recurring'
 import { TaxProfile } from './components/TaxProfile'
 import { Categories } from './components/Categories'
@@ -41,6 +43,9 @@ function App() {
   const auth = useAuthStatus()
   const login = useLogin()
   const logout = useLogout()
+  const changePassword = useChangePassword()
+  const changeEmail = useChangeEmail()
+  const signOutEverywhere = useSignOutEverywhere()
 
   // A cookie can expire while the app is open. Any 401 sends us back to asking.
   useEffect(() => setOnUnauthorized(() => { qc.invalidateQueries({ queryKey: queryKeys.auth }) }), [qc])
@@ -109,7 +114,7 @@ function App() {
   // dashboard would show the balance to someone who has not passed the door yet.
   if (auth.isPending) return null
   if (auth.data?.required && !auth.data.authenticated)
-    return <Login onSubmit={(p) => login.mutateAsync(p).then(() => {})} />
+    return <Login onSubmit={(c) => login.mutateAsync(c).then(() => {})} />
 
   // An empty app is indistinguishable from a broken one: the old home said "бюджет ще не
   // заданий" and left the rest of the screen blank. Derived from the data rather than from
@@ -192,6 +197,20 @@ function App() {
             incomeBudget={summary.data?.monthTaxes ? summary.data.monthlyBudget ?? null : null}
             onPickCurrency={(c) => setDisplayCurrency.mutateAsync(c).then(() => {})}
             onSave={(amount) => setBudget.mutateAsync(amount).then(() => {})}
+            onBack={() => setView('home')}
+          />
+        )}
+        {view === 'account' && (
+          <Account
+            email={auth.data?.email ?? null}
+            onChangePassword={(current, next) =>
+              changePassword.mutateAsync({ current, next }).then(() => {})}
+            onChangeEmail={(password, email) =>
+              changeEmail.mutateAsync({ password, email }).then(() => {})}
+            // Ends this session too, so the login screen is where the user lands: no
+            // navigation needed, the auth query going false does it.
+            onSignOutEverywhere={() => signOutEverywhere.mutateAsync().then(() => {})}
+            onLogout={() => logout.mutate()}
             onBack={() => setView('home')}
           />
         )}

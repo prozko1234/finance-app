@@ -1,4 +1,5 @@
 using FinanceApp.Domain;
+using FinanceApp.Domain.Auth;
 using FinanceApp.Domain.Budgeting;
 using FinanceApp.Domain.Savings;
 using Microsoft.EntityFrameworkCore;
@@ -23,6 +24,7 @@ public interface IAppDbContext
     DbSet<AllocationScheme> AllocationSchemes { get; }
     DbSet<AllocationBucket> AllocationBuckets { get; }
     DbSet<AppSettings> AppSettings { get; }
+    DbSet<User> Users { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

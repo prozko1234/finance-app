@@ -1,5 +1,5 @@
 import type {
-  AuthStatus, AppSettings, Budget, Category, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
+  AuthStatus, AppSettings, Budget, Category, Credentials, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
   Allocation, SaveAllocation, IncomePreview, OpeningBalance, SaveOpeningBalance, SaveSavingsEntry, SaveSavingsPlan, Savings, Stats, TaxDefaults, TaxProfile, Transaction,
 } from './types'
 
@@ -32,9 +32,16 @@ async function http<T>(url: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   getAuthStatus: () => http<AuthStatus>('/api/auth/me'),
-  login: (password: string) =>
-    http<void>('/api/auth/login', { method: 'POST', body: JSON.stringify({ password }) }),
+  login: (c: Credentials) =>
+    http<void>('/api/auth/login', { method: 'POST', body: JSON.stringify(c) }),
   logout: () => http<void>('/api/auth/logout', { method: 'POST' }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    http<void>('/api/auth/password', {
+      method: 'POST', body: JSON.stringify({ currentPassword, newPassword }),
+    }),
+  changeEmail: (password: string, email: string) =>
+    http<void>('/api/auth/email', { method: 'POST', body: JSON.stringify({ password, email }) }),
+  signOutEverywhere: () => http<void>('/api/auth/sign-out-everywhere', { method: 'POST' }),
 
   getCategories: () => http<Category[]>('/api/categories'),
   createCategory: (c: SaveCategory) =>

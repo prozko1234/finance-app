@@ -1,5 +1,6 @@
 using FinanceApp.Application.Abstractions;
 using FinanceApp.Domain;
+using FinanceApp.Domain.Auth;
 using FinanceApp.Domain.Budgeting;
 using FinanceApp.Domain.Savings;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +22,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AllocationScheme> AllocationSchemes => Set<AllocationScheme>();
     public DbSet<AllocationBucket> AllocationBuckets => Set<AllocationBucket>();
     public DbSet<AppSettings> AppSettings => Set<AppSettings>();
+    public DbSet<User> Users => Set<User>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -132,6 +134,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         b.Entity<AppSettings>(e =>
         {
             e.Property(x => x.DisplayCurrency).HasMaxLength(3).IsRequired();
+        });
+
+        b.Entity<User>(e =>
+        {
+            e.Property(x => x.Email).HasMaxLength(200).IsRequired();
+            e.Property(x => x.PasswordHash).HasMaxLength(200).IsRequired();
+            e.Property(x => x.SecurityStamp).HasMaxLength(64).IsRequired();
+            // Emails are stored normalized, so this index is what makes one address one account.
+            e.HasIndex(x => x.Email).IsUnique();
         });
 
         b.Entity<OpeningBalance>(e =>

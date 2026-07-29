@@ -1,5 +1,6 @@
 using System.Reflection;
 using FinanceApp.Application.Allocations;
+using FinanceApp.Application.Auth;
 using FinanceApp.Application.Budgets;
 using FinanceApp.Application.Categories;
 using FinanceApp.Application.Recurring;
@@ -21,6 +22,7 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
+        services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<ITransactionService, TransactionService>();
         services.AddScoped<IBudgetService, BudgetService>();
         services.AddScoped<IOpeningBalanceService, OpeningBalanceService>();

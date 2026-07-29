@@ -1,28 +1,34 @@
 import { useState } from 'react'
+import type { Credentials } from '../types'
 import { Card, FormError, PrimaryButton } from './Screen'
 
-/// The whole app behind one password. No email, no «forgot it», no registration — there is
-/// one person here, and every field that is not the password is a field that does nothing.
-export function Login({ onSubmit }: { onSubmit: (password: string) => Promise<void> }) {
+/// Вхід у власний акаунт. Реєстрації немає — акаунт тут один, і він уже створений;
+/// «забув пароль» теж немає: пошту нікуди не відправляємо, вона тільки ім'я входу.
+export function Login({ onSubmit }: { onSubmit: (c: Credentials) => Promise<void> }) {
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
+  const ready = email.trim() !== '' && password !== ''
+
   async function submit() {
-    if (!password || busy) return
+    if (!ready || busy) return
     setBusy(true)
     setError(null)
     try {
-      await onSubmit(password)
+      await onSubmit({ email: email.trim(), password })
     } catch {
-      // The server deliberately says only this much — a message that distinguished
-      // "wrong password" from anything else would be a hint to whoever is guessing.
-      setError('Невірний пароль')
+      // The server deliberately says only this much — a message that distinguished a
+      // wrong address from a wrong password would be a hint to whoever is guessing.
+      setError('Невірна пошта або пароль')
       setPassword('')
     } finally {
       setBusy(false)
     }
   }
+
+  const field = 'w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-transparent px-3 py-2.5'
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
@@ -34,19 +40,33 @@ export function Login({ onSubmit }: { onSubmit: (password: string) => Promise<vo
 
         <Card>
           <label className="block space-y-2">
+            <span className="text-sm text-neutral-500">Пошта</span>
+            <input
+              type="email"
+              value={email}
+              autoFocus
+              autoComplete="username"
+              inputMode="email"
+              onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') void submit() }}
+              className={field}
+            />
+          </label>
+
+          <label className="block space-y-2">
             <span className="text-sm text-neutral-500">Пароль</span>
             <input
               type="password"
               value={password}
-              autoFocus
               autoComplete="current-password"
               onChange={(e) => setPassword(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') void submit() }}
-              className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-transparent px-3 py-2.5"
+              className={field}
             />
           </label>
+
           <FormError>{error}</FormError>
-          <PrimaryButton onClick={() => void submit()} disabled={!password || busy}>
+          <PrimaryButton onClick={() => void submit()} disabled={!ready || busy}>
             {busy ? 'Заходжу…' : 'Увійти'}
           </PrimaryButton>
         </Card>

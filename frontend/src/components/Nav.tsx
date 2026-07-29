@@ -1,14 +1,15 @@
 import { useState } from 'react'
 
-export type View = 'home' | 'add' | 'settings' | 'recurring' | 'tax' | 'categories' | 'savings' | 'allocation' | 'stats' | 'dev'
+export type View = 'home' | 'add' | 'settings' | 'recurring' | 'tax' | 'categories' | 'savings' | 'allocation' | 'stats' | 'account' | 'dev'
 
 interface Props {
   current: View
   onGo: (v: View) => void
   /// Dev-only screens exist just in a dev build — the API exposes them in Development only.
   showDev: boolean
-  /// Absent when the app runs without a password (local development): a "вийти" that
-  /// leads straight back in would be a button that does nothing.
+  /// Absent when the app runs without an account (local development): a "вийти" that
+  /// leads straight back in would be a button that does nothing, and there is no account
+  /// screen to show either.
   onLogout?: () => void
 }
 
@@ -37,7 +38,11 @@ const SETUP: Item[] = [
 export function Nav({ current, onGo, showDev, onLogout }: Props) {
   const [open, setOpen] = useState(false)
 
-  const setup = showDev ? [...SETUP, { view: 'dev' as View, label: 'Тестові дані', icon: '🧪' }] : SETUP
+  // The account screen only exists when there is an account: locally the app has no door,
+  // so a page about passwords and sessions would be about nothing.
+  const account: Item[] = onLogout ? [{ view: 'account', label: 'Акаунт', icon: '👤' }] : []
+  const dev: Item[] = showDev ? [{ view: 'dev', label: 'Тестові дані', icon: '🧪' }] : []
+  const setup = [...SETUP, ...account, ...dev]
 
   function go(v: View) {
     onGo(v)

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api'
 import type {
-  SaveAllocation, SaveCategory, SaveIncome, SaveOpeningBalance, SaveRecurring, SaveSavingsEntry, SaveSavingsPlan, SaveTaxProfile, SaveTransaction,
+  Credentials, SaveAllocation, SaveCategory, SaveIncome, SaveOpeningBalance, SaveRecurring, SaveSavingsEntry, SaveSavingsPlan, SaveTaxProfile, SaveTransaction,
 } from './types'
 
 export const queryKeys = {
@@ -31,8 +31,37 @@ export function useAuthStatus() {
 export function useLogin() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (password: string) => api.login(password),
+    mutationFn: (c: Credentials) => api.login(c),
     onSuccess: () => qc.resetQueries(),
+  })
+}
+
+/// Пароль змінено — сесія на цьому пристрої лишається живою, тому перечитуємо тільки
+/// статус акаунта, а не весь кеш.
+export function useChangePassword() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ current, next }: { current: string; next: string }) =>
+      api.changePassword(current, next),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.auth }),
+  })
+}
+
+export function useChangeEmail() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ password, email }: { password: string; email: string }) =>
+      api.changeEmail(password, email),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.auth }),
+  })
+}
+
+/// Виходить і цей пристрій теж — далі те саме прибирання кеша, що й при звичайному виході.
+export function useSignOutEverywhere() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api.signOutEverywhere(),
+    onSuccess: () => qc.clear(),
   })
 }
 
