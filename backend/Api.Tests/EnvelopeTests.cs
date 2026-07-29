@@ -130,6 +130,35 @@ public class EnvelopeTests
         Assert.Equal(850m, after.HeldBack);
     }
 
+    /// The point of replacing «треба/варто/хочу»: where the money comes from is a fact that
+    /// changes a number, unlike a priority, which changed nothing on any screen.
+    [Fact]
+    public async Task Paying_out_of_an_envelope_empties_it_by_that_much()
+    {
+        using var mem = new SqliteInMemory();
+        await ActivateAsync(mem, "60-solution");
+
+        var pension = (await Sut(mem).StatusAsync(Budget)).Single(e => e.Name == "Пенсія");
+        mem.Db.Transactions.Add(new Transaction
+        {
+            Kind = TransactionKind.Expense, CurrencyOriginal = "PLN",
+            AmountOriginal = 150m, AmountBase = 150m, FxRate = 1m,
+            FxDate = DateOnly.FromDateTime(DateTime.Now), Date = DateOnly.FromDateTime(DateTime.Now),
+            CategoryId = 1, EnvelopeId = pension.Id,
+        });
+        await mem.Db.SaveChangesAsync();
+
+        var after = (await Sut(mem).StatusAsync(Budget)).Single(e => e.Name == "Пенсія");
+
+        Assert.Equal(450m, after.Balance); // 600 put aside, 150 paid out of it
+
+        // Still 600 out of reach, and that is the point: 450 sits in the pot and 150 has
+        // been spent, but the summary leaves an envelope-paid expense out of "витрачено"
+        // precisely because the envelope already holds it back. Dropping to 450 here would
+        // hand the user back 150 they have already spent.
+        Assert.Equal(600m, after.HeldBack);
+    }
+
     [Fact]
     public async Task Money_cannot_be_taken_out_of_a_pot_it_was_never_put_into()
     {

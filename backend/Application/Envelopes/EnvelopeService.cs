@@ -75,6 +75,22 @@ public sealed class EnvelopeService(
             })
             .ToDictionaryAsync(x => x.EnvelopeId, x => x.Net, ct);
 
+        // Money spent straight out of an envelope leaves it the same way a withdrawal does.
+        // Without this the pot would keep showing money that has already been paid to a shop
+        // — and the expense, which the summary excludes precisely because the envelope
+        // already holds it back, would vanish from the app's arithmetic entirely.
+        var spentFrom = await db.Transactions
+            .Where(t => t.EnvelopeId != null && t.Kind == TransactionKind.Expense)
+            .Select(t => new { EnvelopeId = t.EnvelopeId!.Value, t.Date, t.AmountBase })
+            .ToListAsync(ct);
+
+        foreach (var group in spentFrom.GroupBy(t => t.EnvelopeId))
+        {
+            balances[group.Key] = balances.GetValueOrDefault(group.Key) - group.Sum(t => t.AmountBase);
+            thisMonth[group.Key] = thisMonth.GetValueOrDefault(group.Key)
+                - group.Where(t => t.Date >= from && t.Date <= last).Sum(t => t.AmountBase);
+        }
+
         // Bucket order first, then whatever is left over from an older scheme: an envelope
         // whose bucket is gone keeps its balance but no longer reserves anything.
         var order = scheme.Buckets

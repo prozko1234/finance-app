@@ -116,7 +116,7 @@ describe('Home', () => {
   it('offers frequent categories without guessing an amount', () => {
     const expense = (id: number, categoryId: number, categoryName: string, amount: number): Transaction => ({
       id, kind: 'Expense', amountOriginal: amount, currencyOriginal: 'PLN', amountBase: amount,
-      amountDisplay: amount, displayCurrency: 'PLN', fxRate: 1, fxDate: '2026-07-24', categoryId, categoryName, priority: 'Should',
+      amountDisplay: amount, displayCurrency: 'PLN', fxRate: 1, fxDate: '2026-07-24', categoryId, categoryName,
       frequency: 'OneOff', source: 'Manual', date: '2026-07-24', createdAt: '',
     })
 

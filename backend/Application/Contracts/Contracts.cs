@@ -8,11 +8,13 @@ public record SaveTransactionRequest(
     decimal Amount,
     string Currency,
     int CategoryId,
-    Priority Priority,
     Frequency Frequency,
     DateOnly? Date,
     string? Merchant,
-    string? Note);
+    string? Note,
+    /// Which envelope the money came out of. Null (the default) — from what is free to
+    /// spend, which is what almost every expense is.
+    int? EnvelopeId = null);
 
 public record SaveIncomeRequest(
     decimal Amount,
@@ -33,7 +35,8 @@ public record TransactionResponse(
     DateOnly FxDate,
     int CategoryId,
     string CategoryName,
-    Priority Priority,
+    int? EnvelopeId,
+    string? EnvelopeName,
     Frequency Frequency,
     string Source,
     DateOnly Date,

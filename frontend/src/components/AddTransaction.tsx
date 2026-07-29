@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type {
-  Category, IncomePreview, Priority, SaveCategory, SaveIncome, SaveRecurring, SaveTransaction, Transaction,
+  Category, EnvelopeSummary, IncomePreview, SaveCategory, SaveIncome, SaveRecurring, SaveTransaction, Transaction,
 } from '../types'
 import { BASE_CURRENCY, CURRENCIES, shiftIso, todayIso } from '../types'
 import { money } from '../format'
@@ -9,6 +9,9 @@ import { readIncomeSources, readLastUsed, rememberIncomeSource, writeLastUsed } 
 
 interface Props {
   categories: Category[]
+  /// Конверти з балансом — з них можна заплатити напряму. Порожній список = вибору немає,
+  /// і питання «звідки гроші» не показується взагалі.
+  envelopes: EnvelopeSummary[]
   onSave: (tx: SaveTransaction) => Promise<void>
   onSaveIncome: (income: SaveIncome) => Promise<void>
   onSaveRecurring: (r: SaveRecurring) => Promise<void>
@@ -29,11 +32,10 @@ const KIND_TITLE: Record<Kind, string> = {
   expense: 'Нова транзакція', income: 'Новий дохід', subscription: 'Нова підписка',
 }
 
-const PRIORITIES: Priority[] = ['Must', 'Should', 'Want']
-const PRIORITY_LABEL: Record<Priority, string> = { Must: 'Треба', Should: 'Варто', Want: 'Хочу' }
 
 export function AddTransaction({
-  categories, onSave, onSaveIncome, onSaveRecurring, onCreateCategory, onCancel, editing, presetCategoryId,
+  categories, envelopes, onSave, onSaveIncome, onSaveRecurring, onCreateCategory, onCancel,
+  editing, presetCategoryId,
 }: Props) {
   const [newCatOpen, setNewCatOpen] = useState(false)
   const [newCatName, setNewCatName] = useState('')
@@ -55,7 +57,7 @@ export function AddTransaction({
   const [date, setDate] = useState(editing?.date ?? todayIso())
   const [dayOfMonth, setDayOfMonth] = useState('1')
   const [incomeRepeats, setIncomeRepeats] = useState(false)
-  const [priority, setPriority] = useState<Priority>(editing?.priority ?? 'Should')
+  const [envelopeId, setEnvelopeId] = useState<number | null>(editing?.envelopeId ?? null)
   const [includesVat, setIncludesVat] = useState(true)
   const [note, setNote] = useState(editing?.note ?? '')
   // Remembered once per mount: the list only changes on save, and the form closes then.
@@ -107,7 +109,7 @@ export function AddTransaction({
           amount: amountNum,
           currency,
           categoryId: categoryId!,
-          priority,
+          envelopeId,
           frequency: 'OneOff',
           date,
           note: note.trim() || null,
@@ -278,25 +280,34 @@ export function AddTransaction({
               )}
             </div>
 
-            {/* Priority — only for one-off spending; a subscription is already decided */}
-            <div className={isSubscription ? 'hidden' : ''}>
-              <label className="text-xs text-neutral-400">Пріоритет</label>
-              <div className="mt-1 flex gap-2">
-                {PRIORITIES.map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setPriority(p)}
-                    className={`flex-1 rounded-xl px-3 py-2 text-sm ${
-                      priority === p
-                        ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
-                        : 'bg-neutral-100 dark:bg-neutral-800'
-                    }`}
-                  >
-                    {PRIORITY_LABEL[p]}
-                  </button>
-                ))}
+            {/* Звідки гроші — замість «треба/варто/хочу», яке нічого не міняло на жодному
+                екрані. Дефолт («З основних») уже вибраний, тож звичайна витрата
+                вводиться так само швидко, як і раніше. Для підписки питання не стоїть. */}
+            {!isSubscription && envelopes.length > 0 && (
+              <div>
+                <label className="text-xs text-neutral-400">Звідки гроші</label>
+                <div className="mt-1 flex gap-2 flex-wrap">
+                  <SourceButton
+                    label="З основних"
+                    active={envelopeId === null}
+                    onClick={() => setEnvelopeId(null)}
+                  />
+                  {envelopes.map((e) => (
+                    <SourceButton
+                      key={e.id}
+                      label={e.name}
+                      active={envelopeId === e.id}
+                      onClick={() => setEnvelopeId(e.id)}
+                    />
+                  ))}
+                </div>
+                {envelopeId !== null && (
+                  <p className="mt-1 text-xs text-neutral-400">
+                    Зменшить конверт, а не денну норму — ці гроші вже відкладені.
+                  </p>
+                )}
               </div>
-            </div>
+            )}
           </>
         )}
 
@@ -560,5 +571,27 @@ function TaxCurrencyNote() {
       це ті самі цифри, що в книгової. Решта застосунку показується
       в {settings.displayCurrency}.
     </p>
+  )
+}
+
+/// Одна кнопка вибору джерела. Виглядає як решта вибору у формі, щоб питання читалось
+/// як «звідки», а не як ще одна налаштовувана штука.
+function SourceButton({ label, active, onClick }: {
+  label: string
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={`rounded-xl px-3 py-2 text-sm ${
+        active
+          ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+          : 'bg-neutral-100 dark:bg-neutral-800'
+      }`}
+    >
+      {label}
+    </button>
   )
 }

@@ -106,7 +106,6 @@ public sealed class TransactionService(
             FxRate = conv.Value.Rate,
             FxDate = conv.Value.RateDate,
             CategoryId = category.Id,
-            Priority = Priority.Must,
             Frequency = Frequency.OneOff,
             Source = TxSource.Manual,
             Date = date,
@@ -148,6 +147,9 @@ public sealed class TransactionService(
         if (!await db.Categories.AnyAsync(c => c.Id == req.CategoryId, ct))
             return Error.Validation($"Категорію {req.CategoryId} не знайдено.");
 
+        if (req.EnvelopeId is { } envelopeId && !await db.Envelopes.AnyAsync(e => e.Id == envelopeId, ct))
+            return Error.Validation($"Конверт {envelopeId} не знайдено.");
+
         var date = req.Date ?? fallbackDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
         var conv = await fx.ConvertToBaseAsync(req.Amount, req.Currency, date, ct);
         if (!conv.IsSuccess) return conv.Error;
@@ -158,7 +160,10 @@ public sealed class TransactionService(
         tx.FxRate = conv.Value.Rate;
         tx.FxDate = conv.Value.RateDate;
         tx.CategoryId = req.CategoryId;
-        tx.Priority = req.Priority;
+        // Deliberately not checked against the envelope's balance: unlike a withdrawal,
+        // which is bookkeeping, a purchase has already happened. An envelope in the red is
+        // the truth, and the screen shows it rather than refusing the entry.
+        tx.EnvelopeId = req.EnvelopeId;
         tx.Frequency = req.Frequency;
         tx.Date = date;
         tx.MerchantRaw = req.Merchant;

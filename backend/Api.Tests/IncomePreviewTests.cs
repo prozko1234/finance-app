@@ -32,7 +32,6 @@ public class IncomePreviewTests
         FxRate = 1m,
         FxDate = date,
         Date = date,
-        Priority = Priority.Must,
         Frequency = Frequency.OneOff,
     };
 

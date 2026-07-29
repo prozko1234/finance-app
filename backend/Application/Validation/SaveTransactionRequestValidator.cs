@@ -12,7 +12,6 @@ public sealed class SaveTransactionRequestValidator : AbstractValidator<SaveTran
             .NotEmpty()
             .Matches("^[A-Za-z]{3}$").WithMessage("Валюта має бути 3-літерним ISO-кодом.");
         RuleFor(x => x.CategoryId).GreaterThan(0);
-        RuleFor(x => x.Priority).IsInEnum();
         RuleFor(x => x.Frequency).IsInEnum();
         RuleFor(x => x.Note).MaximumLength(500);
         RuleFor(x => x.Merchant).MaximumLength(200);

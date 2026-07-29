@@ -5,7 +5,7 @@ import type { Transaction } from './types'
 function tx(over: Partial<Transaction>): Transaction {
   return {
     id: 1, kind: 'Expense', amountOriginal: 25, currencyOriginal: 'PLN', amountBase: 25,
-    amountDisplay: 25, displayCurrency: 'PLN', fxRate: 1, fxDate: '2026-07-25', categoryId: 1, categoryName: 'Їжа', priority: 'Should',
+    amountDisplay: 25, displayCurrency: 'PLN', fxRate: 1, fxDate: '2026-07-25', categoryId: 1, categoryName: 'Їжа',
     frequency: 'OneOff', source: 'Manual', date: '2026-07-25', createdAt: '', ...over,
   }
 }

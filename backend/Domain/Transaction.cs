@@ -28,7 +28,16 @@ public class Transaction
     public int? RecurringExpenseId { get; set; }
     public RecurringExpense? RecurringExpense { get; set; }
 
-    public Priority Priority { get; set; }
+    /// Which envelope this was paid out of. Null — the ordinary case — means the money
+    /// came from what is free to spend, and the expense pushes the daily norm down.
+    ///
+    /// Replaced Priority (треба/варто/хочу), which asked for a decision on every single
+    /// entry and then did nothing with the answer: no number on any screen changed because
+    /// a purchase was a "want". Where the money comes from does change one — the envelope
+    /// it leaves was already held back, so spending it must not be counted twice.
+    public int? EnvelopeId { get; set; }
+    public Savings.Envelope? Envelope { get; set; }
+
     public Frequency Frequency { get; set; }
     public TxSource Source { get; set; }
 

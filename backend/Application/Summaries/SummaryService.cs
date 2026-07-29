@@ -43,12 +43,15 @@ public sealed class SummaryService(
         // already inside that figure — summing them again would charge those expenses twice.
         var monthRows = db.Transactions.Where(t => t.Date >= month.WindowStart && t.Date <= last);
 
+        // Expenses paid out of an envelope are left out on purpose. That money was taken out
+        // of what is spendable when it went into the envelope; counting it again as it
+        // leaves would charge the daily norm twice for one purchase.
         var spent = await monthRows
-            .Where(t => t.Kind == TransactionKind.Expense)
+            .Where(t => t.Kind == TransactionKind.Expense && t.EnvelopeId == null)
             .SumAsync(t => (decimal?)t.AmountBase, ct) ?? 0m;
 
         var spentToday = await monthRows
-            .Where(t => t.Kind == TransactionKind.Expense && t.Date == today)
+            .Where(t => t.Kind == TransactionKind.Expense && t.EnvelopeId == null && t.Date == today)
             .SumAsync(t => (decimal?)t.AmountBase, ct) ?? 0m;
 
         var recurring = await ReservedRecurringAsync(today, period, ct);

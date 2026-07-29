@@ -11,7 +11,7 @@ public static class DomainMapping
     /// AmountDisplay/DisplayCurrency — the amount is never left labelled the wrong way.
     public static TransactionResponse ToResponse(this Transaction t) => new(
         t.Id, t.Kind.ToString(), t.GrossWithVat, t.VatAmount, t.AmountOriginal, t.CurrencyOriginal, t.AmountBase, t.FxRate, t.FxDate,
-        t.CategoryId, t.Category?.Name ?? "", t.Priority, t.Frequency, t.Source.ToString(),
+        t.CategoryId, t.Category?.Name ?? "", t.EnvelopeId, t.Envelope?.Name, t.Frequency, t.Source.ToString(),
         t.Date, t.MerchantRaw, t.Note, t.CreatedAt, t.AmountBase, Money.BaseCurrency);
 
     public static CategoryResponse ToResponse(this Category c) =>

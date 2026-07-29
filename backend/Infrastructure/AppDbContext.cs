@@ -43,7 +43,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(t => t.MerchantRaw).HasMaxLength(200);
             e.Property(t => t.Note).HasMaxLength(500);
             // Store enums as text — readable in the DB and stable if the order changes.
-            e.Property(t => t.Priority).HasConversion<string>().HasMaxLength(10);
             e.Property(t => t.Frequency).HasConversion<string>().HasMaxLength(10);
             e.Property(t => t.Source).HasConversion<string>().HasMaxLength(15);
             e.Property(t => t.Kind).HasConversion<string>().HasMaxLength(10);
@@ -61,6 +60,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasOne(t => t.RecurringExpense)
                 .WithMany()
                 .HasForeignKey(t => t.RecurringExpenseId)
+                .OnDelete(DeleteBehavior.SetNull);
+            // SetNull, not Restrict: losing the envelope must not lose the expense. The row
+            // falls back to being paid out of ordinary money, which is what it becomes.
+            e.HasOne(t => t.Envelope)
+                .WithMany()
+                .HasForeignKey(t => t.EnvelopeId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
 

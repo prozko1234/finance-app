@@ -180,6 +180,9 @@ function App() {
         {view === 'add' && (
           <AddTransaction
             categories={categories.data ?? []}
+            // Тільки ті, де є що витрачати: конверт із нулем як джерело — це вибір,
+            // який нічого не дає.
+            envelopes={(summary.data?.envelopes ?? []).filter((e) => e.balance > 0)}
             onSave={handleSave}
             onSaveIncome={async (i: SaveIncome) => { await createIncome.mutateAsync(i); setView('home') }}
             onSaveRecurring={async (r) => { await createRecurring.mutateAsync(r); setView('home') }}

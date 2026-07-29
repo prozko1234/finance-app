@@ -327,6 +327,10 @@ function RecentList({ transactions, onDelete, onEdit }: { transactions: Transact
             >
               <p className="font-medium truncate">
                 {t.kind === 'Income' ? 'Дохід' : t.categoryName}
+                {/* Видно одразу, чому ця витрата не зменшила денну норму. */}
+                {t.envelopeName && (
+                  <span className="text-xs text-neutral-400"> · з «{t.envelopeName}»</span>
+                )}
               </p>
               <p className="text-xs text-neutral-400 truncate">
                 {t.note || t.merchant || t.date}

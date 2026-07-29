@@ -83,7 +83,6 @@ public sealed class RecurringMaterializer(IAppDbContext db, IFxConverter fx) : I
             FxDate = conv.Value.RateDate,
             CategoryId = r.CategoryId,
             RecurringExpenseId = r.Id,
-            Priority = Priority.Must,
             Frequency = Frequency.Recurring,
             Source = TxSource.Recurring,
             Date = occ,

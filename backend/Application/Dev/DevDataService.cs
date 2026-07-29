@@ -111,7 +111,6 @@ public sealed class DevDataService(IAppDbContext db) : IDevDataService
         FxRate = 1m,
         FxDate = date,
         CategoryId = categoryId,
-        Priority = Priority.Should,
         Frequency = Frequency.OneOff,
         Date = date,
         Note = note,

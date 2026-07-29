@@ -1,4 +1,3 @@
-export type Priority = 'Must' | 'Should' | 'Want'
 export type Frequency = 'OneOff' | 'Recurring'
 
 export interface Category {
@@ -32,7 +31,9 @@ export interface Transaction {
   fxDate: string
   categoryId: number
   categoryName: string
-  priority: Priority
+  /// З якого конверта заплачено. null — зі звичайних грошей на витрати.
+  envelopeId?: number | null
+  envelopeName?: string | null
   frequency: Frequency
   source: string
   date: string
@@ -45,11 +46,12 @@ export interface SaveTransaction {
   amount: number
   currency: string
   categoryId: number
-  priority: Priority
   frequency: Frequency
   date?: string | null
   merchant?: string | null
   note?: string | null
+  /// Звідки гроші: null (і за замовчуванням) — зі звичайних, інакше id конверта.
+  envelopeId?: number | null
 }
 
 /// Local YYYY-MM-DD (never UTC — a late-evening entry must not jump to tomorrow).
