@@ -47,13 +47,20 @@ public sealed class MonthlyBudget(IAppDbContext db, IBudgetPeriods periods) : IM
             // Income that landed AFTER the count is money the user did not have when they
             // counted, so it is added on top. Taxes on it are computed over that income
             // alone — slightly off if an earlier invoice in the same month already carried
-            // the flat ZUS, but this only ever affects the first partial month.
-            var (later, laterTaxes) = await TakeHomeAsync(opening.Date.AddDays(1), last, ct);
+            // the flat ZUS, but this only ever affects the first partial period.
+            //
+            // Income on the COUNT'S OWN DAY used to be dropped entirely, on the assumption
+            // that it was already inside the counted figure. That assumption is wrong half
+            // the time and it is expensive: count your balance in the morning, get paid in
+            // the afternoon, and the salary vanishes from the app for the rest of the
+            // period. The row's timestamp settles it without asking — money recorded after
+            // the count was made is money that came after it.
+            var (later, laterTaxes) = await TakeHomeAsync(opening.Date, last, opening.UpdatedAt, ct);
             return new MonthlyBudgetResult(
                 opening.AmountBase + later, laterTaxes, opening.Date, true);
         }
 
-        var (takeHome, taxes) = await TakeHomeAsync(first, last, ct);
+        var (takeHome, taxes) = await TakeHomeAsync(first, last, null, ct);
 
         // No income and no count = no budget, and the app says so instead of inventing one.
         // There used to be a "запасний бюджет" here: a monthly amount typed once in settings
@@ -67,13 +74,23 @@ public sealed class MonthlyBudget(IAppDbContext db, IBudgetPeriods periods) : IM
     }
 
     /// Revenue over a date range, run through the tax profile. Zero when there is no income.
+    /// <param name="recordedAfter">When set, income dated on <paramref name="from"/> only
+    /// counts if it was entered after this moment — the tie-break for the day an opening
+    /// balance was taken.</param>
     private async Task<(decimal TakeHome, TakeHomeBreakdown? Taxes)> TakeHomeAsync(
-        DateOnly from, DateOnly to, CancellationToken ct)
+        DateOnly from, DateOnly to, DateTimeOffset? recordedAfter, CancellationToken ct)
     {
         // Income rows store revenue (przychód, VAT excluded) in AmountBase.
-        var revenue = await db.Transactions
+        var rows = await db.Transactions
             .Where(t => t.Date >= from && t.Date <= to && t.Kind == TransactionKind.Income)
-            .SumAsync(t => (decimal?)t.AmountBase, ct) ?? 0m;
+            .Select(t => new { t.Date, t.AmountBase, t.CreatedAt })
+            .ToListAsync(ct);
+
+        // The timestamp comparison happens here rather than in SQL: SQLite has no real
+        // DateTimeOffset, and it only ever applies to one day's worth of rows anyway.
+        var revenue = rows
+            .Where(t => recordedAfter is not { } cutoff || t.Date > from || t.CreatedAt > cutoff)
+            .Sum(t => t.AmountBase);
 
         if (revenue <= 0) return (0m, null);
 

@@ -86,6 +86,49 @@ public class OpeningBalanceTests
         Assert.Equal(1000m, r.Budget);
     }
 
+    /// Count your balance in the morning, get paid in the afternoon. The salary used to be
+    /// dropped for the whole period, on the assumption that a same-day income was already
+    /// inside the counted figure — which left the app with no budget at all.
+    [Fact]
+    public async Task Income_recorded_after_the_count_counts_even_on_the_same_day()
+    {
+        using var sut = new SqliteInMemory();
+        sut.Db.OpeningBalances.Add(new OpeningBalance
+        {
+            Date = Today, AmountOriginal = 741.69m, CurrencyOriginal = "PLN", AmountBase = 741.69m,
+            UpdatedAt = DateTimeOffset.UtcNow.AddHours(-2),
+        });
+        var salary = Income(26_000m, Today);
+        salary.CreatedAt = DateTimeOffset.UtcNow;
+        sut.Db.Transactions.Add(salary);
+        await sut.Db.SaveChangesAsync();
+
+        var r = await new MonthlyBudget(sut.Db, new BudgetPeriodResolver(sut.Db)).ResolveAsync();
+
+        Assert.Equal(26_741.69m, r.Budget);
+    }
+
+    /// The other half of the same day: money already on the account when it was counted is
+    /// inside that figure, and adding it again would double it.
+    [Fact]
+    public async Task Income_recorded_before_the_count_stays_inside_it()
+    {
+        using var sut = new SqliteInMemory();
+        var salary = Income(26_000m, Today);
+        salary.CreatedAt = DateTimeOffset.UtcNow.AddHours(-2);
+        sut.Db.Transactions.Add(salary);
+        sut.Db.OpeningBalances.Add(new OpeningBalance
+        {
+            Date = Today, AmountOriginal = 741.69m, CurrencyOriginal = "PLN", AmountBase = 741.69m,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        });
+        await sut.Db.SaveChangesAsync();
+
+        var r = await new MonthlyBudget(sut.Db, new BudgetPeriodResolver(sut.Db)).ResolveAsync();
+
+        Assert.Equal(741.69m, r.Budget);
+    }
+
     [Fact]
     public async Task Last_months_count_expires_instead_of_steering_this_month()
     {
