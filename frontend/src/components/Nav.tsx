@@ -30,7 +30,7 @@ const MONEY: Item[] = [
 const SETUP: Item[] = [
   { view: 'categories', label: 'Категорії', icon: '🏷' },
   { view: 'tax', label: 'Податковий профіль', icon: '%' },
-  { view: 'settings', label: 'Бюджет і решта', icon: '⚙' },
+  { view: 'settings', label: 'Налаштування', icon: '⚙' },
 ]
 
 /// One menu, two shapes: a permanent column on desktop, a burger and a slide-over on mobile.
