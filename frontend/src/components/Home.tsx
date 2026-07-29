@@ -98,12 +98,22 @@ function SafeToSpendCard({ summary, onGoSettings }: { summary: SafeToSpend | nul
       <p className="mt-2 text-sm text-neutral-500 leading-relaxed">
         {summary.spentToday > 0
           ? `З норми ${money(summary.dailyNorm ?? 0, c)} на сьогодні вже витрачено ${money(summary.spentToday, c)}.`
-          : `Це норма на сьогодні. До кінця місяця ${summary.daysLeftInMonth} дн.`}
+          : `Це норма на сьогодні. Лишилось ${summary.daysLeftInPeriod} дн.`}
       </p>
       <TomorrowNote summary={summary} />
       <WindowNote summary={summary} />
     </div>
   )
+}
+
+/// «Місяць», поки гроші приходять 1 числа. Коли зарплата в інший день, місяць — не те
+/// слово: період 10.07–09.08 названий місяцем читається як помилка додатка, тому там
+/// стоять самі дати.
+function periodLabel(summary: SafeToSpend): string {
+  if (!summary.periodStart || !summary.periodEnd) return 'Місяць'
+  if (Number(summary.periodStart.slice(8, 10)) === 1) return 'Місяць'
+
+  return `${dayMonth(summary.periodStart)} – ${dayMonth(summary.periodEnd)}`
 }
 
 /// Коли рахунок іде не з 1 числа, це треба сказати прямо — інакше «витрачено» виглядає
@@ -151,7 +161,7 @@ function MonthCard({ summary, onGoAllocation }: { summary: SafeToSpend; onGoAllo
   return (
     <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm">
       <h2 className="text-sm font-medium text-neutral-400 mb-3">
-        {from ? `З ${from}` : 'Місяць'}
+        {from ? `З ${from}` : periodLabel(summary)}
       </h2>
       <dl className="space-y-1.5 text-sm">
         {taxes && (
@@ -177,11 +187,11 @@ function MonthCard({ summary, onGoAllocation }: { summary: SafeToSpend; onGoAllo
         )}
 
         <Row
-          label={from ? 'Було на руках' : 'Бюджет місяця'}
-          value={money(summary.monthlyBudget ?? 0, c)}
+          label={from ? 'Було на руках' : 'Бюджет періоду'}
+          value={money(summary.periodBudget ?? 0, c)}
           strong
         />
-        <Row label={from ? `Витрачено з ${from}` : 'Витрачено'} value={`− ${money(summary.spentThisMonth, c)}`} muted />
+        <Row label={from ? `Витрачено з ${from}` : 'Витрачено'} value={`− ${money(summary.spentThisPeriod, c)}`} muted />
 
         {summary.reservedRecurring > 0 && (
           <Row label="Зарезервовано на підписки" value={`− ${money(summary.reservedRecurring, c)}`} muted />
@@ -198,7 +208,7 @@ function MonthCard({ summary, onGoAllocation }: { summary: SafeToSpend; onGoAllo
           </Details>
         )}
 
-        <Row label="Лишилось" value={money(summary.remainingThisMonth ?? 0, c)} strong />
+        <Row label="Лишилось" value={money(summary.remainingThisPeriod ?? 0, c)} strong />
       </dl>
 
       <button onClick={onGoAllocation} className="mt-3 text-xs text-neutral-400">

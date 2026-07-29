@@ -39,7 +39,8 @@ public interface IEnvelopeService
         decimal monthlyBudget, DateOnly? countedOn = null, CancellationToken ct = default);
 }
 
-public sealed class EnvelopeService(IAppDbContext db, IAllocationService allocations) : IEnvelopeService
+public sealed class EnvelopeService(
+    IAppDbContext db, IAllocationService allocations, IBudgetPeriods periods) : IEnvelopeService
 {
     public async Task<IReadOnlyList<EnvelopeStatus>> StatusAsync(
         decimal monthlyBudget, DateOnly? countedOn = null, CancellationToken ct = default)
@@ -59,7 +60,7 @@ public sealed class EnvelopeService(IAppDbContext db, IAllocationService allocat
             })
             .ToDictionaryAsync(x => x.EnvelopeId, x => x.Balance, ct);
 
-        var (first, last) = MonthRange.Of(DateOnly.FromDateTime(DateTime.Now));
+        var (first, last) = await periods.CurrentAsync(ct);
         var from = countedOn ?? first;
         var thisMonth = await db.SavingsEntries
             .Where(x => x.Date >= from && x.Date <= last)

@@ -27,16 +27,16 @@ public interface IMonthlyBudget
 /// This month's budget: income after tax, or the manually set amount when there is no income.
 /// Extracted so the summary and the savings goal (which can be a % of take-home) agree —
 /// two places deriving take-home separately is how the numbers start to drift.
-public sealed class MonthlyBudget(IAppDbContext db) : IMonthlyBudget
+public sealed class MonthlyBudget(IAppDbContext db, IBudgetPeriods periods) : IMonthlyBudget
 {
     public async Task<MonthlyBudgetResult> ResolveAsync(CancellationToken ct = default)
     {
         var today = DateOnly.FromDateTime(DateTime.Now);
-        var (first, last) = MonthRange.Of(today);
+        var (first, last) = await periods.CurrentAsync(ct);
 
-        // An opening balance taken earlier this month wins over everything: whatever the
+        // An opening balance taken earlier this period wins over everything: whatever the
         // income was, what the user actually HAS is the only number that can be divided over
-        // the days that are left. It expires by itself — next month there is no row in range.
+        // the days that are left. It expires by itself — next period there is no row in range.
         var opening = await db.OpeningBalances
             .Where(x => x.Date >= first && x.Date <= today)
             .OrderByDescending(x => x.Date).ThenByDescending(x => x.Id)

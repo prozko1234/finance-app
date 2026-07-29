@@ -78,6 +78,8 @@ export const api = {
   getSettings: () => http<AppSettings>('/api/settings'),
   setDisplayCurrency: (currency: string) =>
     http<AppSettings>('/api/settings/currency', { method: 'PUT', body: JSON.stringify({ currency }) }),
+  setPeriodStartDay: (day: number) =>
+    http<AppSettings>('/api/settings/period-start-day', { method: 'PUT', body: JSON.stringify({ day }) }),
 
   getRecurring: () => http<Recurring[]>('/api/recurring'),
   createRecurring: (r: SaveRecurring) =>

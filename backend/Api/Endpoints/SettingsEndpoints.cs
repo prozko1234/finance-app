@@ -20,6 +20,12 @@ public static class SettingsEndpoints
         })
             .AddEndpointFilter<ValidationFilter<SetDisplayCurrencyRequest>>();
 
+        g.MapPut("/period-start-day", async (SetPeriodStartDayRequest req, ISettingsService svc, CancellationToken ct) =>
+        {
+            var r = await svc.SetPeriodStartDayAsync(req.Day, ct);
+            return r.IsSuccess ? Results.Ok(r.Value) : r.Error.ToProblem();
+        });
+
         return app;
     }
 }

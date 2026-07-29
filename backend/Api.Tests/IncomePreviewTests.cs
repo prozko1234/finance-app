@@ -1,3 +1,4 @@
+using FinanceApp.Application.Common;
 using FinanceApp.Application.Contracts;
 using FinanceApp.Application.Tax;
 using FinanceApp.Domain;
@@ -41,7 +42,7 @@ public class IncomePreviewTests
         using var mem = new SqliteInMemory();
         mem.Db.TaxProfiles.Add(Profile());
         await mem.Db.SaveChangesAsync();
-        var svc = new TaxService(mem.Db);
+        var svc = new TaxService(mem.Db, new BudgetPeriodResolver(mem.Db));
 
         // 24 600 brutto = 20 000 przychód + 4 600 VAT.
         var r = await svc.PreviewIncomeAsync(new CalculateTakeHomeRequest(24_600m, AmountIncludesVat: true));
@@ -63,7 +64,7 @@ public class IncomePreviewTests
         using var mem = new SqliteInMemory();
         mem.Db.TaxProfiles.Add(Profile());
         await mem.Db.SaveChangesAsync();
-        var svc = new TaxService(mem.Db);
+        var svc = new TaxService(mem.Db, new BudgetPeriodResolver(mem.Db));
 
         var firstPreview = await svc.PreviewIncomeAsync(new CalculateTakeHomeRequest(10_000m, false));
 
@@ -96,7 +97,7 @@ public class IncomePreviewTests
         mem.Db.TaxProfiles.Add(Profile());
         mem.Db.SavingsPlans.Add(new SavingsPlan { Mode = SavingsMode.Percent, Value = 10m, Active = true });
         await mem.Db.SaveChangesAsync();
-        var svc = new TaxService(mem.Db);
+        var svc = new TaxService(mem.Db, new BudgetPeriodResolver(mem.Db));
 
         var r = await svc.PreviewIncomeAsync(new CalculateTakeHomeRequest(20_000m, AmountIncludesVat: false));
 
@@ -113,7 +114,7 @@ public class IncomePreviewTests
         using var mem = new SqliteInMemory();
         mem.Db.TaxProfiles.Add(Profile());
         await mem.Db.SaveChangesAsync();
-        var svc = new TaxService(mem.Db);
+        var svc = new TaxService(mem.Db, new BudgetPeriodResolver(mem.Db));
 
         var p = (await svc.PreviewIncomeAsync(new CalculateTakeHomeRequest(20_000m, false))).Value!;
 

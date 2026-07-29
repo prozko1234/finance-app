@@ -139,6 +139,22 @@ export function useSettings() {
   return useQuery({ queryKey: queryKeys.settings, queryFn: () => api.getSettings() })
 }
 
+/// Так само, як валюта: день зарплати переставляє межі періоду, а отже й бюджет, денну
+/// норму, резерв підписок і цілі конвертів. Дешевше перечитати все, ніж вгадувати.
+export function useSetPeriodStartDay() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (day: number) => api.setPeriodStartDay(day),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.settings })
+      qc.invalidateQueries({ queryKey: queryKeys.summary })
+      qc.invalidateQueries({ queryKey: queryKeys.savings })
+      qc.invalidateQueries({ queryKey: queryKeys.allocations })
+      qc.invalidateQueries({ queryKey: queryKeys.openingBalance })
+    },
+  })
+}
+
 /// Currency touches every number on screen, so a switch invalidates everything that
 /// carries money — not just the settings screen that made the change.
 export function useSetDisplayCurrency() {

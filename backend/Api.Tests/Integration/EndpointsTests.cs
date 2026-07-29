@@ -89,7 +89,7 @@ public class EndpointsTests(TestApiFactory factory) : IClassFixture<TestApiFacto
 
         var body = await res.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(body.GetProperty("budgetSet").GetBoolean());
-        Assert.Equal(3000m, body.GetProperty("monthlyBudget").GetDecimal());
+        Assert.Equal(3000m, body.GetProperty("periodBudget").GetDecimal());
     }
 
     [Fact]
@@ -204,7 +204,7 @@ public class EndpointsTests(TestApiFactory factory) : IClassFixture<TestApiFacto
             Assert.True(body.GetProperty("appliesNow").GetBoolean());
 
             var summary = await _client.GetFromJsonAsync<JsonElement>("/api/summary/safe-to-spend");
-            Assert.Equal(1800m, summary.GetProperty("monthlyBudget").GetDecimal());
+            Assert.Equal(1800m, summary.GetProperty("periodBudget").GetDecimal());
             Assert.True(summary.GetProperty("fromOpeningBalance").GetBoolean());
             Assert.Equal(
                 DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd"),

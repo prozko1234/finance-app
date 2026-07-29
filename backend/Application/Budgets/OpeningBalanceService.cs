@@ -20,7 +20,8 @@ public interface IOpeningBalanceService
 /// One row, overwritten. A second count replaces the first — keeping a history of guesses
 /// about the same month would only raise the question of which one is in force.
 public sealed class OpeningBalanceService(
-    IAppDbContext db, IFxConverter fx, IMoneyViewFactory moneyViews) : IOpeningBalanceService
+    IAppDbContext db, IFxConverter fx, IMoneyViewFactory moneyViews,
+    IBudgetPeriods periods) : IOpeningBalanceService
 {
     public async Task<OpeningBalanceResponse> GetAsync(CancellationToken ct = default) =>
         await ShowAsync(await RowAsync(ct), ct);
@@ -83,14 +84,14 @@ public sealed class OpeningBalanceService(
         if (row is null) return new OpeningBalanceResponse(false, null, view.Currency, null, false);
 
         var today = DateOnly.FromDateTime(DateTime.Now);
-        var (first, _) = MonthRange.Of(today);
+        var (first, _) = await periods.CurrentAsync(ct);
 
         return new OpeningBalanceResponse(
             true,
             await view.FromBaseTodayAsync(row.AmountBase, ct),
             view.Currency,
             row.Date,
-            // Says out loud whether last month's count is still steering the daily norm.
+            // Says out loud whether an earlier count is still steering the daily norm.
             row.Date >= first && row.Date <= today);
     }
 }

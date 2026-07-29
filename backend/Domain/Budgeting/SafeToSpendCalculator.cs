@@ -2,11 +2,11 @@ namespace FinanceApp.Domain.Budgeting;
 
 public record SafeToSpendResult(
     bool BudgetSet,
-    decimal? MonthlyBudget,
-    decimal SpentThisMonth,
+    decimal? PeriodBudget,
+    decimal SpentThisPeriod,
     decimal ReservedRecurring,
-    decimal? RemainingThisMonth,
-    int DaysLeftInMonth,
+    decimal? RemainingThisPeriod,
+    int DaysLeftInPeriod,
     decimal? DailyNorm,          // норма на сьогодні, зафіксована на початок дня
     decimal SpentToday,
     decimal? LeftToday,          // скільки з норми ще лишилось; від'ємне = перебір
@@ -23,24 +23,25 @@ public record SafeToSpendResult(
 public static class SafeToSpendCalculator
 {
     public static SafeToSpendResult Calculate(
-        decimal? monthlyBudget, decimal spentThisMonth, decimal spentToday,
-        decimal reservedRecurring, DateOnly today)
+        decimal? periodBudget, decimal spentThisPeriod, decimal spentToday,
+        decimal reservedRecurring, DateOnly today, BudgetPeriod period)
     {
-        var daysInMonth = DateTime.DaysInMonth(today.Year, today.Month);
-        var daysLeft = daysInMonth - today.Day + 1; // including today
+        // Days to the next payday, not to the 1st: the money has to last until it arrives
+        // again, and that is rarely the end of a calendar month.
+        var daysLeft = period.DaysLeftFrom(today); // including today
 
-        if (monthlyBudget is null)
+        if (periodBudget is null)
             return new SafeToSpendResult(
-                false, null, spentThisMonth, reservedRecurring, null, daysLeft,
+                false, null, spentThisPeriod, reservedRecurring, null, daysLeft,
                 null, spentToday, null, null, null);
 
-        var remaining = monthlyBudget.Value - spentThisMonth - reservedRecurring;
+        var remaining = periodBudget.Value - spentThisPeriod - reservedRecurring;
         var remainingAtStartOfDay = remaining + spentToday;
 
         var dailyNorm = FloorTo2(remainingAtStartOfDay / daysLeft);
         var leftToday = dailyNorm - spentToday;
 
-        // On the last day of the month there is no tomorrow to project onto.
+        // On the last day of the period there is no tomorrow to project onto.
         decimal? tomorrowIfStop = null, tomorrowIfOnPlan = null;
         if (daysLeft > 1)
         {
@@ -49,7 +50,7 @@ public static class SafeToSpendCalculator
         }
 
         return new SafeToSpendResult(
-            true, monthlyBudget, spentThisMonth, reservedRecurring, remaining, daysLeft,
+            true, periodBudget, spentThisPeriod, reservedRecurring, remaining, daysLeft,
             dailyNorm, spentToday, leftToday, tomorrowIfStop, tomorrowIfOnPlan);
     }
 

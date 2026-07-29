@@ -5,13 +5,14 @@ import type { SafeToSpend, Transaction } from '../types'
 
 function summary(over: Partial<SafeToSpend> = {}): SafeToSpend {
   return {
-    date: '2026-07-24', currency: 'PLN', budgetSet: true, monthlyBudget: 3000,
-    spentThisMonth: 0, reservedRecurring: 0, remainingThisMonth: 3000, daysLeftInMonth: 8,
+    date: '2026-07-24', currency: 'PLN', budgetSet: true, periodBudget: 3000,
+    spentThisPeriod: 0, reservedRecurring: 0, remainingThisPeriod: 3000, daysLeftInPeriod: 8,
     dailyNorm: 375, spentToday: 0, leftToday: 375, tomorrowIfStop: 375, tomorrowIfOnPlan: 375,
     monthTaxes: null,
     envelopes: [],
     allocation: null,
     windowStart: '2026-07-01', fromOpeningBalance: false,
+    periodStart: '2026-07-01', periodEnd: '2026-07-31',
     ...over,
   }
 }
@@ -32,7 +33,7 @@ describe('Home', () => {
     render(
       <Home
         {...props}
-        summary={summary({ budgetSet: false, monthlyBudget: null, remainingThisMonth: null, dailyNorm: null, leftToday: null })}
+        summary={summary({ budgetSet: false, periodBudget: null, remainingThisPeriod: null, dailyNorm: null, leftToday: null })}
       />,
     )
     expect(screen.getByText(/Задати місячний бюджет/)).toBeInTheDocument()
@@ -43,7 +44,7 @@ describe('Home', () => {
       <Home
         {...props}
         summary={summary({
-          monthlyBudget: 15245, spentThisMonth: 1200, remainingThisMonth: 14045,
+          periodBudget: 15245, spentThisPeriod: 1200, remainingThisPeriod: 14045,
           monthTaxes: {
             gross: 24600, revenue: 20000, vat: 4600, zusSocial: 1788.19,
             health: 830.58, tax: 2136.23, setAside: 9355, takeHome: 15245,
@@ -95,7 +96,7 @@ describe('Home', () => {
       <Home
         {...props}
         summary={summary({
-          spentThisMonth: 300, spentToday: 300, dailyNorm: 176.47, leftToday: -123.53,
+          spentThisPeriod: 300, spentToday: 300, dailyNorm: 176.47, leftToday: -123.53,
           tomorrowIfStop: 168.75, tomorrowIfOnPlan: 176.47,
         })}
       />,
@@ -143,7 +144,7 @@ describe('Home', () => {
       <Home
         {...props}
         summary={summary({
-          spentThisMonth: 500, monthlyBudget: 6000, remainingThisMonth: 4300,
+          spentThisPeriod: 500, periodBudget: 6000, remainingThisPeriod: 4300,
           allocation: {
             schemeName: '70/20/10', preset: '70-20-10', spendable: 4200, reserved: 1800,
             buckets: [
@@ -161,7 +162,7 @@ describe('Home', () => {
     )
 
     expect(screen.getByText('Місяць')).toBeInTheDocument()
-    expect(screen.getByText('Бюджет місяця')).toBeInTheDocument()
+    expect(screen.getByText('Бюджет періоду')).toBeInTheDocument()
     // Одним рядком: 1200 у заощадження + 600 у борг. Два рядки читались би як
     // подвійне утримання тих самих грошей.
     expect(screen.getByText('Відкладено у конверти')).toBeInTheDocument()
@@ -169,11 +170,25 @@ describe('Home', () => {
     expect(screen.getByText(/куди пішов бюджет/)).toBeInTheDocument()
   })
 
+  /// Для людини, якій платять 10-го, картка «Місяць» з періодом 10.07–09.08 читається
+  /// як помилка додатка. Тому там дати, а не слово.
+  it('names the period by its dates when payday is not the 1st', () => {
+    render(
+      <Home
+        {...props}
+        summary={summary({ periodStart: '2026-07-10', periodEnd: '2026-08-09' })}
+      />,
+    )
+
+    expect(screen.getByText('10 липня – 9 серпня')).toBeInTheDocument()
+    expect(screen.queryByText('Місяць')).not.toBeInTheDocument()
+  })
+
   it('says out loud that the count starts mid-month', () => {
     render(
       <Home
         {...props}
-        summary={summary({ fromOpeningBalance: true, windowStart: '2026-07-20', spentThisMonth: 400 })}
+        summary={summary({ fromOpeningBalance: true, windowStart: '2026-07-20', spentThisPeriod: 400 })}
       />,
     )
 
@@ -184,10 +199,10 @@ describe('Home', () => {
   })
 
   it('keeps the ordinary month wording when the count started on the 1st', () => {
-    render(<Home {...props} summary={summary({ spentThisMonth: 400 })} />)
+    render(<Home {...props} summary={summary({ spentThisPeriod: 400 })} />)
 
     expect(screen.queryByText(/Рахуємо з/)).not.toBeInTheDocument()
-    expect(screen.getByText('Бюджет місяця')).toBeInTheDocument()
+    expect(screen.getByText('Бюджет періоду')).toBeInTheDocument()
   })
 
   it('offers to split the budget while the default scheme is on', () => {

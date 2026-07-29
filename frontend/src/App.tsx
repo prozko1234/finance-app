@@ -7,7 +7,7 @@ import {
   useBudget, useCategories, useCreateRecurring, useCreateTransaction, useDeleteRecurring,
   useCreateCategory, useCreateIncome, useUpdateTransaction, useDeleteCategory, useDeleteTransaction, useRecurring, useUpdateCategory, useSafeToSpend, useSetBudget, useTransactions,
   useUpdateRecurring, useTaxProfile, useTaxDefaults, useSaveTaxProfile,
-  useAllocations, useSaveAllocation, useSettings, useSetDisplayCurrency,
+  useAllocations, useSaveAllocation, useSettings, useSetDisplayCurrency, useSetPeriodStartDay,
   useSavings, useSaveSavingsPlan, useAddSavingsEntry, useUpdateSavingsEntry, useDeleteSavingsEntry,
   useStats, useAuthStatus, useLogin, useLogout, queryKeys,
   useChangePassword, useChangeEmail, useSignOutEverywhere,
@@ -67,6 +67,7 @@ function App() {
   const stats = useStats(MONTHS_BACK, statsMonth, view === 'stats')
   const settings = useSettings()
   const setDisplayCurrency = useSetDisplayCurrency()
+  const setPeriodStartDay = useSetPeriodStartDay()
   const taxProfile = useTaxProfile()
   const taxDefaults = useTaxDefaults()
   const saveTaxProfile = useSaveTaxProfile()
@@ -194,8 +195,9 @@ function App() {
             settings={settings.data ?? null}
             /// The month budget as reported — already in the currency the user reads.
             /// monthTaxes.takeHome would be the PLN figure and would arrive mislabelled.
-            incomeBudget={summary.data?.monthTaxes ? summary.data.monthlyBudget ?? null : null}
+            incomeBudget={summary.data?.monthTaxes ? summary.data.periodBudget ?? null : null}
             onPickCurrency={(c) => setDisplayCurrency.mutateAsync(c).then(() => {})}
+            onPickPeriodStartDay={(d) => setPeriodStartDay.mutateAsync(d).then(() => {})}
             onSave={(amount) => setBudget.mutateAsync(amount).then(() => {})}
             onBack={() => setView('home')}
           />
@@ -228,7 +230,7 @@ function App() {
         {view === 'allocation' && (
           <Allocation
             data={allocations.data ?? null}
-            budget={summary.data?.monthlyBudget ?? null}
+            budget={summary.data?.periodBudget ?? null}
             currency={summary.data?.currency ?? 'PLN'}
             onSave={(a) => saveAllocation.mutateAsync(a).then(() => {})}
             onBack={() => setView('home')}

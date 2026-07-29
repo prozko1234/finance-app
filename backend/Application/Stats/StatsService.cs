@@ -21,6 +21,12 @@ public interface IStatsService
 /// question this screen answers is "чи я взагалі виходжу в плюс і на що йде решта", and
 /// two views answer it.
 ///
+/// Deliberately still CALENDAR months, even though the budget now runs from payday to
+/// payday (<see cref="Domain.Budgeting.BudgetPeriod"/>). A bar labelled «липень» that
+/// actually covers 25.06–24.07 is harder to read than one that covers July, and this screen
+/// answers "чи я виходжу в плюс", not "скільки лишилось" — that question belongs to the home
+/// screen, which does follow the period. Worth revisiting if the two ever have to agree.
+///
 /// Past months are converted at the rate of the LAST DAY OF THEIR MONTH, not today's and
 /// not each transaction's own. Today's rate would redraw last year's bars every morning;
 /// per-transaction rates would make a bar disagree with the category slices inside it,
@@ -49,7 +55,7 @@ public sealed class StatsService(
         // The category breakdown may be asked for a month outside the drawn window (a
         // deep link, a narrower chart later), so the query covers both.
         var from = selected < firstMonth ? selected : firstMonth;
-        var (_, lastDay) = MonthRange.Of(thisMonth);
+        var lastDay = LastDayOf(thisMonth);
 
         var rows = await db.Transactions
             .Where(t => t.Date >= from && t.Date <= lastDay)
@@ -105,9 +111,12 @@ public sealed class StatsService(
     /// finished size yet anyway).
     private static DateOnly RateDateFor(DateOnly month, DateOnly today)
     {
-        var (_, last) = MonthRange.Of(month);
+        var last = LastDayOf(month);
         return last > today ? today : last;
     }
+
+    private static DateOnly LastDayOf(DateOnly month) =>
+        new(month.Year, month.Month, DateTime.DaysInMonth(month.Year, month.Month));
 
     private static string Key(DateOnly month) => month.ToString("yyyy-MM");
 

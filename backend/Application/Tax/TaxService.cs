@@ -18,7 +18,7 @@ public interface ITaxService
     TaxDefaultsResponse GetDefaults();
 }
 
-public sealed class TaxService(IAppDbContext db) : ITaxService
+public sealed class TaxService(IAppDbContext db, IBudgetPeriods periods) : ITaxService
 {
     public async Task<TaxProfileResponse> GetProfileAsync(CancellationToken ct = default)
     {
@@ -69,7 +69,7 @@ public sealed class TaxService(IAppDbContext db) : ITaxService
         var invoice = TakeHomeCalculator.Calculate(p, req.Amount, req.AmountIncludesVat);
         if (!invoice.IsSuccess) return invoice.Error;
 
-        var (first, last) = MonthRange.Of(DateOnly.FromDateTime(DateTime.Now));
+        var (first, last) = await periods.CurrentAsync(ct);
         var revenueSoFar = await db.Transactions
             .Where(t => t.Date >= first && t.Date <= last && t.Kind == TransactionKind.Income)
             .SumAsync(t => (decimal?)t.AmountBase, ct) ?? 0m;

@@ -77,11 +77,11 @@ public record SafeToSpendResponse(
     DateOnly Date,
     string Currency,
     bool BudgetSet,
-    decimal? MonthlyBudget,
-    decimal SpentThisMonth,
+    decimal? PeriodBudget,
+    decimal SpentThisPeriod,
     decimal ReservedRecurring,
-    decimal? RemainingThisMonth,
-    int DaysLeftInMonth,
+    decimal? RemainingThisPeriod,
+    int DaysLeftInPeriod,
     decimal? DailyNorm,
     decimal SpentToday,
     decimal? LeftToday,
@@ -90,10 +90,15 @@ public record SafeToSpendResponse(
     MonthTaxBreakdown? MonthTaxes,
     IReadOnlyList<EnvelopeSummary> Envelopes,
     AllocationSummary? Allocation = null,
-    /// The day the count starts from — the 1st, unless the user began mid-month.
+    /// The day the count starts from — the period's first day, unless the user began
+    /// mid-period by counting what they had.
     DateOnly? WindowStart = null,
     /// True when the budget is "what I have right now" rather than income or a set budget.
-    bool FromOpeningBalance = false);
+    bool FromOpeningBalance = false,
+    /// The period these figures cover. Sent so the screen can name it («10.07 – 09.08»)
+    /// instead of saying "місяць" to someone whose money arrives on the 10th.
+    DateOnly PeriodStart = default,
+    DateOnly PeriodEnd = default);
 
 /// Where the month's budget went before the daily norm was computed — the "куди пішов
 /// бюджет" row. Null-ish case (the default one-bucket scheme) still comes through, so the
@@ -293,6 +298,14 @@ public record CategoryStatsResponse(
 public record AppSettingsResponse(
     string DisplayCurrency,
     string BaseCurrency,
-    bool TaxesInBaseCurrency);
+    bool TaxesInBaseCurrency,
+    /// <summary>Day of the month the money arrives — when the budget period starts.</summary>
+    int PeriodStartDay,
+    /// <summary>The period that day produces right now, so the UI can say it out loud
+    /// instead of making the user work it out from a number.</summary>
+    DateOnly PeriodStart,
+    DateOnly PeriodEnd);
 
 public record SetDisplayCurrencyRequest(string Currency);
+
+public record SetPeriodStartDayRequest(int Day);

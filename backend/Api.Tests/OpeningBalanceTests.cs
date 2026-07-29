@@ -11,7 +11,7 @@ namespace FinanceApp.Api.Tests;
 public class OpeningBalanceTests
 {
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.Now);
-    private static readonly DateOnly First = MonthRange.Of(Today).First;
+    private static readonly DateOnly First = BudgetPeriods.For(Today, BudgetPeriods.FirstOfMonth).Start;
 
     private static Transaction Income(decimal amount, DateOnly date) => new()
     {
@@ -26,7 +26,7 @@ public class OpeningBalanceTests
         sut.Db.Budgets.Add(new Budget { MonthlyAmount = 6000m });
         await sut.Db.SaveChangesAsync();
 
-        var r = await new MonthlyBudget(sut.Db).ResolveAsync();
+        var r = await new MonthlyBudget(sut.Db, new BudgetPeriodResolver(sut.Db)).ResolveAsync();
 
         Assert.Equal(6000m, r.Budget);
         Assert.Equal(First, r.WindowStart);
@@ -46,7 +46,7 @@ public class OpeningBalanceTests
         });
         await sut.Db.SaveChangesAsync();
 
-        var r = await new MonthlyBudget(sut.Db).ResolveAsync();
+        var r = await new MonthlyBudget(sut.Db, new BudgetPeriodResolver(sut.Db)).ResolveAsync();
 
         Assert.Equal(1800m, r.Budget);
         Assert.Equal(Today, r.WindowStart);
@@ -65,7 +65,7 @@ public class OpeningBalanceTests
         sut.Db.Transactions.Add(Income(5000m, First.AddDays(1)));
         await sut.Db.SaveChangesAsync();
 
-        var r = await new MonthlyBudget(sut.Db).ResolveAsync();
+        var r = await new MonthlyBudget(sut.Db, new BudgetPeriodResolver(sut.Db)).ResolveAsync();
 
         Assert.Equal(6000m, r.Budget);
     }
@@ -81,7 +81,7 @@ public class OpeningBalanceTests
         sut.Db.Transactions.Add(Income(5000m, First)); // same day as the count
         await sut.Db.SaveChangesAsync();
 
-        var r = await new MonthlyBudget(sut.Db).ResolveAsync();
+        var r = await new MonthlyBudget(sut.Db, new BudgetPeriodResolver(sut.Db)).ResolveAsync();
 
         Assert.Equal(1000m, r.Budget);
     }
@@ -97,7 +97,7 @@ public class OpeningBalanceTests
         });
         await sut.Db.SaveChangesAsync();
 
-        var r = await new MonthlyBudget(sut.Db).ResolveAsync();
+        var r = await new MonthlyBudget(sut.Db, new BudgetPeriodResolver(sut.Db)).ResolveAsync();
 
         Assert.Equal(6000m, r.Budget); // not 200 — the ordinary month is back
         Assert.Equal(First, r.WindowStart);
@@ -115,7 +115,7 @@ public class OpeningBalanceTests
         });
         await sut.Db.SaveChangesAsync();
 
-        var r = await new MonthlyBudget(sut.Db).ResolveAsync();
+        var r = await new MonthlyBudget(sut.Db, new BudgetPeriodResolver(sut.Db)).ResolveAsync();
 
         Assert.Equal(6000m, r.Budget);
     }

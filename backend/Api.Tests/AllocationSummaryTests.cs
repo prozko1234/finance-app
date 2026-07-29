@@ -1,3 +1,4 @@
+using FinanceApp.Application.Common;
 using FinanceApp.Api.Tests.Integration;
 using FinanceApp.Application.Allocations;
 using FinanceApp.Application.Contracts;
@@ -24,10 +25,11 @@ public class AllocationSummaryTests
         return new SummaryService(
             mem.Db, fx,
             new RecurringMaterializer(mem.Db, fx),
-            new MonthlyBudget(mem.Db),
-            new EnvelopeService(mem.Db, new AllocationService(mem.Db)),
+            new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db)),
+            new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db)),
             new AllocationService(mem.Db),
-            new MoneyViewFactory(mem.Db, fx));
+            new MoneyViewFactory(mem.Db, fx),
+            new BudgetPeriodResolver(mem.Db));
     }
 
     /// The default envelope is what the savings plan feeds and what these tests are about.
@@ -52,7 +54,7 @@ public class AllocationSummaryTests
 
         var r = await Sut(mem).GetSafeToSpendAsync();
 
-        Assert.Equal(Budget, r.RemainingThisMonth);
+        Assert.Equal(Budget, r.RemainingThisPeriod);
         Assert.Equal(AllocationPresets.DailyNormOnly, r.Allocation!.Preset);
         Assert.Equal(Budget, r.Allocation.Spendable);
         Assert.Equal(0m, r.Allocation.Reserved);
@@ -67,7 +69,7 @@ public class AllocationSummaryTests
         var r = await Sut(mem).GetSafeToSpendAsync();
 
         // 70% spendable; the 20% savings and 10% debt never reach the norm.
-        Assert.Equal(4_200m, r.RemainingThisMonth);
+        Assert.Equal(4_200m, r.RemainingThisPeriod);
         Assert.Equal(1_800m, r.Allocation!.Reserved);
         Assert.Equal(1_200m, Savings(r).MonthGoal); // the scheme's 20%
     }
@@ -87,7 +89,7 @@ public class AllocationSummaryTests
 
         // The plan's 2000 is ignored: 1200 is reserved once, not 1200 + 2000.
         Assert.Equal(1_200m, Savings(r).MonthGoal);
-        Assert.Equal(4_800m, r.RemainingThisMonth);
+        Assert.Equal(4_800m, r.RemainingThisPeriod);
     }
 
     [Fact]
@@ -98,8 +100,8 @@ public class AllocationSummaryTests
 
         var fx = new FakeFxConverter();
         var savings = new SavingsService(
-            mem.Db, new MonthlyBudget(mem.Db), fx, new AllocationService(mem.Db),
-            new EnvelopeService(mem.Db, new AllocationService(mem.Db)), new MoneyViewFactory(mem.Db, fx));
+            mem.Db, new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db)), fx, new AllocationService(mem.Db),
+            new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db)), new MoneyViewFactory(mem.Db, fx));
         await savings.AddEntryAsync(new("Deposit", 500m, null, null, null));
 
         var r = await Sut(mem).GetSafeToSpendAsync();
@@ -107,6 +109,6 @@ public class AllocationSummaryTests
         Assert.Equal(500m, Savings(r).DepositedThisMonth);
         Assert.Equal(700m, Savings(r).StillToReserve);
         // Still 4800 spendable: the 500 left the budget as a deposit, not as a second reserve.
-        Assert.Equal(4_800m, r.RemainingThisMonth);
+        Assert.Equal(4_800m, r.RemainingThisPeriod);
     }
 }

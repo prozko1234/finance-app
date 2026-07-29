@@ -1,3 +1,4 @@
+using FinanceApp.Application.Common;
 using FinanceApp.Api.Tests.Integration;
 using FinanceApp.Application.Allocations;
 using FinanceApp.Application.Display;
@@ -17,13 +18,13 @@ public class EnvelopeTests
     private const decimal Budget = 6_000m;
 
     private static EnvelopeService Sut(SqliteInMemory mem) =>
-        new(mem.Db, new AllocationService(mem.Db));
+        new(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db));
 
     private static SavingsService Savings(SqliteInMemory mem)
     {
         var fx = new FakeFxConverter();
         return new SavingsService(
-            mem.Db, new MonthlyBudget(mem.Db), fx, new AllocationService(mem.Db),
+            mem.Db, new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db)), fx, new AllocationService(mem.Db),
             Sut(mem), new MoneyViewFactory(mem.Db, fx));
     }
 

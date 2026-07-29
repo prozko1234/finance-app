@@ -233,11 +233,11 @@ export interface SafeToSpend {
   date: string
   currency: string
   budgetSet: boolean
-  monthlyBudget: number | null
-  spentThisMonth: number
+  periodBudget: number | null
+  spentThisPeriod: number
   reservedRecurring: number
-  remainingThisMonth: number | null
-  daysLeftInMonth: number
+  remainingThisPeriod: number | null
+  daysLeftInPeriod: number
   dailyNorm: number | null
   spentToday: number
   leftToday: number | null
@@ -250,6 +250,9 @@ export interface SafeToSpend {
   windowStart: string | null
   /// Бюджет узятий із «скільки в мене зараз є», а не з доходу чи заданої суми.
   fromOpeningBalance: boolean
+  /// Період, який покривають ці цифри: від дня зарплати до дня перед наступною.
+  periodStart: string
+  periodEnd: string
 }
 
 /// «Скільки в мене зараз є до кінця місяця» — старт не з 1 числа.
@@ -300,6 +303,11 @@ export interface AppSettings {
   baseCurrency: string
   /// true = основна валюта не PLN, тож податковий розклад треба підписати окремо.
   taxesInBaseCurrency: boolean
+  /// День місяця, коли приходять гроші — з нього починається період.
+  periodStartDay: number
+  /// Період, який цей день дає прямо зараз.
+  periodStart: string
+  periodEnd: string
 }
 
 /// Валюта зберігання. Для вводу нових сум — дефолт; для показу бери displayCurrency

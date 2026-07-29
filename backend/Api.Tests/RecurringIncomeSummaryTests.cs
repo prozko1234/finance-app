@@ -1,3 +1,4 @@
+using FinanceApp.Application.Common;
 using FinanceApp.Api.Tests.Integration;
 using FinanceApp.Application.Recurring;
 using FinanceApp.Application.Savings;
@@ -52,10 +53,11 @@ public class RecurringIncomeSummaryTests
         var sut = new SummaryService(
             mem.Db, fx,
             new RecurringMaterializer(mem.Db, fx),
-            new MonthlyBudget(mem.Db),
-            new EnvelopeService(mem.Db, new AllocationService(mem.Db)),
+            new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db)),
+            new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db)),
             new AllocationService(mem.Db),
-            new MoneyViewFactory(mem.Db, fx));
+            new MoneyViewFactory(mem.Db, fx),
+            new BudgetPeriodResolver(mem.Db));
 
         var r = await sut.GetSafeToSpendAsync();
 
