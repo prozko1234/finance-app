@@ -27,7 +27,6 @@ public sealed class DevDataService(IAppDbContext db) : IDevDataService
         db.SavingsEntries.RemoveRange(await db.SavingsEntries.ToListAsync(ct));
         db.SavingsPlans.RemoveRange(await db.SavingsPlans.ToListAsync(ct));
         db.TaxProfiles.RemoveRange(await db.TaxProfiles.ToListAsync(ct));
-        db.Budgets.RemoveRange(await db.Budgets.ToListAsync(ct));
 
         await db.SaveChangesAsync(ct);
     }

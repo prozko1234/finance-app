@@ -23,7 +23,7 @@ public class OpeningBalanceTests
     public async Task Without_an_opening_balance_the_window_is_the_whole_month()
     {
         using var sut = new SqliteInMemory();
-        sut.Db.Budgets.Add(new Budget { MonthlyAmount = 6000m });
+        sut.Db.Transactions.Add(Income(6000m, Today));
         await sut.Db.SaveChangesAsync();
 
         var r = await new MonthlyBudget(sut.Db, new BudgetPeriodResolver(sut.Db)).ResolveAsync();
@@ -39,7 +39,7 @@ public class OpeningBalanceTests
         using var sut = new SqliteInMemory();
         // A set budget exists — the count of what is actually in the account still wins:
         // half of that budget may already have been spent before the app existed.
-        sut.Db.Budgets.Add(new Budget { MonthlyAmount = 6000m });
+        sut.Db.Transactions.Add(Income(6000m, Today));
         sut.Db.OpeningBalances.Add(new OpeningBalance
         {
             Date = Today, AmountOriginal = 1800m, CurrencyOriginal = "PLN", AmountBase = 1800m,
@@ -90,7 +90,7 @@ public class OpeningBalanceTests
     public async Task Last_months_count_expires_instead_of_steering_this_month()
     {
         using var sut = new SqliteInMemory();
-        sut.Db.Budgets.Add(new Budget { MonthlyAmount = 6000m });
+        sut.Db.Transactions.Add(Income(6000m, Today));
         sut.Db.OpeningBalances.Add(new OpeningBalance
         {
             Date = First.AddDays(-1), AmountOriginal = 200m, CurrencyOriginal = "PLN", AmountBase = 200m,
@@ -108,7 +108,7 @@ public class OpeningBalanceTests
     public async Task A_count_dated_in_the_future_is_ignored()
     {
         using var sut = new SqliteInMemory();
-        sut.Db.Budgets.Add(new Budget { MonthlyAmount = 6000m });
+        sut.Db.Transactions.Add(Income(6000m, Today));
         sut.Db.OpeningBalances.Add(new OpeningBalance
         {
             Date = Today.AddDays(1), AmountOriginal = 200m, CurrencyOriginal = "PLN", AmountBase = 200m,

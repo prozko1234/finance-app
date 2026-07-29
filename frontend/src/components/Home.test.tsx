@@ -18,7 +18,7 @@ function summary(over: Partial<SafeToSpend> = {}): SafeToSpend {
 }
 
 const props = {
-  transactions: [], onDelete: vi.fn(), onGoSettings: vi.fn(), onQuickCategory: vi.fn(), onEdit: vi.fn(),
+  transactions: [], onDelete: vi.fn(), onAddIncome: vi.fn(), onQuickCategory: vi.fn(), onEdit: vi.fn(),
   onGoSavings: vi.fn(), onGoAllocation: vi.fn(),
 }
 
@@ -29,14 +29,17 @@ describe('Home', () => {
     expect(screen.getByText(/^375,00/)).toBeInTheDocument() // the headline figure itself
   })
 
-  it('prompts to set a budget when none is set', () => {
+  /// Те саме питання і на першому запуску, і на початку кожного періоду: скільки прийшло.
+  /// Раніше тут пропонувалось вигадати «місячний бюджет».
+  it('asks for the income when the period has none yet', () => {
     render(
       <Home
         {...props}
         summary={summary({ budgetSet: false, periodBudget: null, remainingThisPeriod: null, dailyNorm: null, leftToday: null })}
       />,
     )
-    expect(screen.getByText(/Задати місячний бюджет/)).toBeInTheDocument()
+    expect(screen.getByText(/Вписати дохід/)).toBeInTheDocument()
+    expect(screen.getByText(/Період почався 1 липня/)).toBeInTheDocument()
   })
 
   it('explains the gap between the account and the budget', () => {

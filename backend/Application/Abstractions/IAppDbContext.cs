@@ -13,7 +13,6 @@ public interface IAppDbContext
 {
     DbSet<Transaction> Transactions { get; }
     DbSet<Category> Categories { get; }
-    DbSet<Budget> Budgets { get; }
     DbSet<OpeningBalance> OpeningBalances { get; }
     DbSet<FxRate> FxRates { get; }
     DbSet<RecurringExpense> RecurringExpenses { get; }

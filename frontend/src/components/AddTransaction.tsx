@@ -21,6 +21,8 @@ interface Props {
   editing?: Transaction | null
   /// Preselected category from a quick-category tap — only the amount is left to type.
   presetCategoryId?: number | null
+  /// З чого відкрити форму. Головна просить дохід — і форма має відкритись на ньому.
+  initialKind?: 'expense' | 'income'
 }
 
 /// One form, three things you can add — so everything is one tap from "+".
@@ -35,13 +37,13 @@ const KIND_TITLE: Record<Kind, string> = {
 
 export function AddTransaction({
   categories, envelopes, onSave, onSaveIncome, onSaveRecurring, onCreateCategory, onCancel,
-  editing, presetCategoryId,
+  editing, presetCategoryId, initialKind = 'expense',
 }: Props) {
   const [newCatOpen, setNewCatOpen] = useState(false)
   const [newCatName, setNewCatName] = useState('')
   const [newCatIcon, setNewCatIcon] = useState('')
   const last = readLastUsed()
-  const [kind, setKind] = useState<Kind>('expense')
+  const [kind, setKind] = useState<Kind>(initialKind)
   const isIncome = kind === 'income'
   const isSubscription = kind === 'subscription'
   const [amount, setAmount] = useState(editing ? String(editing.amountOriginal) : '')

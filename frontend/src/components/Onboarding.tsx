@@ -1,32 +1,41 @@
 import { useState } from 'react'
 import { Card, FormError, PrimaryButton } from './Screen'
 
-/// Три кроки при першому запуску. До них головна показувала «Бюджет ще не заданий» —
-/// технічно правда, але новий користувач не знає ні що таке бюджет тут, ні звідки він
-/// береться, ні чому цифра завищена, якщо ставити додаток 20-го числа.
-///
-/// Другий крок — головний: залишок грошей. Саме він робить чесною денну норму для того,
-/// хто почав користуватись усередині місяця.
+/// Перший запуск. До цього перший крок питав «скільки в тебе виходить на місяць» — тобто
+/// просив вигадати цифру, яка потім жила в налаштуваннях як «запасний бюджет» і тихо
+/// перебивала реальний дохід. Тепер порядок такий, як гроші й приходять: коли зарплата →
+/// скільки прийшло → чи є податки → скільки зараз на руках.
 interface Props {
   currency: string
-  onFinish: (data: { budget: number | null; balance: number | null }) => Promise<void>
+  onFinish: (data: {
+    periodStartDay: number
+    income: number | null
+    balance: number | null
+    setUpTaxes: boolean
+  }) => Promise<void>
   onSkip: () => void
 }
 
 export function Onboarding({ currency, onFinish, onSkip }: Props) {
   const [step, setStep] = useState(0)
-  const [budget, setBudget] = useState('')
+  const today = new Date().getDate()
+  const [day, setDay] = useState(today <= 28 ? today : 1)
+  const [income, setIncome] = useState('')
   const [balance, setBalance] = useState('')
+  const [setUpTaxes, setSetUpTaxes] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const today = new Date().getDate()
-
-  async function finish() {
+  async function finish(taxes: boolean) {
     setSaving(true)
     setError(null)
     try {
-      await onFinish({ budget: parse(budget), balance: parse(balance) })
+      await onFinish({
+        periodStartDay: day,
+        income: parse(income),
+        balance: parse(balance),
+        setUpTaxes: taxes,
+      })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Не вдалося зберегти.')
       setSaving(false)
@@ -35,50 +44,77 @@ export function Onboarding({ currency, onFinish, onSkip }: Props) {
 
   return (
     <div className="space-y-5">
-      <Dots count={3} active={step} />
+      <Dots count={4} active={step} />
 
       {step === 0 && (
         <Step
-          title="Скільки в тебе виходить на місяць?"
-          hint={`Приблизно — це просто відправна точка. Якщо потім заведеш дохід, додаток
-                 порахує суму після податків сам і замінить цю цифру.`}
+          title="Коли до тебе приходять гроші?"
+          hint={`Зарплата, аванс, оплата від клієнта — головне число місяця. Від нього
+                 додаток рахує, на скільки днів треба розтягнути гроші. Якщо приходить
+                 кілька разів — став день основної суми.`}
         >
-          <Amount value={budget} onChange={setBudget} currency={currency} placeholder="6000" />
-          <PrimaryButton onClick={() => setStep(1)} disabled={parse(budget) === null}>
-            Далі
-          </PrimaryButton>
+          <select
+            value={day}
+            onChange={(e) => setDay(Number(e.target.value))}
+            aria-label="День зарплати"
+            className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-transparent px-3 py-3 text-lg"
+          >
+            {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
+              <option key={d} value={d}>{d} числа</option>
+            ))}
+          </select>
+          <PrimaryButton onClick={() => setStep(1)}>Далі</PrimaryButton>
         </Step>
       )}
 
       {step === 1 && (
         <Step
-          title="А скільки в тебе є прямо зараз?"
-          hint={`Стільки, скільки маєш витратити до кінця місяця — подивись у банку і впиши.
-                 Нічого не треба вводити заднім числом: усе, що витрачено до сьогодні, вже
-                 всередині цієї цифри.`}
+          title="Скільки прийшло цього разу?"
+          hint={`Стільки, скільки реально впало на рахунок останнього разу. Це і буде бюджет
+                 періоду — вигадувати «скільки виходить на місяць» не треба.`}
         >
-          <Amount value={balance} onChange={setBalance} currency={currency} placeholder="1800" />
-          <PrimaryButton onClick={() => setStep(2)} disabled={parse(balance) === null}>
+          <Amount value={income} onChange={setIncome} currency={currency} placeholder="6000" />
+          <PrimaryButton onClick={() => setStep(2)} disabled={parse(income) === null}>
             Далі
           </PrimaryButton>
-          {today === 1 && (
-            <button onClick={() => setStep(2)} className="w-full text-xs text-neutral-400 py-1">
-              Сьогодні 1 число — можна пропустити
-            </button>
-          )}
         </Step>
       )}
 
       {step === 2 && (
         <Step
-          title="Це все"
-          hint={`Далі — одна цифра на головній: скільки можна витратити сьогодні. Кнопка «+»
-                 внизу додає витрату, і цифра одразу перераховується. Вести облік не треба.`}
+          title="Податки з цієї суми платиш сам?"
+          hint={`ФОП, B2B, ryczałt — тоді з приходу треба відкласти VAT, ZUS, здоровотну й
+                 податок, і витрачати можна значно менше, ніж прийшло. На звичайній
+                 зарплаті все це утримали ще до тебе.`}
         >
+          <Choice onClick={() => { setSetUpTaxes(false); setStep(3) }}>
+            Ні, гроші приходять уже чисті
+          </Choice>
+          <Choice onClick={() => { setSetUpTaxes(true); setStep(3) }}>
+            Так, ФОП / B2B
+          </Choice>
+        </Step>
+      )}
+
+      {step === 3 && (
+        <Step
+          title="Скільки в тебе є прямо зараз?"
+          hint={`Подивись у банку і впиши. Якщо ставиш додаток посеред періоду, частина
+                 грошей уже витрачена — і саме ця цифра робить денну норму чесною. Нічого
+                 заднім числом вводити не треба.`}
+        >
+          <Amount value={balance} onChange={setBalance} currency={currency} placeholder="1800" />
           <FormError>{error}</FormError>
-          <PrimaryButton onClick={finish} disabled={saving}>
-            {saving ? 'Зберігаю…' : 'Почати'}
+          <PrimaryButton onClick={() => void finish(setUpTaxes)} disabled={saving}>
+            {saving ? 'Зберігаю…' : setUpTaxes ? 'Далі — податки' : 'Почати'}
           </PrimaryButton>
+          <button
+            onClick={() => void finish(setUpTaxes)}
+            disabled={saving}
+            className="w-full text-xs text-neutral-400 py-1"
+          >
+            Не знаю — пропустити
+          </button>
         </Step>
       )}
 
@@ -98,6 +134,19 @@ function Step({ title, hint, children }: {
       <p className="text-sm text-neutral-500 leading-relaxed">{hint}</p>
       {children}
     </Card>
+  )
+}
+
+/// Відповідь-кнопка: тап = відповів і пішов далі. Питання з двома варіантами не варте
+/// окремого «Далі».
+function Choice({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full rounded-xl bg-neutral-100 dark:bg-neutral-800 py-3 font-medium"
+    >
+      {children}
+    </button>
   )
 }
 
@@ -137,8 +186,8 @@ function Dots({ count, active }: { count: number; active: number }) {
   )
 }
 
-/// Порожнє поле — це «пропустив», а не нуль: нуль означав би бюджет у нуль злотих.
+/// Порожнє поле — це «пропустив», а не нуль: нуль означав би дохід у нуль злотих.
 function parse(v: string): number | null {
   const n = Number(v.replace(',', '.'))
-  return v.trim() === '' || Number.isNaN(n) || n < 0 ? null : n
+  return v.trim() === '' || Number.isNaN(n) || n <= 0 ? null : n
 }

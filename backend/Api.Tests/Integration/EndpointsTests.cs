@@ -78,25 +78,21 @@ public class EndpointsTests(TestApiFactory factory) : IClassFixture<TestApiFacto
         Assert.Equal(HttpStatusCode.NotFound, res.StatusCode);
     }
 
+    /// Money that arrived is now the only thing a budget can be made of — the fallback
+    /// amount typed into settings is gone.
     [Fact]
-    public async Task Budget_and_safe_to_spend_flow()
+    public async Task Income_becomes_the_budget()
     {
-        var put = await _client.PutAsJsonAsync("/api/budget", new { amount = 3000m });
+        var put = await _client.PostAsJsonAsync("/api/transactions/income", new
+        {
+            amount = 3000m, amountIncludesVat = false, currency = "PLN",
+        });
         put.EnsureSuccessStatusCode();
 
-        var res = await _client.GetAsync("/api/summary/safe-to-spend");
-        res.EnsureSuccessStatusCode();
+        var body = await _client.GetFromJsonAsync<JsonElement>("/api/summary/safe-to-spend");
 
-        var body = await res.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(body.GetProperty("budgetSet").GetBoolean());
         Assert.Equal(3000m, body.GetProperty("periodBudget").GetDecimal());
-    }
-
-    [Fact]
-    public async Task Negative_budget_returns_400()
-    {
-        var res = await _client.PutAsJsonAsync("/api/budget", new { amount = -5m });
-        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
     }
 
     [Fact]
@@ -192,9 +188,9 @@ public class EndpointsTests(TestApiFactory factory) : IClassFixture<TestApiFacto
     [Fact]
     public async Task Counting_what_is_left_takes_over_the_month_and_moves_the_window()
     {
-        // Starting mid-month: what is in the account beats the budget on file, and spending
-        // is counted from the day of the count — the rest is already inside that figure.
-        await _client.PutAsJsonAsync("/api/budget", new { amount = 6000m });
+        // Starting mid-period: what is in the account beats whatever income says, and
+        // spending is counted from the day of the count — the rest is already inside that
+        // figure.
         try
         {
             var res = await _client.PutAsJsonAsync("/api/opening-balance", new { amount = 1800m });

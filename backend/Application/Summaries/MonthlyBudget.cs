@@ -54,10 +54,16 @@ public sealed class MonthlyBudget(IAppDbContext db, IBudgetPeriods periods) : IM
         }
 
         var (takeHome, taxes) = await TakeHomeAsync(first, last, ct);
-        if (takeHome > 0) return new MonthlyBudgetResult(takeHome, taxes, first, false);
 
-        var manual = await db.Budgets.OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
-        return new MonthlyBudgetResult(manual?.MonthlyAmount, null, first, false);
+        // No income and no count = no budget, and the app says so instead of inventing one.
+        // There used to be a "запасний бюджет" here: a monthly amount typed once in settings
+        // that quietly took over whenever income was missing. It was a second answer to
+        // "скільки в мене грошей" that could disagree with the first one for months without
+        // anybody noticing — and one more thing to set up before the app said anything
+        // useful. The budget now has exactly one source: money that actually arrived.
+        return takeHome > 0
+            ? new MonthlyBudgetResult(takeHome, taxes, first, false)
+            : new MonthlyBudgetResult(null, null, first, false);
     }
 
     /// Revenue over a date range, run through the tax profile. Zero when there is no income.

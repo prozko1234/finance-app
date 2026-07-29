@@ -52,9 +52,7 @@ public record CategoryResponse(int Id, string Name, string? Icon, string? Color,
 
 public record SaveCategoryRequest(string Name, string? Icon, string? Color);
 
-public record SetBudgetRequest(decimal Amount);
 
-public record BudgetResponse(bool Set, decimal? MonthlyAmount, string Currency, DateTimeOffset? UpdatedAt);
 
 /// Where this month's income went before it became a budget. Explains the gap between
 /// "money on the account" and "money you may actually spend". Null when there is no

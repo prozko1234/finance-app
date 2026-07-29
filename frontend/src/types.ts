@@ -76,13 +76,6 @@ export interface SaveIncome {
   note?: string | null
 }
 
-export interface Budget {
-  set: boolean
-  monthlyAmount: number | null
-  currency: string
-  updatedAt: string | null
-}
-
 /// Explains the gap between what landed on the account and the month's budget.
 export interface MonthTaxes {
   gross: number

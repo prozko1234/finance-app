@@ -1,3 +1,4 @@
+using static FinanceApp.Api.Tests.TestIncome;
 using FinanceApp.Application.Common;
 using FinanceApp.Api.Tests.Integration;
 using FinanceApp.Application.Allocations;
@@ -41,7 +42,7 @@ public class AllocationSummaryTests
         await mem.Db.SaveChangesAsync(); // released before the new one claims the unique index
 
         mem.Db.AllocationSchemes.Add(AllocationPresets.Find(preset)!.ToScheme(isActive: true));
-        mem.Db.Budgets.Add(new Budget { MonthlyAmount = Budget, UpdatedAt = DateTimeOffset.UtcNow });
+        mem.Db.Transactions.Add(Income(Budget));
         await mem.Db.SaveChangesAsync();
     }
 
@@ -49,7 +50,7 @@ public class AllocationSummaryTests
     public async Task Default_scheme_leaves_the_whole_budget_spendable()
     {
         using var mem = new SqliteInMemory();
-        mem.Db.Budgets.Add(new Budget { MonthlyAmount = Budget, UpdatedAt = DateTimeOffset.UtcNow });
+        mem.Db.Transactions.Add(Income(Budget));
         await mem.Db.SaveChangesAsync();
 
         var r = await Sut(mem).GetSafeToSpendAsync();

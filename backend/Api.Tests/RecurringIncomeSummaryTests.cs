@@ -1,3 +1,4 @@
+using static FinanceApp.Api.Tests.TestIncome;
 using FinanceApp.Application.Common;
 using FinanceApp.Api.Tests.Integration;
 using FinanceApp.Application.Recurring;
@@ -24,7 +25,7 @@ public class RecurringIncomeSummaryTests
 
         var category = new Category { Name = "Дохід" };
         mem.Db.Categories.Add(category);
-        mem.Db.Budgets.Add(new Budget { MonthlyAmount = 5_000m, UpdatedAt = DateTimeOffset.UtcNow });
+        mem.Db.Transactions.Add(Income(5_000m));
         await mem.Db.SaveChangesAsync();
 
         mem.Db.RecurringExpenses.Add(new RecurringExpense

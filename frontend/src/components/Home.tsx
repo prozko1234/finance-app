@@ -8,7 +8,7 @@ interface Props {
   summary: SafeToSpend | null
   transactions: Transaction[]
   onDelete: (id: number) => void
-  onGoSettings: () => void
+  onAddIncome: () => void
   onQuickCategory: (categoryId: number) => void
   onEdit: (t: Transaction) => void
   onGoSavings: () => void
@@ -16,13 +16,13 @@ interface Props {
 }
 
 export function Home({
-  summary, transactions, onDelete, onGoSettings, onQuickCategory, onEdit, onGoSavings, onGoAllocation,
+  summary, transactions, onDelete, onAddIncome, onQuickCategory, onEdit, onGoSavings, onGoAllocation,
 }: Props) {
   const quick = buildQuickCategories(transactions, (name) => ICONS[name] ?? '📦')
 
   return (
     <div className="space-y-6">
-      <SafeToSpendCard summary={summary} onGoSettings={onGoSettings} />
+      <SafeToSpendCard summary={summary} onAddIncome={onAddIncome} />
       {summary?.budgetSet && <MonthCard summary={summary} onGoAllocation={onGoAllocation} />}
       {summary && (
         <EnvelopesCard envelopes={summary.envelopes} currency={summary.currency} onOpen={onGoSavings} />
@@ -57,24 +57,27 @@ function QuickRow({ categories, onPick }: {
   )
 }
 
-function SafeToSpendCard({ summary, onGoSettings }: { summary: SafeToSpend | null; onGoSettings: () => void }) {
+function SafeToSpendCard({ summary, onAddIncome }: { summary: SafeToSpend | null; onAddIncome: () => void }) {
   if (!summary) {
     return <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm animate-pulse h-40" />
   }
 
+  // Питання одне й те саме і на першому запуску, і кожного разу, коли починається новий
+  // період: скільки прийшло. Раніше тут пропонувалось «задати місячний бюджет» — вигадану
+  // цифру, яка потім жила своїм життям поруч із реальним доходом.
   if (!summary.budgetSet) {
     return (
       <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm text-center space-y-3">
-        <p className="font-medium">Ще нема з чого рахувати</p>
+        <p className="font-medium">Новий період — скільки прийшло?</p>
         <p className="text-sm text-neutral-500 leading-relaxed">
-          Додатку потрібно знати, скільки грошей у тебе на цей місяць. Тоді він щодня
-          казатиме одну цифру: скільки можна витратити сьогодні.
+          Період почався {dayMonth(summary.periodStart)}, доходу за нього ще немає. Впиши
+          суму — і додаток знову казатиме одну цифру: скільки можна витратити сьогодні.
         </p>
         <button
-          onClick={onGoSettings}
+          onClick={onAddIncome}
           className="rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 px-4 py-2 font-medium"
         >
-          Задати місячний бюджет
+          Вписати дохід
         </button>
       </div>
     )

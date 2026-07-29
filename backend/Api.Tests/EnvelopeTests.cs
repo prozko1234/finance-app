@@ -1,3 +1,4 @@
+using static FinanceApp.Api.Tests.TestIncome;
 using FinanceApp.Application.Common;
 using FinanceApp.Api.Tests.Integration;
 using FinanceApp.Application.Allocations;
@@ -34,7 +35,7 @@ public class EnvelopeTests
         await mem.Db.SaveChangesAsync();
 
         mem.Db.AllocationSchemes.Add(AllocationPresets.Find(preset)!.ToScheme(isActive: true));
-        mem.Db.Budgets.Add(new Budget { MonthlyAmount = Budget, UpdatedAt = DateTimeOffset.UtcNow });
+        mem.Db.Transactions.Add(Income(Budget));
         await mem.Db.SaveChangesAsync();
     }
 
@@ -58,7 +59,7 @@ public class EnvelopeTests
     public async Task The_default_pot_exists_even_with_no_scheme_at_all()
     {
         using var mem = new SqliteInMemory();
-        mem.Db.Budgets.Add(new Budget { MonthlyAmount = Budget, UpdatedAt = DateTimeOffset.UtcNow });
+        mem.Db.Transactions.Add(Income(Budget));
         await mem.Db.SaveChangesAsync();
 
         var envelopes = await Sut(mem).StatusAsync(Budget);

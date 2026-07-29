@@ -8,7 +8,6 @@ import type {
 export const queryKeys = {
   categories: ['categories'] as const,
   transactions: ['transactions'] as const,
-  budget: ['budget'] as const,
   openingBalance: ['openingBalance'] as const,
   summary: ['summary'] as const,
   recurring: ['recurring'] as const,
@@ -121,10 +120,6 @@ export function useTransactions() {
   return useQuery({ queryKey: queryKeys.transactions, queryFn: () => api.getTransactions() })
 }
 
-export function useBudget() {
-  return useQuery({ queryKey: queryKeys.budget, queryFn: () => api.getBudget() })
-}
-
 export function useSafeToSpend() {
   return useQuery({ queryKey: queryKeys.summary, queryFn: () => api.getSafeToSpend() })
 }
@@ -165,7 +160,6 @@ export function useSetDisplayCurrency() {
       qc.invalidateQueries({ queryKey: queryKeys.settings })
       qc.invalidateQueries({ queryKey: queryKeys.summary })
       qc.invalidateQueries({ queryKey: queryKeys.transactions })
-      qc.invalidateQueries({ queryKey: queryKeys.budget })
       qc.invalidateQueries({ queryKey: queryKeys.savings })
       qc.invalidateQueries({ queryKey: queryKeys.allocations })
     },
@@ -194,7 +188,6 @@ function useInvalidate() {
   return () => {
     qc.invalidateQueries({ queryKey: queryKeys.transactions })
     qc.invalidateQueries({ queryKey: queryKeys.summary })
-    qc.invalidateQueries({ queryKey: queryKeys.budget })
     qc.invalidateQueries({ queryKey: queryKeys.recurring })
     // Every month cached under any key: a new expense changes the bar it lands in.
     qc.invalidateQueries({ queryKey: queryKeys.stats })
@@ -222,11 +215,6 @@ export function useUpdateTransaction() {
 export function useDeleteTransaction() {
   const invalidate = useInvalidate()
   return useMutation({ mutationFn: (id: number) => api.deleteTransaction(id), onSuccess: invalidate })
-}
-
-export function useSetBudget() {
-  const invalidate = useInvalidate()
-  return useMutation({ mutationFn: (amount: number) => api.setBudget(amount), onSuccess: invalidate })
 }
 
 export function useOpeningBalance() {

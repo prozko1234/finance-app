@@ -4,8 +4,8 @@ import { setOnUnauthorized } from './api'
 import { Login } from './components/Login'
 import type { Recurring as RecurringType, SaveCategory, SaveIncome, SaveTransaction, Transaction } from './types'
 import {
-  useBudget, useCategories, useCreateRecurring, useCreateTransaction, useDeleteRecurring,
-  useCreateCategory, useCreateIncome, useUpdateTransaction, useDeleteCategory, useDeleteTransaction, useRecurring, useUpdateCategory, useSafeToSpend, useSetBudget, useTransactions,
+  useCategories, useCreateRecurring, useCreateTransaction, useDeleteRecurring,
+  useCreateCategory, useCreateIncome, useUpdateTransaction, useDeleteCategory, useDeleteTransaction, useRecurring, useUpdateCategory, useSafeToSpend, useTransactions,
   useUpdateRecurring, useTaxProfile, useTaxDefaults, useSaveTaxProfile,
   useAllocations, useSaveAllocation, useSettings, useSetDisplayCurrency, useSetPeriodStartDay,
   useSavings, useSaveSavingsPlan, useAddSavingsEntry, useUpdateSavingsEntry, useDeleteSavingsEntry,
@@ -33,6 +33,9 @@ function App() {
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   // Set when a quick-category tap opens the form; cleared as soon as the form closes.
   const [presetCategoryId, setPresetCategoryId] = useState<number | null>(null)
+  // Головна просить дохід — форма має відкритись одразу на вкладці «Дохід», інакше
+  // кнопка веде на витрату і питання лишається без відповіді.
+  const [incomeFirst, setIncomeFirst] = useState(false)
   // null = whichever month the server considers current; set once the user taps a bar.
   const [statsMonth, setStatsMonth] = useState<string | null>(null)
   // Survives a reload: "я сам розберусь" must not be asked again on every refresh.
@@ -53,7 +56,6 @@ function App() {
   const categories = useCategories()
   const summary = useSafeToSpend()
   const transactions = useTransactions()
-  const budget = useBudget()
   const openingBalance = useOpeningBalance()
   const setOpeningBalance = useSetOpeningBalance()
   const recurring = useRecurring()
@@ -79,12 +81,11 @@ function App() {
   const updateCategory = useUpdateCategory()
   const deleteCategory = useDeleteCategory()
   const deleteTx = useDeleteTransaction()
-  const setBudget = useSetBudget()
   const createRecurring = useCreateRecurring()
   const updateRecurring = useUpdateRecurring()
   const deleteRecurring = useDeleteRecurring()
 
-  const loadError = summary.error ?? transactions.error ?? budget.error
+  const loadError = summary.error ?? transactions.error
 
   async function handleSave(tx: SaveTransaction) {
     if (editingTx) {
@@ -117,12 +118,11 @@ function App() {
   if (auth.data?.required && !auth.data.authenticated)
     return <Login onSubmit={(c) => login.mutateAsync(c).then(() => {})} />
 
-  // An empty app is indistinguishable from a broken one: the old home said "бюджет ще не
-  // заданий" and left the rest of the screen blank. Derived from the data rather than from
-  // a stored flag, so it cannot get stuck on for someone who already has a budget.
+  // An empty app is indistinguishable from a broken one, so the first run walks through
+  // setup instead of showing an empty screen. Derived from the data rather than from a
+  // stored flag, so it cannot get stuck on for someone who already has money in the app.
   const untouched =
     !skippedOnboarding &&
-    budget.isSuccess && !budget.data.set &&
     openingBalance.isSuccess && !openingBalance.data.isSet &&
     transactions.isSuccess && transactions.data.length === 0
 
@@ -133,10 +133,20 @@ function App() {
           <Onboarding
             currency={settings.data?.displayCurrency ?? 'PLN'}
             onSkip={skipOnboarding}
-            onFinish={async ({ budget: b, balance }) => {
-              if (b !== null) await setBudget.mutateAsync(b)
+            onFinish={async ({ periodStartDay, income, balance, setUpTaxes }) => {
+              await setPeriodStartDay.mutateAsync(periodStartDay)
+              // Дохід першим: із нього рахується бюджет, і залишок має лягати вже поверх
+              // нього, а не навпаки.
+              if (income !== null) {
+                await createIncome.mutateAsync({
+                  amount: income, amountIncludesVat: false, currency: settings.data?.displayCurrency ?? 'PLN',
+                })
+              }
               if (balance !== null) await setOpeningBalance.mutateAsync({ amount: balance })
               skipOnboarding()
+              // Податки — окремий екран, а не ще три кроки в онбордингу: там ставки,
+              // режим і ZUS, і це рішення на пів хвилини, а не на першу мінуту.
+              if (setUpTaxes) setView('tax')
             }}
           />
         </div>
@@ -170,7 +180,7 @@ function App() {
             summary={summary.data ?? null}
             transactions={transactions.data ?? []}
             onDelete={(id) => deleteTx.mutate(id)}
-            onGoSettings={() => setView('settings')}
+            onAddIncome={() => { setIncomeFirst(true); setView('add') }}
             onGoSavings={() => setView('savings')}
             onGoAllocation={() => setView('allocation')}
             onQuickCategory={(categoryId) => { setPresetCategoryId(categoryId); setView('add') }}
@@ -187,21 +197,17 @@ function App() {
             onSaveIncome={async (i: SaveIncome) => { await createIncome.mutateAsync(i); setView('home') }}
             onSaveRecurring={async (r) => { await createRecurring.mutateAsync(r); setView('home') }}
             onCreateCategory={(c: SaveCategory) => createCategory.mutateAsync(c)}
-            onCancel={() => { setEditingTx(null); setPresetCategoryId(null); setView('home') }}
+            onCancel={() => { setEditingTx(null); setPresetCategoryId(null); setIncomeFirst(false); setView('home') }}
             editing={editingTx}
             presetCategoryId={presetCategoryId}
+            initialKind={incomeFirst ? 'income' : 'expense'}
           />
         )}
         {view === 'settings' && (
           <Settings
-            budget={budget.data ?? null}
             settings={settings.data ?? null}
-            /// The month budget as reported — already in the currency the user reads.
-            /// monthTaxes.takeHome would be the PLN figure and would arrive mislabelled.
-            incomeBudget={summary.data?.monthTaxes ? summary.data.periodBudget ?? null : null}
             onPickCurrency={(c) => setDisplayCurrency.mutateAsync(c).then(() => {})}
             onPickPeriodStartDay={(d) => setPeriodStartDay.mutateAsync(d).then(() => {})}
-            onSave={(amount) => setBudget.mutateAsync(amount).then(() => {})}
             onBack={() => setView('home')}
           />
         )}

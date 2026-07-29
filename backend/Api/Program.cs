@@ -202,7 +202,7 @@ app.MapAuthEndpoints(authRequired);
 app.MapGet("/health", () => Results.Ok(new { app = "finance-app", status = "ok" })).AllowAnonymous();
 app.MapCategoryEndpoints();
 app.MapTransactionEndpoints();
-app.MapBudgetEndpoints();
+app.MapOpeningBalanceEndpoints();
 app.MapSummaryEndpoints();
 app.MapStatsEndpoints();
 app.MapRecurringEndpoints();
