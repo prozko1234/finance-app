@@ -522,7 +522,7 @@ function SavingsRow({ preview }: { preview: IncomePreview }) {
         className="w-full flex justify-between gap-3 border-t border-neutral-200 dark:border-neutral-700 pt-1.5 text-xs text-left"
       >
         <span className="text-neutral-400">
-          {preview.savingsGoalAfter > 0 ? `У заощадження піде${share}` : 'У заощадження нічого не піде'}
+          {preview.savingsGoalAfter > 0 ? `У банки піде${share}` : 'У банки нічого не піде'}
           <span className="text-neutral-300 dark:text-neutral-600"> · змінити</span>
         </span>
         <span className="tabular-nums font-medium">

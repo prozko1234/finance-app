@@ -1,5 +1,6 @@
 import type { EnvelopeSummary, SafeToSpend, Transaction } from '../types'
 import { dayMonth, money } from '../format'
+import { envelopeIcon } from '../envelopeWords'
 import { buildQuickCategories, type QuickCategory } from '../quickCategories'
 
 interface Props {
@@ -241,7 +242,7 @@ function EnvelopesCard({ envelopes, currency, onOpen }: {
         {alive.map((e) => (
           <div key={e.id} className="flex justify-between gap-3">
             <dt className="truncate">
-              {ENVELOPE_ICONS[e.kind]} {e.name}
+              {envelopeIcon(e.kind)} {e.name}
               {e.monthGoal > 0 && (
                 <span className="text-neutral-400 text-xs">
                   {' · '}
@@ -260,10 +261,6 @@ function EnvelopesCard({ envelopes, currency, onOpen }: {
       </dl>
     </button>
   )
-}
-
-const ENVELOPE_ICONS: Record<string, string> = {
-  Savings: '🐖', Investing: '📈', Debt: '🏦', Other: '📦', Spending: '💳',
 }
 
 function RecentList({ transactions, onDelete, onEdit }: { transactions: Transaction[]; onDelete: (id: number) => void; onEdit: (t: Transaction) => void }) {

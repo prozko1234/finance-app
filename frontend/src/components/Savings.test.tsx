@@ -251,4 +251,23 @@ describe('Savings', () => {
     await user.click(screen.getByText('Прибрати'))
     await waitFor(() => expect(onSetTarget).toHaveBeenCalledWith(3, { amount: null }))
   })
+  /// «Внесок у заощадження» під 🐖 у банці «Зобовʼязання» читався як помилка застосунку.
+  it('speaks the language of the jar it is showing', async () => {
+    renderScreen(data([envelope({ id: 4, name: 'Зобовʼязання', kind: 'Debt', isDefault: false })], {
+      recent: [
+        {
+          id: 12, date: '2026-07-30', kind: 'Deposit', amount: 800, amountOriginal: 800,
+          currencyOriginal: 'PLN', note: null, envelopeId: 4, envelopeName: 'Зобовʼязання',
+          isAuto: false,
+        },
+      ],
+    }))
+    const user = userEvent.setup()
+
+    await user.click(screen.getByText('Зобовʼязання'))
+
+    expect(screen.getByText('+ Погасити')).toBeInTheDocument()
+    expect(screen.getByText('Погашення')).toBeInTheDocument()
+    expect(screen.queryByText('Внесок')).not.toBeInTheDocument()
+  })
 })

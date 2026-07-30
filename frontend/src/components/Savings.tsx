@@ -3,6 +3,7 @@ import type { BucketKind, EnvelopePeriod as EnvelopePeriodType, EnvelopeSummary,
 import { BASE_CURRENCY, CURRENCIES, todayIso } from '../types'
 import { dayMonth, money } from '../format'
 import { useEnvelopeHistory } from '../hooks'
+import { WITHDRAWAL_ACTION, WITHDRAWAL_ICON, WITHDRAWAL_LABEL, envelopeIcon, envelopeWords } from '../envelopeWords'
 import { Card, CardSkeleton, FormError, PrimaryButton, Screen, SectionTitle } from './Screen'
 
 interface Props {
@@ -117,9 +118,10 @@ function EnvelopeList({ envelopes, currency, onOpen }: {
           <button
             key={e.id}
             onClick={() => onOpen(e.id)}
-            className="w-full rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm text-left flex items-baseline justify-between gap-3"
+            className="w-full rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm text-left flex items-center justify-between gap-3"
           >
-            <span className="min-w-0">
+            <span className="text-xl shrink-0" aria-hidden>{envelopeIcon(e.kind)}</span>
+            <span className="min-w-0 flex-1">
               <span className="block font-medium truncate">{e.name}</span>
               {/* Одне число під назвою — рух саме цього періоду. Ціль і «ще тримається»
                   прибрані: під схемою вони майже завжди збігаються й нічого не додають. */}
@@ -499,6 +501,7 @@ function EnvelopeDetail({ envelope, data, onSavePlan, onAddEntry, onUpdateEntry,
         currency={data.currency}
         balance={envelope.balance}
         envelopeId={envelope.id}
+        kind={envelope.kind}
         onAdd={onAddEntry}
       />
 
@@ -516,6 +519,7 @@ function EnvelopeDetail({ envelope, data, onSavePlan, onAddEntry, onUpdateEntry,
       <History
         data={data}
         envelopeId={envelope.id}
+        kind={envelope.kind}
         editing={editing}
         onEdit={setEditing}
         onSave={async (id, e) => { await onUpdateEntry(id, e); setEditing(null) }}
@@ -551,12 +555,14 @@ function PeriodHistory({ periods, currency }: { periods: EnvelopePeriodType[]; c
 
 /// Рух руками. Схема відкладає сама, тож внесок звідси — це «понад план», і він справді
 /// зменшує «можна витратити сьогодні» на свою суму.
-function MoveMoney({ currency, balance, envelopeId, onAdd }: {
+function MoveMoney({ currency, balance, envelopeId, kind, onAdd }: {
   currency: string
   balance: number
   envelopeId: number | undefined
+  kind: BucketKind
   onAdd: (e: SaveSavingsEntry) => Promise<void>
 }) {
+  const words = envelopeWords(kind)
   const [amount, setAmount] = useState('')
   const [entryCurrency, setEntryCurrency] = useState<string>(BASE_CURRENCY)
   const [note, setNote] = useState('')
@@ -619,7 +625,7 @@ function MoveMoney({ currency, balance, envelopeId, onAdd }: {
           onClick={() => move('Deposit')}
           className="flex-1 rounded-xl bg-emerald-600 text-white px-3 py-2.5 font-medium disabled:opacity-40"
         >
-          + Відкласти
+          + {words.depositAction}
         </button>
         <button
           // In another currency the limit is only known after conversion, so the check is
@@ -628,7 +634,7 @@ function MoveMoney({ currency, balance, envelopeId, onAdd }: {
           onClick={() => move('Withdrawal')}
           className="flex-1 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2.5 font-medium disabled:opacity-40"
         >
-          − Зняти
+          − {WITHDRAWAL_ACTION}
         </button>
       </div>
       <p className="text-xs text-neutral-400">
@@ -721,9 +727,10 @@ function PlanForm({ data, onSave }: { data: SavingsData; onSave: (p: SaveSavings
   )
 }
 
-function History({ data, envelopeId, editing, onEdit, onSave, onDelete }: {
+function History({ data, envelopeId, kind, editing, onEdit, onSave, onDelete }: {
   data: SavingsData
   envelopeId: number | undefined
+  kind: BucketKind
   editing: SavingsEntry | null
   onEdit: (e: SavingsEntry | null) => void
   onSave: (id: number, e: SaveSavingsEntry) => Promise<void>
@@ -743,7 +750,9 @@ function History({ data, envelopeId, editing, onEdit, onSave, onDelete }: {
               <EditEntry entry={e} onSave={(payload) => onSave(e.id, payload)} onCancel={() => onEdit(null)} />
             ) : (
               <div className="flex items-center gap-3">
-                <span className="text-xl">{e.kind === 'Deposit' ? '🐖' : '↩️'}</span>
+                <span className="text-xl" aria-hidden>
+                  {e.kind === 'Deposit' ? envelopeIcon(kind) : WITHDRAWAL_ICON}
+                </span>
                 {/* Внесок за схемою не редагується і не видаляється: наступне завантаження
                     екрана привело б його назад, і дія виглядала б так, ніби скасувалась
                     сама. Хочеш іншу суму — міняй схему або план. */}
@@ -752,7 +761,7 @@ function History({ data, envelopeId, editing, onEdit, onSave, onDelete }: {
                   disabled={e.isAuto}
                   className="flex-1 min-w-0 text-left disabled:cursor-default"
                 >
-                  <p className="font-medium truncate">{label(e)}</p>
+                  <p className="font-medium truncate">{label(e, kind)}</p>
                   <p className="text-xs text-neutral-400 truncate">
                     {e.isAuto
                       ? 'за схемою'
@@ -780,10 +789,11 @@ function History({ data, envelopeId, editing, onEdit, onSave, onDelete }: {
   )
 }
 
-/// Підпис руху. Раніше кожен внесок у будь-яку банку звався «У заощадження» — у банці
-/// «Борг» це читалось як помилка додатка.
-function label(entry: SavingsEntry): string {
-  return entry.kind === 'Deposit' ? 'Внесок' : 'Знято'
+/// Підпис руху за видом банки: «Внесок» у заощадження, «Погашення» в борг, «Інвестовано» в
+/// інвестиції. Раніше кожен внесок у будь-яку банку звався «У заощадження», і в банці «Борг»
+/// це читалось як помилка додатка.
+function label(entry: SavingsEntry, kind: BucketKind): string {
+  return entry.kind === 'Deposit' ? envelopeWords(kind).deposit : WITHDRAWAL_LABEL
 }
 
 /// Editing keeps the original currency: the entry is a record of what was moved, and
