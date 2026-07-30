@@ -23,7 +23,7 @@ public class EnvelopeTests
 
     private static EnvelopeService Sut(SqliteInMemory mem) =>
         new(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db),
-            NullLogger<EnvelopeService>.Instance);
+            new FakeFxConverter(), NullLogger<EnvelopeService>.Instance);
 
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.Now);
 
@@ -445,5 +445,113 @@ public class EnvelopeTests
         var again = all.Single(e => e.Name == "Пенсія");
         Assert.Equal(pension.Id, again.Id);  // не друга «Пенсія» поруч зі старою
         Assert.True(again.MonthGoal > 0m);
+    }
+
+    // Ціль на банку: банка, яку не годує схема, без цілі — просто скарбничка без сенсу.
+    // Гроші вона не тримає: темп — це інформація для рішення, а не ще одне резервування.
+
+    [Fact]
+    public async Task A_target_with_a_date_says_what_has_to_go_in_each_period()
+    {
+        using var mem = new SqliteInMemory();
+        await ActivateAsync(mem, "50-30-20");
+        var made = (await Sut(mem).CreateAsync("Відпустка", BucketKind.Savings)).Value!;
+        await Savings(mem).AddEntryAsync(new("Deposit", 2_200m, null, null, null, made.Id));
+
+        // Кінець третього періоду від сьогоднішнього: 6 000 − 2 200 = 3 800 на три періоди.
+        var third = BudgetPeriods.For(Today, BudgetPeriods.FirstOfMonth);
+        for (var i = 0; i < 2; i++) third = BudgetPeriods.For(third.End.AddDays(1), BudgetPeriods.FirstOfMonth);
+
+        Assert.True((await Sut(mem).SetTargetAsync(made.Id, 6_000m, null, third.End)).IsSuccess);
+
+        var jar = (await Sut(mem).StatusAsync(Month(Budget))).Single(e => e.Id == made.Id);
+        Assert.NotNull(jar.Target);
+        Assert.Equal(6_000m, jar.Target!.Amount);
+        Assert.Equal(3_800m, jar.Target.Remaining);
+        Assert.Equal(3, jar.Target.PeriodsLeft);
+        Assert.Equal(1_266.67m, jar.Target.PerPeriod);  // округлено ВГОРУ, інакше ціль не добереться
+        Assert.False(jar.Target.Reached);
+        Assert.False(jar.Target.Overdue);
+    }
+
+    /// Ціль нічого не тримає з денної норми: інакше вона змагалася б зі схемою за ті самі
+    /// гроші й тримала б їх двічі — і застосунок вирішував би за людину, чого їй хотіти.
+    [Fact]
+    public async Task A_target_reserves_nothing()
+    {
+        using var mem = new SqliteInMemory();
+        await ActivateAsync(mem, "50-30-20");
+        var made = (await Sut(mem).CreateAsync("Відпустка", BucketKind.Savings)).Value!;
+
+        var before = (await Sut(mem).StatusAsync(Month(Budget))).Sum(e => e.HeldBack);
+        await Sut(mem).SetTargetAsync(made.Id, 6_000m, null, Today.AddYears(1));
+        var after = await Sut(mem).StatusAsync(Month(Budget));
+
+        Assert.Equal(before, after.Sum(e => e.HeldBack));
+        var jar = after.Single(e => e.Id == made.Id);
+        Assert.Equal(0m, jar.MonthGoal);
+        Assert.Equal(0m, jar.StillToReserve);
+    }
+
+    [Fact]
+    public async Task A_target_without_a_date_is_a_goal_and_not_a_pace()
+    {
+        using var mem = new SqliteInMemory();
+        await ActivateAsync(mem, "50-30-20");
+        var made = (await Sut(mem).CreateAsync("Ремонт", BucketKind.Other)).Value!;
+
+        await Sut(mem).SetTargetAsync(made.Id, 4_000m, null, null);
+
+        var jar = (await Sut(mem).StatusAsync(Month(Budget))).Single(e => e.Id == made.Id);
+        Assert.Equal(4_000m, jar.Target!.Remaining);
+        Assert.Equal(0, jar.Target.PeriodsLeft);
+        Assert.Equal(0m, jar.Target.PerPeriod);   // дату не вигадуємо за людину
+        Assert.False(jar.Target.Overdue);
+    }
+
+    [Fact]
+    public async Task A_target_already_collected_says_so_instead_of_asking_for_more()
+    {
+        using var mem = new SqliteInMemory();
+        await ActivateAsync(mem, "50-30-20");
+        var made = (await Sut(mem).CreateAsync("Відпустка", BucketKind.Savings)).Value!;
+        await Savings(mem).AddEntryAsync(new("Deposit", 6_500m, null, null, null, made.Id));
+        await Sut(mem).SetTargetAsync(made.Id, 6_000m, null, Today.AddMonths(2));
+
+        var jar = (await Sut(mem).StatusAsync(Month(Budget))).Single(e => e.Id == made.Id);
+
+        Assert.True(jar.Target!.Reached);
+        Assert.Equal(0m, jar.Target.Remaining);
+        Assert.Equal(0m, jar.Target.PerPeriod);
+    }
+
+    [Fact]
+    public async Task A_target_is_taken_off_together_with_its_date()
+    {
+        using var mem = new SqliteInMemory();
+        await ActivateAsync(mem, "50-30-20");
+        var made = (await Sut(mem).CreateAsync("Відпустка", BucketKind.Savings)).Value!;
+        await Sut(mem).SetTargetAsync(made.Id, 6_000m, null, Today.AddMonths(3));
+
+        Assert.True((await Sut(mem).SetTargetAsync(made.Id, null, null, null)).IsSuccess);
+
+        var jar = (await Sut(mem).StatusAsync(Month(Budget))).Single(e => e.Id == made.Id);
+        Assert.Null(jar.Target);
+        Assert.Null((await mem.Db.Envelopes.FindAsync(made.Id))!.TargetDate);
+    }
+
+    [Fact]
+    public async Task A_date_that_has_gone_by_is_refused_and_a_zero_target_too()
+    {
+        using var mem = new SqliteInMemory();
+        await ActivateAsync(mem, "50-30-20");
+        var made = (await Sut(mem).CreateAsync("Відпустка", BucketKind.Savings)).Value!;
+
+        var past = await Sut(mem).SetTargetAsync(made.Id, 6_000m, null, Today.AddDays(-1));
+        var zero = await Sut(mem).SetTargetAsync(made.Id, 0m, null, Today.AddMonths(2));
+
+        Assert.Equal(ErrorType.Validation, past.Error.Type);
+        Assert.Equal(ErrorType.Validation, zero.Error.Type);
+        Assert.Null((await Sut(mem).StatusAsync(Month(Budget))).Single(e => e.Id == made.Id).Target);
     }
 }

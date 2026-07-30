@@ -49,6 +49,14 @@ public static class EnvelopeEndpoints
             return r.IsSuccess ? Results.NoContent() : r.Error.ToProblem();
         });
 
+        // «Відпустка 6 000 до червня» → «950 за період». A null amount takes the target off.
+        g.MapPut("/{id:int}/target", async (
+            int id, SetEnvelopeTargetRequest req, IEnvelopeService svc, CancellationToken ct) =>
+        {
+            var r = await svc.SetTargetAsync(id, req.Amount, req.Currency, req.Date, ct);
+            return r.IsSuccess ? Results.Ok(Response(r.Value!)) : r.Error.ToProblem();
+        });
+
         return app;
     }
 

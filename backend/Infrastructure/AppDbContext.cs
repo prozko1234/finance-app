@@ -105,6 +105,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             e.Property(x => x.Name).HasMaxLength(60).IsRequired();
             e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.TargetAmount).HasPrecision(18, 2);
             // The name is the identity a scheme's bucket is matched against, so two
             // envelopes called the same thing would split one balance in two.
             e.HasIndex(x => x.Name).IsUnique();

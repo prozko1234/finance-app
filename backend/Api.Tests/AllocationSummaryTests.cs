@@ -28,7 +28,7 @@ public class AllocationSummaryTests
             mem.Db, fx,
             new RecurringMaterializer(mem.Db, fx),
             new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db)),
-            new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db), NullLogger<EnvelopeService>.Instance),
+            new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db), fx, NullLogger<EnvelopeService>.Instance),
             new AllocationService(mem.Db),
             new MoneyViewFactory(mem.Db, fx),
             new BudgetPeriodResolver(mem.Db));
@@ -103,7 +103,7 @@ public class AllocationSummaryTests
         var fx = new FakeFxConverter();
         var savings = new SavingsService(
             mem.Db, new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db)), fx, new AllocationService(mem.Db),
-            new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db), NullLogger<EnvelopeService>.Instance), new MoneyViewFactory(mem.Db, fx), NullLogger<SavingsService>.Instance);
+            new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db), fx, NullLogger<EnvelopeService>.Instance), new MoneyViewFactory(mem.Db, fx), NullLogger<SavingsService>.Instance);
         await savings.AddEntryAsync(new("Deposit", 500m, null, null, null));
 
         var r = await Sut(mem).GetSafeToSpendAsync();

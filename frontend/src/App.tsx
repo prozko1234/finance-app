@@ -11,7 +11,7 @@ import {
   useUpdateRecurring, useTaxProfile, useTaxDefaults, useSaveTaxProfile,
   useAllocations, useSaveAllocation, useSettings, useSetDisplayCurrency, useSetPeriodStartDay,
   useSavings, useSaveSavingsPlan, useAddSavingsEntry, useUpdateSavingsEntry, useDeleteSavingsEntry,
-  useCreateEnvelope, useUpdateEnvelope, useDeleteEnvelope,
+  useCreateEnvelope, useUpdateEnvelope, useDeleteEnvelope, useSetEnvelopeTarget,
   useStats, useAuthStatus, useLogin, useLogout, queryKeys,
   useChangePassword, useChangeEmail, useSignOutEverywhere,
   useOpeningBalance, useSetOpeningBalance, useClearOpeningBalance,
@@ -74,6 +74,7 @@ function App() {
   const createEnvelope = useCreateEnvelope()
   const updateEnvelope = useUpdateEnvelope()
   const deleteEnvelope = useDeleteEnvelope()
+  const setEnvelopeTarget = useSetEnvelopeTarget()
   const stats = useStats(MONTHS_BACK, statsMonth, view === 'stats')
   const settings = useSettings()
   const setDisplayCurrency = useSetDisplayCurrency()
@@ -267,6 +268,7 @@ function App() {
             // запит доносив би цю відмову вже після того, як екран закрився. Прибрати можна
             // лише порожню банку, а повертається вона тим самим ім'ям.
             onArchiveEnvelope={(id) => deleteEnvelope.mutateAsync(id).then(() => {})}
+            onSetTarget={(id, t) => setEnvelopeTarget.mutateAsync({ id, data: t }).then(() => {})}
             onBack={() => setView('home')}
           />
         )}

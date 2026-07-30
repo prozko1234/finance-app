@@ -1,5 +1,5 @@
 import type {
-  AuthStatus, AppSettings, Category, Credentials, Envelope, EnvelopePeriod, SaveEnvelope, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
+  AuthStatus, AppSettings, Category, Credentials, Envelope, EnvelopePeriod, SaveEnvelope, SaveEnvelopeTarget, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
   Allocation, SaveAllocation, IncomePreview, OpeningBalance, SaveOpeningBalance, SaveSavingsEntry, SaveSavingsPlan, Savings, Stats, TaxDefaults, TaxProfile, Transaction,
 } from './types'
 
@@ -91,6 +91,10 @@ export const api = {
     http<Envelope>('/api/envelopes', { method: 'POST', body: JSON.stringify(e) }),
   updateEnvelope: (id: number, e: SaveEnvelope) =>
     http<Envelope>(`/api/envelopes/${id}`, { method: 'PUT', body: JSON.stringify(e) }),
+  /// Ціль на банку: сума (в тій валюті, що показуємо) і, необовʼязково, дата.
+  /// `amount: null` знімає ціль.
+  setEnvelopeTarget: (id: number, t: SaveEnvelopeTarget) =>
+    http<Envelope>(`/api/envelopes/${id}/target`, { method: 'PUT', body: JSON.stringify(t) }),
   /// Прибирає банку з очей, а не з історії: рухи в ній лишаються, тому це можливо лише
   /// для порожньої банки — сервер відповість сумою, якщо там ще щось є.
   deleteEnvelope: (id: number) =>

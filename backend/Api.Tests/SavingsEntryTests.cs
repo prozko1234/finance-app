@@ -21,7 +21,7 @@ public class SavingsEntryTests
         var fx = new FakeFxConverter();
         return new SavingsService(
             mem.Db, new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db)), fx, new AllocationService(mem.Db),
-            new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db), NullLogger<EnvelopeService>.Instance), new MoneyViewFactory(mem.Db, fx), NullLogger<SavingsService>.Instance);
+            new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db), fx, NullLogger<EnvelopeService>.Instance), new MoneyViewFactory(mem.Db, fx), NullLogger<SavingsService>.Instance);
     }
 
     private static SaveSavingsEntryRequest Deposit(decimal amount, string? currency = null) =>

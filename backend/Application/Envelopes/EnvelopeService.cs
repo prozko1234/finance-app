@@ -4,12 +4,24 @@ using FinanceApp.Application.Common;
 using FinanceApp.Domain;
 using FinanceApp.Domain.Budgeting;
 using FinanceApp.Domain.Common;
+using FinanceApp.Domain.Fx;
 using FinanceApp.Application.Summaries;
 using FinanceApp.Domain.Savings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace FinanceApp.Application.Envelopes;
+
+/// What a jar is being filled up to, and what that means for this period. Amounts are in base
+/// currency, like every other figure the service returns.
+public record EnvelopeTargetStatus(
+    decimal Amount,
+    DateOnly? Date,
+    decimal Remaining,
+    int PeriodsLeft,
+    decimal PerPeriod,
+    bool Reached,
+    bool Overdue);
 
 /// One envelope, this month. Same four numbers the savings pot always had — envelopes are
 /// that idea applied to every bucket that is not spending money.
@@ -19,6 +31,8 @@ namespace FinanceApp.Application.Envelopes;
 /// <param name="IsFromScheme">A bucket in the active scheme carries this name, so the scheme
 /// owns the envelope: its goal, and — because bucket and envelope are matched by name — its
 /// name too. Sent to the screen so it can say why renaming is not on offer here.</param>
+/// <param name="Target">What the jar is being filled up to, if the user set that — read only,
+/// it reserves nothing (<see cref="FinanceApp.Domain.Savings.EnvelopeTargets"/>).</param>
 public record EnvelopeStatus(
     int Id,
     string Name,
@@ -28,7 +42,8 @@ public record EnvelopeStatus(
     decimal MonthGoal,
     decimal DepositedThisMonth,
     decimal StillToReserve,
-    bool IsFromScheme = false)
+    bool IsFromScheme = false,
+    EnvelopeTargetStatus? Target = null)
 {
     /// What this envelope takes out of "скільки можна витратити" this month.
     public decimal HeldBack => DepositedThisMonth + StillToReserve;
@@ -69,6 +84,14 @@ public interface IEnvelopeService
     /// vanished with a balance inside would take that money out of «Відкладено всього», and out
     /// of the only figure this app asks the user to trust.
     Task<Result<Envelope>> ArchiveAsync(int id, CancellationToken ct = default);
+
+    /// «Відпустка 6 000 до червня» → «950 за період». A null amount takes the target off again.
+    /// Nothing here reserves money: the pace is what the user needs to decide with, and holding
+    /// it back automatically would compete with the allocation scheme for the same money.
+    /// <param name="currency">What the amount was typed in; converted to base at today's rate,
+    /// the same way a movement into a jar is. Null means base currency.</param>
+    Task<Result<Envelope>> SetTargetAsync(
+        int id, decimal? amount, string? currency, DateOnly? date, CancellationToken ct = default);
 }
 
 /// <param name="Moved">Net movement over the period: deposits minus withdrawals minus
@@ -79,7 +102,7 @@ public record EnvelopePeriod(DateOnly Start, DateOnly End, decimal Moved, decima
 
 public sealed class EnvelopeService(
     IAppDbContext db, IAllocationService allocations, IBudgetPeriods periods,
-    ILogger<EnvelopeService> log) : IEnvelopeService
+    IFxConverter fx, ILogger<EnvelopeService> log) : IEnvelopeService
 {
     public async Task<IReadOnlyList<EnvelopeStatus>> StatusAsync(
         MonthlyBudgetResult month, CancellationToken ct = default)
@@ -151,20 +174,25 @@ public sealed class EnvelopeService(
             .Select(b => b.Name)
             .ToHashSet();
 
-        return envelopes
+        var ordered = envelopes
             .OrderBy(e => order.TryGetValue(e.Name, out var i) ? i : int.MaxValue)
             .ThenBy(e => e.Id)
-            .Select(e =>
-            {
-                var goal = goals.GetValueOrDefault(e.Name);
-                var deposited = thisMonth.GetValueOrDefault(e.Id);
-                var status = SavingsCalculator.Status(goal, balances.GetValueOrDefault(e.Id), deposited);
-                return new EnvelopeStatus(
-                    e.Id, e.Name, e.Kind, e.IsDefault,
-                    status.Balance, status.MonthGoal, status.DepositedThisMonth, status.StillToReserve,
-                    fromScheme.Contains(e.Name));
-            })
             .ToList();
+
+        var result = new List<EnvelopeStatus>(ordered.Count);
+        foreach (var e in ordered)
+        {
+            var goal = goals.GetValueOrDefault(e.Name);
+            var deposited = thisMonth.GetValueOrDefault(e.Id);
+            var status = SavingsCalculator.Status(goal, balances.GetValueOrDefault(e.Id), deposited);
+            result.Add(new EnvelopeStatus(
+                e.Id, e.Name, e.Kind, e.IsDefault,
+                status.Balance, status.MonthGoal, status.DepositedThisMonth, status.StillToReserve,
+                fromScheme.Contains(e.Name),
+                await TargetAsync(e, status.Balance, period, ct)));
+        }
+
+        return result;
     }
 
     public async Task<IReadOnlyList<EnvelopePeriod>> HistoryAsync(
@@ -298,6 +326,43 @@ public sealed class EnvelopeService(
         return Result<Envelope>.Ok(envelope);
     }
 
+    public async Task<Result<Envelope>> SetTargetAsync(
+        int id, decimal? amount, string? currency, DateOnly? date, CancellationToken ct = default)
+    {
+        var envelope = await db.Envelopes.FirstOrDefaultAsync(e => e.Id == id, ct);
+        if (envelope is null) return Error.NotFound($"Банку {id} не знайдено.");
+
+        if (amount is null)
+        {
+            // The date goes with it: a date on its own says nothing, and left behind it would
+            // come back the next time an amount was typed.
+            envelope.TargetAmount = null;
+            envelope.TargetDate = null;
+            await db.SaveChangesAsync(ct);
+            log.LogInformation("Envelopes: «{Envelope}» no longer has a target", envelope.Name);
+            return Result<Envelope>.Ok(envelope);
+        }
+
+        if (amount <= 0) return Error.Validation("Ціль має бути більшою за нуль.");
+
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        if (date is { } wanted && wanted < today)
+            return Error.Validation("Дата цілі вже минула — постав ту, до якої ще збираєш.");
+
+        var conv = await fx.ConvertToBaseAsync(
+            amount.Value, string.IsNullOrWhiteSpace(currency) ? Money.BaseCurrency : currency.ToUpperInvariant(),
+            today, ct);
+        if (!conv.IsSuccess) return conv.Error;
+
+        envelope.TargetAmount = conv.Value!.AmountBase;
+        envelope.TargetDate = date;
+        await db.SaveChangesAsync(ct);
+        log.LogInformation(
+            "Envelopes: «{Envelope}» aims at {Amount} by {Date}",
+            envelope.Name, envelope.TargetAmount, date?.ToString("yyyy-MM-dd") ?? "no date");
+        return Result<Envelope>.Ok(envelope);
+    }
+
     /// Why this envelope's name is not the user's to change. Both reasons are the same one:
     /// something else in the app looks the envelope up BY NAME, so a rename would quietly
     /// hand the balance to a pot nobody is feeding.
@@ -315,6 +380,44 @@ public sealed class EnvelopeService(
                 "банка перейменується разом із ним.");
 
         return null;
+    }
+
+    /// The target and what it asks of this period. Counted in budget periods, because that is
+    /// the rhythm money arrives in — «на місяць» would be a figure the user never sees confirmed
+    /// by a payday.
+    private async Task<EnvelopeTargetStatus?> TargetAsync(
+        Envelope envelope, decimal balance, BudgetPeriod current, CancellationToken ct)
+    {
+        if (envelope.TargetAmount is not { } target) return null;
+
+        var pace = EnvelopeTargets.Pace(target, balance, await PeriodsLeftAsync(envelope.TargetDate, current, ct));
+
+        return new EnvelopeTargetStatus(
+            target, envelope.TargetDate,
+            pace.Remaining, pace.PeriodsLeft, pace.PerPeriod, pace.Reached, pace.Overdue);
+    }
+
+    /// Periods from the one being lived in up to and including the one the date falls in.
+    /// Walked rather than divided by 30: the period start day can be the 31st, and the months
+    /// it produces are not the same length.
+    private async Task<int?> PeriodsLeftAsync(DateOnly? date, BudgetPeriod current, CancellationToken ct)
+    {
+        if (date is not { } target) return null;
+        if (target <= current.End) return target < current.Start ? 0 : 1;
+
+        var count = 1;
+        var end = current.End;
+
+        // 600 periods is fifty years — past that the figure is noise anyway, and the loop must
+        // not be able to hang on a date somebody typed with four extra digits.
+        while (end < target && count < 600)
+        {
+            var next = await periods.ForAsync(end.AddDays(1), ct);
+            end = next.End;
+            count++;
+        }
+
+        return count;
     }
 
     /// What is in one envelope right now: movements in and out, less anything paid straight

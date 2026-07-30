@@ -33,6 +33,15 @@ public class Envelope
 
     public bool IsArchived => ArchivedAt is not null;
 
+    /// What this jar is being filled up TO, in base currency, or null when it is open-ended.
+    /// A jar the scheme does not feed is otherwise a piggy bank with no point: money goes in
+    /// and nothing ever says whether that is enough.
+    public decimal? TargetAmount { get; set; }
+
+    /// The day the target is wanted BY, if there is one. Deliberately optional: «зібрати
+    /// 6 000» is a goal too, and demanding a date would turn it into a plan.
+    public DateOnly? TargetDate { get; set; }
+
     /// Name of the default envelope, and the one the savings plan feeds.
     public const string DefaultName = "Заощадження";
 }

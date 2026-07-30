@@ -73,8 +73,8 @@ describe('Home', () => {
         {...props}
         summary={summary({
           envelopes: [
-            { id: 1, name: 'Заощадження', kind: 'Savings', isDefault: true, balance: 5000, monthGoal: 2000, depositedThisMonth: 500, stillToReserve: 1500, isFromScheme: false },
-            { id: 2, name: 'Пенсія', kind: 'Investing', isDefault: false, balance: 1200, monthGoal: 600, depositedThisMonth: 0, stillToReserve: 600, isFromScheme: false },
+            { id: 1, name: 'Заощадження', kind: 'Savings', isDefault: true, balance: 5000, monthGoal: 2000, depositedThisMonth: 500, stillToReserve: 1500, isFromScheme: false, target: null },
+            { id: 2, name: 'Пенсія', kind: 'Investing', isDefault: false, balance: 1200, monthGoal: 600, depositedThisMonth: 0, stillToReserve: 600, isFromScheme: false, target: null },
           ],
           monthTaxes: {
             gross: 24600, revenue: 20000, vat: 4600, zusSocial: 1788.19,
@@ -168,8 +168,8 @@ describe('Home', () => {
             ],
           },
           envelopes: [
-            { id: 1, name: 'Заощадження', kind: 'Savings', isDefault: true, balance: 0, monthGoal: 1200, depositedThisMonth: 0, stillToReserve: 1200, isFromScheme: false },
-            { id: 2, name: 'Борг', kind: 'Debt', isDefault: false, balance: 0, monthGoal: 600, depositedThisMonth: 0, stillToReserve: 600, isFromScheme: false },
+            { id: 1, name: 'Заощадження', kind: 'Savings', isDefault: true, balance: 0, monthGoal: 1200, depositedThisMonth: 0, stillToReserve: 1200, isFromScheme: false, target: null },
+            { id: 2, name: 'Борг', kind: 'Debt', isDefault: false, balance: 0, monthGoal: 600, depositedThisMonth: 0, stillToReserve: 600, isFromScheme: false, target: null },
           ],
         })}
       />,

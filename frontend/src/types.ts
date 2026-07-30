@@ -133,6 +133,29 @@ export interface EnvelopeSummary {
   stillToReserve: number
   /// Банку принесла схема: назву й ціль задає її кошик, тому тут їх не міняють.
   isFromScheme: boolean
+  /// До чого банку наповнюють, якщо ціль поставили. Гроші не тримає — лише показує темп.
+  target: EnvelopeTarget | null
+}
+
+/// «Відпустка 6 000 до червня» → «950 за період».
+export interface EnvelopeTarget {
+  amount: number
+  /// Дата, до якої збираємо, або null — тоді темпу немає, є лише сума.
+  date: string | null
+  remaining: number
+  periodsLeft: number
+  /// Скільки має заходити щопері́од, щоб дійти вчасно. 0 — коли дати немає або ціль зібрана.
+  perPeriod: number
+  reached: boolean
+  /// Дата минула, а грошей ще не досить — сказано вголос, а не перетворено в більшу суму.
+  overdue: boolean
+}
+
+/// Ціль або її кінець: amount === null знімає ціль разом із датою.
+export interface SaveEnvelopeTarget {
+  amount: number | null
+  currency?: string | null
+  date?: string | null
 }
 
 /// Банка сама по собі, без цифр періоду — відповідь на створення й перейменування.

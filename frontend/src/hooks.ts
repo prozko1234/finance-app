@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api'
 import type {
-  Credentials, SaveAllocation, SaveCategory, SaveEnvelope, SaveIncome, SaveOpeningBalance, SaveRecurring, SaveSavingsEntry, SaveSavingsPlan, SaveTaxProfile, SaveTransaction,
+  Credentials, SaveAllocation, SaveCategory, SaveEnvelope, SaveEnvelopeTarget, SaveIncome, SaveOpeningBalance, SaveRecurring, SaveSavingsEntry, SaveSavingsPlan, SaveTaxProfile, SaveTransaction,
 } from './types'
 
 export const queryKeys = {
@@ -352,6 +352,11 @@ export function useCreateEnvelope() {
 export function useUpdateEnvelope() {
   return useSavingsMutation(({ id, data }: { id: number; data: SaveEnvelope }) =>
     api.updateEnvelope(id, data))
+}
+
+export function useSetEnvelopeTarget() {
+  return useSavingsMutation(({ id, data }: { id: number; data: SaveEnvelopeTarget }) =>
+    api.setEnvelopeTarget(id, data))
 }
 
 export function useDeleteEnvelope() {

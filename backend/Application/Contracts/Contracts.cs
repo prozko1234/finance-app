@@ -151,7 +151,26 @@ public record EnvelopeSummary(
     decimal MonthGoal,
     decimal DepositedThisMonth,
     decimal StillToReserve,
-    bool IsFromScheme = false);
+    bool IsFromScheme = false,
+    EnvelopeTargetResponse? Target = null);
+
+/// What the jar is being filled up to, and what that asks of this period.
+/// <param name="PerPeriod">What has to go in each remaining period to arrive on time. 0 when
+/// the target has no date, or is already met.</param>
+/// <param name="Overdue">The date has gone by with money still missing — said out loud rather
+/// than quietly turned into a bigger monthly figure.</param>
+public record EnvelopeTargetResponse(
+    decimal Amount,
+    DateOnly? Date,
+    decimal Remaining,
+    int PeriodsLeft,
+    decimal PerPeriod,
+    bool Reached,
+    bool Overdue);
+
+/// A target, or the end of one: a null amount takes it off. Currency is optional and means the
+/// one the user is reading in.
+public record SetEnvelopeTargetRequest(decimal? Amount, string? Currency = null, DateOnly? Date = null);
 
 /// A pot made by hand: a name and what sort of pot it is. Kind is a <c>BucketKind</c> name and
 /// may be anything except Spending — a pot for money being spent is just the daily norm.

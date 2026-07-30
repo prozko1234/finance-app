@@ -198,7 +198,8 @@ public sealed class SavingsService(
                 await view.FromBaseTodayAsync(e.MonthGoal, ct),
                 await view.FromBaseTodayAsync(e.DepositedThisMonth, ct),
                 await view.FromBaseTodayAsync(e.StillToReserve, ct),
-                e.IsFromScheme));
+                e.IsFromScheme,
+                await TargetViewAsync(e.Target, view, ct)));
 
         return new SavingsResponse(
             plan?.Mode.ToString() ?? SavingsMode.Fixed.ToString(),
@@ -213,6 +214,24 @@ public sealed class SavingsService(
             summaries,
             fromScheme,
             month.FromOpeningBalance ? month.WindowStart : null);
+    }
+
+    /// The target read out in the currency the user is reading in — same treatment as the
+    /// balance beside it, because a goal shown in another currency than the money in the jar
+    /// could not be compared with it.
+    private static async Task<EnvelopeTargetResponse?> TargetViewAsync(
+        EnvelopeTargetStatus? target, MoneyView view, CancellationToken ct)
+    {
+        if (target is null) return null;
+
+        return new EnvelopeTargetResponse(
+            await view.FromBaseTodayAsync(target.Amount, ct),
+            target.Date,
+            await view.FromBaseTodayAsync(target.Remaining, ct),
+            target.PeriodsLeft,
+            await view.FromBaseTodayAsync(target.PerPeriod, ct),
+            target.Reached,
+            target.Overdue);
     }
 
     /// A percentage goal is a share of what is actually the user's after tax — and the plan

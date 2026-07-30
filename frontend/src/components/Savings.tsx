@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { BucketKind, EnvelopePeriod as EnvelopePeriodType, EnvelopeSummary, SaveEnvelope, Savings as SavingsData, SaveSavingsEntry, SavingsEntry, SaveSavingsPlan } from '../types'
+import type { BucketKind, EnvelopePeriod as EnvelopePeriodType, EnvelopeSummary, SaveEnvelope, SaveEnvelopeTarget, Savings as SavingsData, SaveSavingsEntry, SavingsEntry, SaveSavingsPlan } from '../types'
 import { BASE_CURRENCY, CURRENCIES, todayIso } from '../types'
 import { dayMonth, money } from '../format'
 import { useEnvelopeHistory } from '../hooks'
@@ -14,6 +14,7 @@ interface Props {
   onCreateEnvelope: (e: SaveEnvelope) => Promise<void>
   onUpdateEnvelope: (id: number, e: SaveEnvelope) => Promise<void>
   onArchiveEnvelope: (id: number) => Promise<void>
+  onSetTarget: (id: number, t: SaveEnvelopeTarget) => Promise<void>
   onBack: () => void
 }
 
@@ -36,7 +37,7 @@ const KINDS: { kind: BucketKind; label: string }[] = [
 /// «Банка», не «конверт»: метафора з монобанку, яку не треба вчити.
 export function Savings({
   data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteEntry,
-  onCreateEnvelope, onUpdateEnvelope, onArchiveEnvelope, onBack,
+  onCreateEnvelope, onUpdateEnvelope, onArchiveEnvelope, onSetTarget, onBack,
 }: Props) {
   const [openId, setOpenId] = useState<number | null>(null)
 
@@ -61,6 +62,7 @@ export function Savings({
         onUpdateEntry={onUpdateEntry}
         onDeleteEntry={onDeleteEntry}
         onRename={onUpdateEnvelope}
+        onSetTarget={onSetTarget}
         // Порожня банка зникає — і екран разом із нею, бо дивитись уже нема на що.
         onArchive={async (id) => { await onArchiveEnvelope(id); setOpenId(null) }}
         onBack={() => setOpenId(null)}
@@ -222,6 +224,158 @@ function KindPicker({ kind, onPick }: { kind: BucketKind; onPick: (k: BucketKind
   )
 }
 
+/// Ціль на банку: «Відпустка 6 000 до червня» → «1 266,67 за період». Без цього банка, яку не
+/// годує схема, — скарбничка без сенсу: гроші заходять, і ніщо не каже, чи цього досить.
+///
+/// Ціль **нічого не тримає** з денної норми. Автоматичне резервування змагалося б зі схемою за
+/// ті самі гроші й тримало б їх двічі — а головне, застосунок вирішував би за людину, скільки
+/// її бажання коштує їй сьогодні. Тут лише темп, з яким вона зважує сама.
+function TargetCard({ envelope, currency, onSave }: {
+  envelope: EnvelopeSummary
+  currency: string
+  onSave: (id: number, t: SaveEnvelopeTarget) => Promise<void>
+}) {
+  const target = envelope.target
+  const [editing, setEditing] = useState(false)
+  const [amount, setAmount] = useState(target ? String(target.amount) : '')
+  const [date, setDate] = useState(target?.date ?? '')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const value = Number(amount.replace(',', '.'))
+
+  async function run(payload: SaveEnvelopeTarget) {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      await onSave(envelope.id, payload)
+      setEditing(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не вдалося зберегти')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (editing || !target) {
+    if (!editing) {
+      return (
+        <button
+          onClick={() => setEditing(true)}
+          className="w-full rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700 px-4 py-3 text-sm text-neutral-500"
+        >
+          Поставити ціль
+        </button>
+      )
+    }
+
+    return (
+      <Card>
+        <SectionTitle>Ціль</SectionTitle>
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            inputMode="decimal"
+            autoFocus
+            placeholder="6000"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className="flex-1 text-2xl font-bold tabular-nums bg-transparent outline-none"
+          />
+          <span className="text-neutral-400 font-medium">{currency}</span>
+        </div>
+        {/* Дата необовʼязкова: «зібрати 6 000» — теж ціль, а вимагати дату означало б
+            перетворити бажання на план із дедлайном, якого людина не ставила. */}
+        <label className="flex items-center justify-between gap-3 text-sm text-neutral-500">
+          До якої дати (необов'язково)
+          <input
+            type="date"
+            value={date}
+            min={todayIso()}
+            onChange={(e) => setDate(e.target.value)}
+            className="rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-sm outline-none"
+          />
+        </label>
+        <FormError>{error}</FormError>
+        <div className="flex gap-2">
+          <PrimaryButton
+            onClick={() => run({ amount: value, currency, date: date || null })}
+            disabled={!(value > 0) || busy}
+          >
+            Зберегти
+          </PrimaryButton>
+          <button
+            onClick={() => { setEditing(false); setError(null) }}
+            className="rounded-xl bg-neutral-100 dark:bg-neutral-800 px-4 py-2.5 text-sm"
+          >
+            Скасувати
+          </button>
+        </div>
+      </Card>
+    )
+  }
+
+  const share = target.amount > 0
+    ? Math.min(100, Math.round(((target.amount - target.remaining) / target.amount) * 100))
+    : 0
+
+  return (
+    <Card>
+      <SectionTitle>Ціль</SectionTitle>
+      <p className="text-sm">
+        <span className="font-medium tabular-nums">{money(target.amount, currency)}</span>
+        {target.date && <span className="text-neutral-500"> до {dayMonth(target.date)}</span>}
+      </p>
+
+      <div className="h-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
+        <div
+          className={`h-full rounded-full ${target.reached ? 'bg-emerald-600' : 'bg-neutral-900 dark:bg-white'}`}
+          style={{ width: `${share}%` }}
+        />
+      </div>
+
+      <p className="text-xs text-neutral-500">
+        {target.reached
+          ? 'Ціль зібрана.'
+          : target.overdue
+            ? `Дата минула, а бракує ${money(target.remaining, currency)}.`
+            : target.perPeriod > 0
+              ? `Бракує ${money(target.remaining, currency)} — це ${money(target.perPeriod, currency)} за період, ${periodsWord(target.periodsLeft)}.`
+              : `Бракує ${money(target.remaining, currency)}. Дати немає, тож і темпу немає — покладеш, коли буде.`}
+      </p>
+      <p className="text-xs text-neutral-400">
+        Ціль нічого не тримає з «Можна витратити сьогодні» — вона лише показує темп.
+      </p>
+
+      <div className="flex gap-2">
+        <button
+          onClick={() => { setAmount(String(target.amount)); setDate(target.date ?? ''); setEditing(true) }}
+          className="flex-1 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2.5 text-sm"
+        >
+          Змінити ціль
+        </button>
+        <button
+          onClick={() => run({ amount: null })}
+          disabled={busy}
+          className="rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2.5 text-sm text-neutral-500 disabled:opacity-40"
+        >
+          Прибрати
+        </button>
+      </div>
+    </Card>
+  )
+}
+
+/// «3 періоди» / «4 періодів»: ціль без правильного відмінка читається як машинний вивід.
+function periodsWord(count: number): string {
+  const last = count % 10
+  const tens = count % 100
+  if (last === 1 && tens !== 11) return `${count} період`
+  if (last >= 2 && last <= 4 && (tens < 12 || tens > 14)) return `${count} періоди`
+  return `${count} періодів`
+}
+
 /// Перейменувати й прибрати — тільки для банки, зробленої руками. І в банки за замовчуванням,
 /// і в банки зі схеми назва — це те, за чим застосунок їх знаходить: перейменування тихо
 /// віддало б баланс банці, яку ніхто не наповнює, а прибирання скасувалось би саме собою при
@@ -283,7 +437,7 @@ function EnvelopeSettings({ envelope, currency, onRename, onArchive }: {
         disabled={!name.trim() || !changed || busy}
         saved={saved}
       >
-        Зберегти
+        Зберегти назву
       </PrimaryButton>
 
       {/* Тільки порожню: банка, що зникла з грошима всередині, забрала б їх із «Відкладено
@@ -308,7 +462,7 @@ function EnvelopeSettings({ envelope, currency, onRename, onArchive }: {
 }
 
 /// Одна банка: баланс, історія по періодах і все, що з нею можна зробити.
-function EnvelopeDetail({ envelope, data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteEntry, onRename, onArchive, onBack }: {
+function EnvelopeDetail({ envelope, data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteEntry, onRename, onSetTarget, onArchive, onBack }: {
   envelope: EnvelopeSummary
   data: SavingsData
   onSavePlan: (p: SaveSavingsPlan) => Promise<void>
@@ -316,6 +470,7 @@ function EnvelopeDetail({ envelope, data, onSavePlan, onAddEntry, onUpdateEntry,
   onUpdateEntry: (id: number, e: SaveSavingsEntry) => Promise<void>
   onDeleteEntry: (id: number) => Promise<void>
   onRename: (id: number, e: SaveEnvelope) => Promise<void>
+  onSetTarget: (id: number, t: SaveEnvelopeTarget) => Promise<void>
   onArchive: (id: number) => Promise<void>
   onBack: () => void
 }) {
@@ -335,6 +490,8 @@ function EnvelopeDetail({ envelope, data, onSavePlan, onAddEntry, onUpdateEntry,
           </p>
         )}
       </div>
+
+      <TargetCard envelope={envelope} currency={data.currency} onSave={onSetTarget} />
 
       <PeriodHistory periods={history.data ?? []} currency={data.currency} />
 

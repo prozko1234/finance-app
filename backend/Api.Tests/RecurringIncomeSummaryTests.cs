@@ -56,7 +56,7 @@ public class RecurringIncomeSummaryTests
             mem.Db, fx,
             new RecurringMaterializer(mem.Db, fx),
             new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db)),
-            new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db), NullLogger<EnvelopeService>.Instance),
+            new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db), fx, NullLogger<EnvelopeService>.Instance),
             new AllocationService(mem.Db),
             new MoneyViewFactory(mem.Db, fx),
             new BudgetPeriodResolver(mem.Db));

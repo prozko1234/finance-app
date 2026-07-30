@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Savings } from './Savings'
-import type { EnvelopeSummary, SaveEnvelope, Savings as SavingsData } from '../types'
+import type { EnvelopeSummary, SaveEnvelope, SaveEnvelopeTarget, Savings as SavingsData } from '../types'
 
 vi.mock('../hooks', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../hooks')>()),
@@ -19,7 +19,7 @@ function envelope(over: Partial<EnvelopeSummary> = {}): EnvelopeSummary {
   return {
     id: 1, name: 'Заощадження', kind: 'Savings', isDefault: true,
     balance: 8200, monthGoal: 1200, depositedThisMonth: 1200, stillToReserve: 0,
-    isFromScheme: false,
+    isFromScheme: false, target: null,
     ...over,
   }
 }
@@ -41,6 +41,7 @@ function renderScreen(
     onCreateEnvelope: (e: SaveEnvelope) => Promise<void>
     onUpdateEnvelope: (id: number, e: SaveEnvelope) => Promise<void>
     onArchiveEnvelope: (id: number) => Promise<void>
+    onSetTarget: (id: number, t: SaveEnvelopeTarget) => Promise<void>
   }> = {},
 ) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -55,6 +56,7 @@ function renderScreen(
         onCreateEnvelope={vi.fn()}
         onUpdateEnvelope={vi.fn()}
         onArchiveEnvelope={vi.fn()}
+        onSetTarget={vi.fn()}
         {...envelopeHandlers}
         onBack={vi.fn()}
       />
@@ -164,7 +166,7 @@ describe('Savings', () => {
     const nameInput = screen.getByDisplayValue('Відпустка')
     await user.clear(nameInput)
     await user.type(nameInput, 'Відпустка 2027')
-    await user.click(screen.getByText('Зберегти'))
+    await user.click(screen.getByText('Зберегти назву'))
 
     await waitFor(() => expect(onUpdateEnvelope)
       .toHaveBeenCalledWith(3, { name: 'Відпустка 2027', kind: 'Savings' }))
@@ -195,5 +197,58 @@ describe('Savings', () => {
 
     expect(screen.queryByText('Назва й вид')).not.toBeInTheDocument()
     expect(screen.getByText(/задає схема розподілу/)).toBeInTheDocument()
+  })
+  // Ціль на банку: без неї банка, яку не годує схема, — скарбничка без сенсу.
+
+  it('turns a target with a date into what has to go in each period', async () => {
+    renderScreen(data([envelope({
+      id: 3, name: 'Відпустка', isDefault: false, balance: 2200, monthGoal: 0,
+      target: {
+        amount: 6000, date: '2026-10-09', remaining: 3800, periodsLeft: 3,
+        perPeriod: 1266.67, reached: false, overdue: false,
+      },
+    })]))
+    const user = userEvent.setup()
+
+    await user.click(screen.getByText('Відпустка'))
+
+    expect(screen.getByText(/до 9 жовтня/)).toBeInTheDocument()
+    expect(screen.getByText(/1266,67 zł за період, 3 періоди/)).toBeInTheDocument()
+    // Найважливіше вголос: ціль не забирає нічого з денної норми.
+    expect(screen.getByText(/нічого не тримає з «Можна витратити сьогодні»/)).toBeInTheDocument()
+  })
+
+  /// Дата необовʼязкова: «зібрати 6 000» — теж ціль, і вигадувати за людину дедлайн не можна.
+  it('sets a target without a date at all', async () => {
+    const onSetTarget = vi.fn()
+    renderScreen(data([envelope({ id: 3, name: 'Ремонт', isDefault: false })]), vi.fn(), { onSetTarget })
+    const user = userEvent.setup()
+
+    await user.click(screen.getByText('Ремонт'))
+    await user.click(screen.getByText('Поставити ціль'))
+    await user.type(screen.getByPlaceholderText('6000'), '4000')
+    await user.click(screen.getByText('Зберегти'))
+
+    await waitFor(() => expect(onSetTarget)
+      .toHaveBeenCalledWith(3, { amount: 4000, currency: 'PLN', date: null }))
+  })
+
+  it('takes the target off again', async () => {
+    const onSetTarget = vi.fn()
+    renderScreen(data([envelope({
+      id: 3, name: 'Відпустка', isDefault: false,
+      target: {
+        amount: 6000, date: null, remaining: 3800, periodsLeft: 0,
+        perPeriod: 0, reached: false, overdue: false,
+      },
+    })]), vi.fn(), { onSetTarget })
+    const user = userEvent.setup()
+
+    await user.click(screen.getByText('Відпустка'))
+    // Без дати темпу немає — і екран каже це, а не показує 0 за період.
+    expect(screen.getByText(/Дати немає, тож і темпу немає/)).toBeInTheDocument()
+
+    await user.click(screen.getByText('Прибрати'))
+    await waitFor(() => expect(onSetTarget).toHaveBeenCalledWith(3, { amount: null }))
   })
 })
