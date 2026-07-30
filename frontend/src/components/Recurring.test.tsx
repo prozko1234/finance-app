@@ -13,6 +13,7 @@ function item(over: Partial<RecurringType> = {}): RecurringType {
   return {
     id: 1, amountOriginal: 50, currencyOriginal: 'PLN', categoryId: 1, categoryName: 'Підписки',
     dayOfMonth: 5, active: true, note: 'Netflix', kind: 'Expense', amountIncludesVat: true,
+    nextChargeOn: null, chargedThisPeriod: false,
     ...over,
   }
 }
@@ -149,5 +150,21 @@ describe('Recurring — editing', () => {
 
     expect(screen.queryByText(/Редагуємо/)).not.toBeInTheDocument()
     expect(screen.getByText('+ Ще одна')).toBeInTheDocument()
+  })
+})
+
+describe('Recurring — when it next goes out', () => {
+  /// «Кожного 5-го» однаково правдиве і за день до списання, і за день після — а гроші тим
+  /// часом уже пішли.
+  it('says when the next charge lands and whether this period already paid', () => {
+    render(<Recurring {...props({ items: [
+      item({ id: 1, note: 'Netflix', nextChargeOn: '2099-01-05', chargedThisPeriod: true }),
+      item({ id: 2, note: 'Оренда', nextChargeOn: '2099-01-10', chargedThisPeriod: false }),
+      item({ id: 3, note: 'Spotify', active: false, nextChargeOn: null }),
+    ] })} />)
+
+    expect(screen.getByText(/цього періоду вже пішло/)).toBeInTheDocument()
+    expect(screen.getByText(/5 січня/)).toBeInTheDocument()
+    expect(screen.getByText(/на паузі/)).toBeInTheDocument()
   })
 })

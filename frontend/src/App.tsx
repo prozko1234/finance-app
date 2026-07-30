@@ -32,6 +32,8 @@ import { DevTools } from './components/DevTools'
 import { Nav } from './components/Nav'
 import { useRouter } from './router'
 
+const RECENT_PAGE = 20
+
 function App() {
   // Екран живе в адресі: «назад» на телефоні, refresh на місці, посилання на екран
   // ([[router.ts]]).
@@ -61,7 +63,10 @@ function App() {
 
   const categories = useCategories()
   const summary = useSafeToSpend()
-  const transactions = useTransactions()
+  // Скільки останніх записів показуємо. Росте по 20 на «Показати ще»: список на весь екран
+  // щодня не потрібен, а «а де та витрата минулого тижня» трапляється.
+  const [recentTake, setRecentTake] = useState(RECENT_PAGE)
+  const transactions = useTransactions(recentTake)
   const openingBalance = useOpeningBalance()
   const setOpeningBalance = useSetOpeningBalance()
   const clearOpeningBalance = useClearOpeningBalance()
@@ -203,6 +208,9 @@ function App() {
           <Home
             summary={summary.data ?? null}
             transactions={(transactions.data ?? []).filter((t) => !txUndo.hidden.includes(t.id))}
+            // Сервер віддав рівно стільки, скільки просили — отже, найімовірніше, є ще.
+            canLoadMore={(transactions.data ?? []).length >= recentTake}
+            onLoadMore={() => setRecentTake((n) => n + RECENT_PAGE)}
             onDelete={(id) => txUndo.request(id, 'Запис видалено', () => deleteTx.mutate(id))}
             onAddIncome={() => { setIncomeFirst(true); go('add') }}
             onGoSavings={() => go('savings')}

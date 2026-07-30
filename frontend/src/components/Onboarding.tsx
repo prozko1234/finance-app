@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { todayIso } from '../types'
 import { Card, FormError, PrimaryButton } from './Screen'
 
 /// Перший запуск. До цього перший крок питав «скільки в тебе виходить на місяць» — тобто
@@ -18,8 +19,11 @@ interface Props {
 
 export function Onboarding({ currency, onFinish, onSkip }: Props) {
   const [step, setStep] = useState(0)
-  const today = new Date().getDate()
-  const [day, setDay] = useState(today <= 28 ? today : 1)
+  // Дата останньої зарплати, з якої додаток сам дістає число дня — 29–31 підтягуються до 28-го,
+  // бо їх немає в кожному місяці.
+  const [payday, setPayday] = useState(todayIso())
+  const typedDay = Number(payday.slice(8, 10))
+  const day = Math.min(Number.isNaN(typedDay) ? 1 : typedDay, 28)
   const [income, setIncome] = useState('')
   const [balance, setBalance] = useState('')
   const [setUpTaxes, setSetUpTaxes] = useState(false)
@@ -53,16 +57,23 @@ export function Onboarding({ currency, onFinish, onSkip }: Props) {
                  додаток рахує, на скільки днів треба розтягнути гроші. Якщо приходить
                  кілька разів — став день основної суми.`}
         >
-          <select
-            value={day}
-            onChange={(e) => setDay(Number(e.target.value))}
-            aria-label="День зарплати"
+          {/* Дата останнього приходу грошей, а не «число від 1 до 28»: її видно в банку і не
+              треба нічого перекладати в голові — той самий пікер, що й у Налаштуваннях. */}
+          <input
+            type="date"
+            value={payday}
+            max={todayIso()}
+            onChange={(e) => setPayday(e.target.value)}
+            aria-label="Дата останньої зарплати"
             className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-transparent px-3 py-3 text-lg"
-          >
-            {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
-              <option key={d} value={d}>{d} числа</option>
-            ))}
-          </select>
+          />
+          {/* 29–31 є не в кожному місяці: мовчки взяти 28-ме означало б показати потім період,
+              якого людина не обирала. */}
+          {typedDay > 28 && (
+            <p className="text-xs text-amber-600">
+              {typedDay} числа немає в кожному місяці, тому рахуватимемо з 28-го.
+            </p>
+          )}
           <PrimaryButton onClick={() => setStep(1)}>Далі</PrimaryButton>
         </Step>
       )}

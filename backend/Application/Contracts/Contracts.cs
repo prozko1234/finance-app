@@ -316,7 +316,14 @@ public record RecurringResponse(
     bool Active,
     string? Note,
     string Kind,
-    bool AmountIncludesVat);
+    bool AmountIncludesVat,
+    /// The day this will next be charged on, or null while it is paused — a row on hold has
+    /// nothing coming. Computed server-side because the day is clamped to the month's length
+    /// (the 31st in February) and the screen must not guess that on its own.
+    DateOnly? NextChargeOn = null,
+    /// Already taken out of this period's budget. The screen says so, because the money is
+    /// gone but the row looks exactly the same as one that is still to come.
+    bool ChargedThisPeriod = false);
 
 /// App-wide settings. <paramref name="BaseCurrency"/> is what the app stores in; the user
 /// only chooses what to read. <paramref name="TaxesInBaseCurrency"/> tells the UI it must

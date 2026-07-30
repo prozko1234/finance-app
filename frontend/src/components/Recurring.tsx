@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import type { Category, Recurring as RecurringType, SaveRecurring } from '../types'
 import { CURRENCIES } from '../types'
-import { money } from '../format'
-import { ScreenHeader } from './Screen'
+import { daysUntil, dayMonth, money } from '../format'
+import { Screen } from './Screen'
 
 interface Props {
   categories: Category[]
@@ -134,8 +134,11 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
   }
 
   return (
-    <div className="space-y-5">
-      <ScreenHeader title="Регулярні: підписки й дохід" onBack={onBack} />
+    <Screen
+      title="Регулярні: підписки й дохід"
+      onBack={onBack}
+      footnote="Те, що списується щомісяця, застосунок додає сам — і тримає з бюджету наперед, щоб денна норма не обіцяла грошей, які вже обіцяні."
+    >
 
       <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm space-y-3">
         {editing && (
@@ -254,7 +257,7 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
               <button onClick={() => edit(r)} className="flex-1 min-w-0 text-left">
                 <p className="font-medium truncate">{r.note || r.categoryName}</p>
                 <p className="text-xs text-neutral-400">
-                  кожного {r.dayOfMonth}-го · {r.kind === 'Income' ? 'дохід' : r.categoryName}
+                  {whenNext(r)} · {r.kind === 'Income' ? 'дохід' : r.categoryName}
                 </p>
               </button>
               <p className={`font-semibold tabular-nums ${r.kind === 'Income' ? 'text-emerald-600' : ''}`}>
@@ -281,6 +284,26 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
         </ul>
       )}
 
-    </div>
+    </Screen>
   )
+}
+
+/// Коли це станеться наступного разу — і чи вже сталось цього періоду. Рядок підписки, що вже
+/// списалась, виглядав точно як той, що ще попереду: «кожного 5-го» однаково правдиве і за
+/// день до, і за день після, а гроші тим часом уже пішли.
+function whenNext(r: RecurringType): string {
+  if (!r.active) return 'на паузі'
+
+  const when = r.nextChargeOn
+    ? `${dayMonth(r.nextChargeOn)}${untilWords(r.nextChargeOn)}`
+    : `кожного ${r.dayOfMonth}-го`
+
+  return r.chargedThisPeriod ? `цього періоду вже пішло · далі ${when}` : when
+}
+
+function untilWords(iso: string): string {
+  const days = daysUntil(iso)
+  if (days <= 0) return ''
+  if (days === 1) return ' · завтра'
+  return ` · за ${days} дн.`
 }

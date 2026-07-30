@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Home } from './Home'
+import { shiftIso, todayIso } from '../types'
 import type { SafeToSpend, Transaction } from '../types'
 
 function summary(over: Partial<SafeToSpend> = {}): SafeToSpend {
@@ -19,7 +20,8 @@ function summary(over: Partial<SafeToSpend> = {}): SafeToSpend {
 }
 
 const props = {
-  transactions: [], onDelete: vi.fn(), onAddIncome: vi.fn(), onQuickCategory: vi.fn(), onEdit: vi.fn(),
+  transactions: [], canLoadMore: false, onLoadMore: vi.fn(),
+  onDelete: vi.fn(), onAddIncome: vi.fn(), onQuickCategory: vi.fn(), onEdit: vi.fn(),
   onGoSavings: vi.fn(), onGoAllocation: vi.fn(), onGoBalance: vi.fn(),
 }
 
@@ -241,5 +243,40 @@ describe('Home', () => {
     await userEvent.setup().click(screen.getByText('Дохід'))
 
     expect(onEdit).toHaveBeenCalledWith(income)
+  })
+})
+
+describe('Home — the recent list', () => {
+  function tx(over: Partial<Transaction> = {}): Transaction {
+    return {
+      id: 1, kind: 'Expense', amountOriginal: 25, currencyOriginal: 'PLN', amountBase: 25,
+      amountDisplay: 25, displayCurrency: 'PLN', fxRate: 1, fxDate: '2026-07-30',
+      categoryId: 1, categoryName: 'Їжа', frequency: 'OneOff', source: 'Manual',
+      amountIncludesVat: false, date: '2026-07-30', note: null, createdAt: '2026-07-30T10:00:00Z',
+      ...over,
+    }
+  }
+
+  /// Дата стояла в кожному рядку окремо й нічого не додавала.
+  it('groups the rows by day instead of repeating the date on each', () => {
+    render(<Home {...props} summary={summary()} transactions={[
+      tx({ id: 1, date: todayIso() }),
+      tx({ id: 2, date: shiftIso(todayIso(), -1), categoryName: 'Транспорт' }),
+    ]} />)
+
+    expect(screen.getByText('Сьогодні')).toBeInTheDocument()
+    expect(screen.getByText('Вчора')).toBeInTheDocument()
+  })
+
+  it('offers more rows only while there may be more', () => {
+    const onLoadMore = vi.fn()
+    const { rerender } = render(
+      <Home {...props} summary={summary()} transactions={[tx()]} canLoadMore={false} />)
+    expect(screen.queryByText('Показати ще')).not.toBeInTheDocument()
+
+    rerender(
+      <Home {...props} summary={summary()} transactions={[tx()]} canLoadMore onLoadMore={onLoadMore} />)
+    screen.getByText('Показати ще').click()
+    expect(onLoadMore).toHaveBeenCalled()
   })
 })

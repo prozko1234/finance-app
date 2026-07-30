@@ -116,8 +116,13 @@ export function useDeleteCategory() {
   return useMutation({ mutationFn: (id: number) => api.deleteCategory(id), onSuccess: invalidate })
 }
 
-export function useTransactions() {
-  return useQuery({ queryKey: queryKeys.transactions, queryFn: () => api.getTransactions() })
+/// Скільки рядків просимо — у ключі, тож «Показати ще» це новий запит, а вже побачене
+/// лишається в кеші. Інвалідація по префіксу ['transactions'] чіпає всі сторінки разом.
+export function useTransactions(take = 20) {
+  return useQuery({
+    queryKey: [...queryKeys.transactions, take],
+    queryFn: () => api.getTransactions(take),
+  })
 }
 
 export function useSafeToSpend() {

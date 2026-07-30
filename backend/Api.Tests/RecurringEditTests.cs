@@ -1,3 +1,4 @@
+using FinanceApp.Application.Common;
 using FinanceApp.Application.Contracts;
 using FinanceApp.Application.Recurring;
 using FinanceApp.Domain;
@@ -9,7 +10,8 @@ namespace FinanceApp.Api.Tests;
 /// along; what did not exist was a way to reach it — and one sharp edge on the way.
 public class RecurringEditTests
 {
-    private static RecurringService Sut(SqliteInMemory mem) => new(mem.Db);
+    private static RecurringService Sut(SqliteInMemory mem) =>
+        new(mem.Db, new BudgetPeriodResolver(mem.Db));
 
     private static async Task<RecurringExpense> SalaryAsync(SqliteInMemory mem)
     {

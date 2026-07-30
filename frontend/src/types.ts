@@ -329,6 +329,10 @@ export interface Recurring {
   note?: string | null
   kind: 'Expense' | 'Income'
   amountIncludesVat: boolean
+  /// Коли спишеться наступного разу; null — поки на паузі.
+  nextChargeOn: string | null
+  /// Цього періоду вже пішло з бюджету — рядок виглядає так само, тож це треба сказати.
+  chargedThisPeriod: boolean
 }
 
 export interface SaveRecurring {

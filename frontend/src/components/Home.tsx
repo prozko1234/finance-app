@@ -1,11 +1,14 @@
 import type { EnvelopeSummary, SafeToSpend, Transaction } from '../types'
-import { dayMonth, money } from '../format'
+import { dayHeading, dayMonth, money } from '../format'
 import { envelopeIcon } from '../envelopeWords'
 import { buildQuickCategories, type QuickCategory } from '../quickCategories'
 
 interface Props {
   summary: SafeToSpend | null
   transactions: Transaction[]
+  /// Ще є що показувати — сервер віддав рівно стільки, скільки просили.
+  canLoadMore: boolean
+  onLoadMore: () => void
   onDelete: (id: number) => void
   onAddIncome: () => void
   onQuickCategory: (categoryId: number) => void
@@ -16,7 +19,7 @@ interface Props {
 }
 
 export function Home({
-  summary, transactions, onDelete, onAddIncome, onQuickCategory, onEdit, onGoSavings, onGoAllocation,
+  summary, transactions, canLoadMore, onLoadMore, onDelete, onAddIncome, onQuickCategory, onEdit, onGoSavings, onGoAllocation,
   onGoBalance,
 }: Props) {
   const quick = buildQuickCategories(transactions, (name) => ICONS[name] ?? '📦')
@@ -31,7 +34,13 @@ export function Home({
         <EnvelopesCard envelopes={summary.envelopes} currency={summary.currency} onOpen={onGoSavings} />
       )}
       {quick.length > 0 && <QuickRow categories={quick} onPick={onQuickCategory} />}
-      <RecentList transactions={transactions} onDelete={onDelete} onEdit={onEdit} />
+      <RecentList
+        transactions={transactions}
+        canLoadMore={canLoadMore}
+        onLoadMore={onLoadMore}
+        onDelete={onDelete}
+        onEdit={onEdit}
+      />
     </div>
   )
 }
@@ -263,16 +272,25 @@ function EnvelopesCard({ envelopes, currency, onOpen }: {
   )
 }
 
-function RecentList({ transactions, onDelete, onEdit }: { transactions: Transaction[]; onDelete: (id: number) => void; onEdit: (t: Transaction) => void }) {
+function RecentList({ transactions, canLoadMore, onLoadMore, onDelete, onEdit }: {
+  transactions: Transaction[]
+  canLoadMore: boolean
+  onLoadMore: () => void
+  onDelete: (id: number) => void
+  onEdit: (t: Transaction) => void
+}) {
   if (transactions.length === 0) {
     return <p className="text-center text-neutral-400 text-sm">Ще немає транзакцій. Додай першу кнопкою +</p>
   }
 
   return (
-    <div>
-      <h2 className="text-sm font-medium text-neutral-400 mb-2 px-1">Останні</h2>
+    <div className="space-y-4">
+      <h2 className="text-sm font-medium text-neutral-400 px-1">Останні</h2>
+      {groupByDay(transactions).map(([date, rows]) => (
+      <div key={date} className="space-y-2">
+      <p className="text-xs text-neutral-400 px-1">{dayHeading(date)}</p>
       <ul className="space-y-2">
-        {transactions.map((t) => (
+        {rows.map((t) => (
           <li
             key={t.id}
             className="flex items-center gap-3 rounded-xl bg-white dark:bg-neutral-900 px-4 py-3 shadow-sm"
@@ -293,7 +311,7 @@ function RecentList({ transactions, onDelete, onEdit }: { transactions: Transact
                 )}
               </p>
               <p className="text-xs text-neutral-400 truncate">
-                {t.note || t.merchant || t.date}
+                {t.note || t.merchant || (t.kind === 'Income' ? 'дохід' : '')}
               </p>
             </button>
             <div className="text-right">
@@ -314,8 +332,31 @@ function RecentList({ transactions, onDelete, onEdit }: { transactions: Transact
           </li>
         ))}
       </ul>
+      </div>
+      ))}
+      {/* Довантаження замість жорсткої стелі: список довший за екран нікому не потрібен
+          щодня, а «а де та витрата минулого тижня» трапляється. */}
+      {canLoadMore && (
+        <button
+          onClick={onLoadMore}
+          className="w-full rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 px-4 py-2.5 text-sm text-neutral-500"
+        >
+          Показати ще
+        </button>
+      )}
     </div>
   )
+}
+
+/// Дні йдуть у тому порядку, у якому прийшли рядки — сервер уже віддає їх від найновішого.
+function groupByDay(rows: Transaction[]): [string, Transaction[]][] {
+  const days = new Map<string, Transaction[]>()
+  for (const t of rows) {
+    const day = days.get(t.date)
+    if (day) day.push(t)
+    else days.set(t.date, [t])
+  }
+  return [...days.entries()]
 }
 
 const ICONS: Record<string, string> = {

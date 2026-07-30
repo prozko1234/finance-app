@@ -1,7 +1,9 @@
 using FinanceApp.Application.Abstractions;
+using FinanceApp.Application.Common;
 using FinanceApp.Application.Contracts;
 using FinanceApp.Application.Mapping;
 using FinanceApp.Domain;
+using FinanceApp.Domain.Budgeting;
 using FinanceApp.Domain.Common;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,7 +17,7 @@ public interface IRecurringService
     Task<Result<bool>> DeleteAsync(int id, CancellationToken ct = default);
 }
 
-public sealed class RecurringService(IAppDbContext db) : IRecurringService
+public sealed class RecurringService(IAppDbContext db, IBudgetPeriods periods) : IRecurringService
 {
     public async Task<IReadOnlyList<RecurringResponse>> GetAllAsync(CancellationToken ct = default)
     {
@@ -23,7 +25,24 @@ public sealed class RecurringService(IAppDbContext db) : IRecurringService
             .Include(r => r.Category)
             .OrderByDescending(r => r.Active).ThenBy(r => r.DayOfMonth)
             .ToListAsync(ct);
-        return items.Select(r => r.ToResponse()).ToList();
+
+        // Which of these have already been taken out of the period being lived in. Asked once
+        // for the whole list rather than per row: the answer is a set of ids, not a query each.
+        var (start, end) = await periods.CurrentAsync(ct);
+        var charged = await db.Transactions
+            .Where(t => t.RecurringExpenseId != null && t.Date >= start && t.Date <= end)
+            .Select(t => t.RecurringExpenseId!.Value)
+            .Distinct()
+            .ToListAsync(ct);
+        var chargedIds = charged.ToHashSet();
+
+        return items
+            .Select(r => r.ToResponse() with
+            {
+                NextChargeOn = NextChargeOn(r),
+                ChargedThisPeriod = chargedIds.Contains(r.Id),
+            })
+            .ToList();
     }
 
     public async Task<Result<RecurringResponse>> CreateAsync(SaveRecurringRequest req, CancellationToken ct = default)
@@ -102,6 +121,20 @@ public sealed class RecurringService(IAppDbContext db) : IRecurringService
             return true;
         }
         return Enum.TryParse(kind, ignoreCase: true, out parsed);
+    }
+
+    /// The next day this falls due. A charge due today has already been written by the time
+    /// anything is read (materialization runs on read), so today counts as gone.
+    private static DateOnly? NextChargeOn(RecurringExpense r)
+    {
+        if (!r.Active) return null;
+
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var thisMonth = RecurringSchedule.OccurrenceDate(today.Year, today.Month, r.DayOfMonth);
+        if (thisMonth > today) return thisMonth;
+
+        var next = new DateOnly(today.Year, today.Month, 1).AddMonths(1);
+        return RecurringSchedule.OccurrenceDate(next.Year, next.Month, r.DayOfMonth);
     }
 
     private async Task LoadCategoryAsync(RecurringExpense r, CancellationToken ct) =>
