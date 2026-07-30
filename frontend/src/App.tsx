@@ -124,9 +124,14 @@ function App() {
   function toggleRecurring(r: RecurringType) {
     updateRecurring.mutate({
       id: r.id,
+      // kind і amountIncludesVat їдуть теж: без них пауза на регулярному доході робила з нього
+      // витрату (сервер добирав вид за замовчуванням), і місяць тихо втрачав дохід і отримував
+      // списання. Сервер тепер теж тримає вид, якщо його не назвали, — але казати правду в
+      // запиті дешевше, ніж покладатись на це.
       data: {
         amount: r.amountOriginal, currency: r.currencyOriginal, categoryId: r.categoryId,
         dayOfMonth: r.dayOfMonth, note: r.note ?? null, active: !r.active,
+        kind: r.kind, amountIncludesVat: r.amountIncludesVat,
       },
     })
   }
@@ -306,6 +311,7 @@ function App() {
             categories={categories.data ?? []}
             items={(recurring.data ?? []).filter((r) => !recurringUndo.hidden.includes(r.id))}
             onCreate={(r) => createRecurring.mutateAsync(r).then(() => {})}
+            onUpdate={(id, r) => updateRecurring.mutateAsync({ id, data: r }).then(() => {})}
             onToggle={toggleRecurring}
             onDelete={async (id) =>
               recurringUndo.request(id, 'Підписку видалено', () => deleteRecurring.mutate(id))}

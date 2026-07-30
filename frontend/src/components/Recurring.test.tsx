@@ -19,11 +19,12 @@ function item(over: Partial<RecurringType> = {}): RecurringType {
 
 /// Mocks stay typed as mocks (not as the plain prop signatures) so the assertions
 /// can read `.mock.calls` without casting.
-function props(over: { items?: RecurringType[]; onCreate?: Mock } = {}) {
+function props(over: { items?: RecurringType[]; onCreate?: Mock; onUpdate?: Mock } = {}) {
   return {
     categories,
     items: over.items ?? [],
     onCreate: over.onCreate ?? vi.fn<(r: SaveRecurring) => Promise<void>>().mockResolvedValue(undefined),
+    onUpdate: over.onUpdate ?? vi.fn<(id: number, r: SaveRecurring) => Promise<void>>().mockResolvedValue(undefined),
     onToggle: vi.fn(),
     onDelete: vi.fn<(id: number) => Promise<void>>().mockResolvedValue(undefined),
     onBack: vi.fn(),
@@ -98,5 +99,55 @@ describe('Recurring — delete', () => {
     await waitFor(() => expect(p.onDelete).toHaveBeenCalledTimes(1))
     expect(p.onDelete).toHaveBeenCalledWith(1)
     expect(screen.queryByText(/Видалити 1\?/)).not.toBeInTheDocument()
+  })
+})
+
+describe('Recurring — editing', () => {
+  /// Підписку можна було лише видалити й ввести заново — при тому що `PUT` існував весь час,
+  /// не було лише способу його покликати.
+  it('opens the same form on the row and saves the correction', async () => {
+    const user = userEvent.setup()
+    const onUpdate = vi.fn<(id: number, r: SaveRecurring) => Promise<void>>().mockResolvedValue(undefined)
+    render(<Recurring {...props({ items: [item({ id: 9, amountOriginal: 50, note: 'Netflix' })], onUpdate })} />)
+
+    await user.click(screen.getByText('Netflix'))
+    expect(screen.getByText('Редагуємо «Netflix»')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('0')).toHaveValue('50')
+
+    await user.clear(screen.getByPlaceholderText('0'))
+    await user.type(screen.getByPlaceholderText('0'), '65')
+    await user.click(screen.getByText('Зберегти зміни'))
+
+    await waitFor(() => expect(onUpdate).toHaveBeenCalledWith(9, expect.objectContaining({
+      amount: 65, dayOfMonth: 5, note: 'Netflix', categoryId: 1,
+    })))
+  })
+
+  /// Пауза й вид (дохід чи витрата) не в цій формі — правка суми не має їх мовчки міняти.
+  it('leaves the pause and the kind exactly as they were', async () => {
+    const user = userEvent.setup()
+    const onUpdate = vi.fn<(id: number, r: SaveRecurring) => Promise<void>>().mockResolvedValue(undefined)
+    const paused = item({ id: 4, active: false, kind: 'Income', note: 'Зарплата', amountOriginal: 20000 })
+    render(<Recurring {...props({ items: [paused], onUpdate })} />)
+
+    await user.click(screen.getByText('Зарплата'))
+    await user.clear(screen.getByPlaceholderText('0'))
+    await user.type(screen.getByPlaceholderText('0'), '21000')
+    await user.click(screen.getByText('Зберегти зміни'))
+
+    await waitFor(() => expect(onUpdate).toHaveBeenCalledWith(4, expect.objectContaining({
+      amount: 21000, active: false, kind: 'Income',
+    })))
+  })
+
+  it('goes back to adding when the correction is cancelled', async () => {
+    const user = userEvent.setup()
+    render(<Recurring {...props({ items: [item({ note: 'Netflix' })] })} />)
+
+    await user.click(screen.getByText('Netflix'))
+    await user.click(screen.getByText('Скасувати'))
+
+    expect(screen.queryByText(/Редагуємо/)).not.toBeInTheDocument()
+    expect(screen.getByText('+ Ще одна')).toBeInTheDocument()
   })
 })

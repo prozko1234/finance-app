@@ -59,10 +59,16 @@ public sealed class RecurringService(IAppDbContext db) : IRecurringService
         if (!await db.Categories.AnyAsync(c => c.Id == req.CategoryId, ct))
             return Error.Validation($"Категорію {req.CategoryId} не знайдено.");
 
-        if (!TryParseKind(req.Kind, out var kind))
-            return Error.Validation($"Невідомий тип: {req.Kind}.");
-
-        r.Kind = kind;
+        // An update that does not say what kind this is keeps the kind it already had. The
+        // default — Expense — belongs to creation only: applied here it would turn a paused
+        // salary into a subscription the moment someone tapped ⏸, and the month would lose an
+        // income and gain a charge without a word about it.
+        if (req.Kind is not null)
+        {
+            if (!TryParseKind(req.Kind, out var kind))
+                return Error.Validation($"Невідомий тип: {req.Kind}.");
+            r.Kind = kind;
+        }
         r.AmountIncludesVat = req.AmountIncludesVat;
         r.AmountOriginal = req.Amount;
         r.CurrencyOriginal = req.Currency.ToUpperInvariant();

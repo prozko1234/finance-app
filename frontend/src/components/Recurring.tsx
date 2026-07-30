@@ -8,6 +8,9 @@ interface Props {
   categories: Category[]
   items: RecurringType[]
   onCreate: (r: SaveRecurring) => Promise<void>
+  /// Виправлення підписки замість «видалити й ввести заново». `PUT` був давно, не було
+  /// лише способу його покликати.
+  onUpdate: (id: number, r: SaveRecurring) => Promise<void>
   onToggle: (r: RecurringType) => void
   onDelete: (id: number) => Promise<void>
   onBack: () => void
@@ -22,7 +25,7 @@ interface Draft extends SaveRecurring {
 
 let nextDraftKey = 1
 
-export function Recurring({ categories, items, onCreate, onToggle, onDelete, onBack }: Props) {
+export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onDelete, onBack }: Props) {
   const [amount, setAmount] = useState('')
   const [currency, setCurrency] = useState('PLN')
   const [categoryId, setCategoryId] = useState<number | null>(categories[0]?.id ?? null)
@@ -31,6 +34,53 @@ export function Recurring({ categories, items, onCreate, onToggle, onDelete, onB
   const [drafts, setDrafts] = useState<Draft[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Яку підписку зараз правимо. Форма та сама, що й для створення: інша форма для тих самих
+  // полів — це друге місце, де їх доведеться міняти.
+  const [editing, setEditing] = useState<RecurringType | null>(null)
+
+  function edit(r: RecurringType) {
+    setEditing(r)
+    setAmount(String(r.amountOriginal))
+    setCurrency(r.currencyOriginal)
+    setCategoryId(r.categoryId)
+    setDay(String(r.dayOfMonth))
+    setNote(r.note ?? '')
+    setDrafts([])
+    setError(null)
+    // Форма живе над списком: без цього тап по рядку виглядав би так, ніби нічого не сталось.
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function stopEditing() {
+    setEditing(null)
+    setAmount('')
+    setNote('')
+    setError(null)
+  }
+
+  async function saveEdit() {
+    if (!valid || categoryId === null || !editing) return
+    setSaving(true)
+    setError(null)
+    try {
+      await onUpdate(editing.id, {
+        amount: amountNum,
+        currency,
+        categoryId,
+        dayOfMonth: dayNum,
+        note: note.trim() || null,
+        // Пауза й вид (дохід чи витрата) не в цій формі — вони лишаються, якими були.
+        active: editing.active,
+        kind: editing.kind,
+        amountIncludesVat: editing.amountIncludesVat,
+      })
+      stopEditing()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не вдалося зберегти')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const amountNum = Number(amount.replace(',', '.'))
   const dayNum = Number(day)
@@ -88,6 +138,11 @@ export function Recurring({ categories, items, onCreate, onToggle, onDelete, onB
       <ScreenHeader title="Регулярні: підписки й дохід" onBack={onBack} />
 
       <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm space-y-3">
+        {editing && (
+          <p className="text-sm font-medium text-neutral-400">
+            Редагуємо «{editing.note || editing.categoryName}»
+          </p>
+        )}
         <div className="flex gap-2">
           <input
             inputMode="decimal" placeholder="0" value={amount}
@@ -132,7 +187,7 @@ export function Recurring({ categories, items, onCreate, onToggle, onDelete, onB
           className="w-full rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-sm outline-none"
         />
 
-        {drafts.length > 0 && (
+        {!editing && drafts.length > 0 && (
           <ul className="space-y-1">
             {drafts.map((d) => (
               <li key={d.key} className="flex items-center gap-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-sm">
@@ -152,20 +207,37 @@ export function Recurring({ categories, items, onCreate, onToggle, onDelete, onB
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
-        <div className="flex gap-2">
-          <button
-            onClick={addAnother} disabled={!valid || saving}
-            className="rounded-xl bg-neutral-100 dark:bg-neutral-800 px-4 py-2.5 font-medium disabled:opacity-40"
-          >
-            + Ще одна
-          </button>
-          <button
-            onClick={saveAll} disabled={pending === 0 || saving}
-            className="flex-1 rounded-xl bg-emerald-600 text-white py-2.5 font-medium disabled:opacity-40"
-          >
-            {saving ? 'Зберігаю…' : pending > 1 ? `Зберегти (${pending})` : 'Зберегти'}
-          </button>
-        </div>
+        {editing ? (
+          <div className="flex gap-2">
+            <button
+              onClick={saveEdit} disabled={!valid || saving}
+              className="flex-1 rounded-xl bg-emerald-600 text-white py-2.5 font-medium disabled:opacity-40"
+            >
+              {saving ? 'Зберігаю…' : 'Зберегти зміни'}
+            </button>
+            <button
+              onClick={stopEditing}
+              className="rounded-xl bg-neutral-100 dark:bg-neutral-800 px-4 py-2.5"
+            >
+              Скасувати
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <button
+              onClick={addAnother} disabled={!valid || saving}
+              className="rounded-xl bg-neutral-100 dark:bg-neutral-800 px-4 py-2.5 font-medium disabled:opacity-40"
+            >
+              + Ще одна
+            </button>
+            <button
+              onClick={saveAll} disabled={pending === 0 || saving}
+              className="flex-1 rounded-xl bg-emerald-600 text-white py-2.5 font-medium disabled:opacity-40"
+            >
+              {saving ? 'Зберігаю…' : pending > 1 ? `Зберегти (${pending})` : 'Зберегти'}
+            </button>
+          </div>
+        )}
       </div>
 
       {items.length === 0 ? (
@@ -179,12 +251,12 @@ export function Recurring({ categories, items, onCreate, onToggle, onDelete, onB
                 r.active ? '' : 'opacity-50'
               }`}
             >
-              <div className="flex-1 min-w-0">
+              <button onClick={() => edit(r)} className="flex-1 min-w-0 text-left">
                 <p className="font-medium truncate">{r.note || r.categoryName}</p>
                 <p className="text-xs text-neutral-400">
                   кожного {r.dayOfMonth}-го · {r.kind === 'Income' ? 'дохід' : r.categoryName}
                 </p>
-              </div>
+              </button>
               <p className={`font-semibold tabular-nums ${r.kind === 'Income' ? 'text-emerald-600' : ''}`}>
                 {r.kind === 'Income' ? '+' : ''}{money(r.amountOriginal, r.currencyOriginal)}
               </p>
