@@ -16,6 +16,9 @@ interface Props {
   onUpdateEnvelope: (id: number, e: SaveEnvelope) => Promise<void>
   onArchiveEnvelope: (id: number) => Promise<void>
   onSetTarget: (id: number, t: SaveEnvelopeTarget) => Promise<void>
+  /// Яка банка відкрита — приходить з адреси, а не зі стану екрана.
+  openId: number | null
+  onOpen: (id: number | null) => void
   onBack: () => void
 }
 
@@ -38,9 +41,8 @@ const KINDS: { kind: BucketKind; label: string }[] = [
 /// «Банка», не «конверт»: метафора з монобанку, яку не треба вчити.
 export function Savings({
   data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteEntry,
-  onCreateEnvelope, onUpdateEnvelope, onArchiveEnvelope, onSetTarget, onBack,
+  onCreateEnvelope, onUpdateEnvelope, onArchiveEnvelope, onSetTarget, openId, onOpen, onBack,
 }: Props) {
-  const [openId, setOpenId] = useState<number | null>(null)
 
   // The header stays while loading — the way back must not depend on the data arriving.
   if (!data) {
@@ -65,8 +67,8 @@ export function Savings({
         onRename={onUpdateEnvelope}
         onSetTarget={onSetTarget}
         // Порожня банка зникає — і екран разом із нею, бо дивитись уже нема на що.
-        onArchive={async (id) => { await onArchiveEnvelope(id); setOpenId(null) }}
-        onBack={() => setOpenId(null)}
+        onArchive={async (id) => { await onArchiveEnvelope(id); onOpen(null) }}
+        onBack={() => onOpen(null)}
       />
     )
   }
@@ -78,7 +80,7 @@ export function Savings({
       footnote="Відкладене не входить у «Можна витратити сьогодні». Зняти можна будь-коли — це твої гроші, не податки."
     >
       <PausedNote pausedFrom={data.planPausedFrom} />
-      <EnvelopeList envelopes={data.envelopes} currency={data.currency} onOpen={setOpenId} />
+      <EnvelopeList envelopes={data.envelopes} currency={data.currency} onOpen={onOpen} />
       <NewEnvelope onCreate={onCreateEnvelope} />
     </Screen>
   )

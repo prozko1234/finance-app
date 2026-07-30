@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -45,8 +46,12 @@ function renderScreen(
   }> = {},
 ) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(
-    <QueryClientProvider client={client}>
+
+  // Відкрита банка живе в адресі (див. router.ts), тож тут її тримає найменша можлива
+  // обгортка — інакше кожен тест мусив би сам вести цей стан.
+  function Harness() {
+    const [openId, setOpenId] = useState<number | null>(null)
+    return (
       <Savings
         data={d}
         onSavePlan={vi.fn()}
@@ -58,8 +63,16 @@ function renderScreen(
         onArchiveEnvelope={vi.fn()}
         onSetTarget={vi.fn()}
         {...envelopeHandlers}
+        openId={openId}
+        onOpen={setOpenId}
         onBack={vi.fn()}
       />
+    )
+  }
+
+  return render(
+    <QueryClientProvider client={client}>
+      <Harness />
     </QueryClientProvider>,
   )
 }

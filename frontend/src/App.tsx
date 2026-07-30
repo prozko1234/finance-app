@@ -30,10 +30,12 @@ import { Allocation } from './components/Allocation'
 import { Stats, MONTHS_BACK } from './components/Stats'
 import { DevTools } from './components/DevTools'
 import { Nav } from './components/Nav'
-import type { View } from './components/Nav'
+import { useRouter } from './router'
 
 function App() {
-  const [view, setView] = useState<View>('home')
+  // Екран живе в адресі: «назад» на телефоні, refresh на місці, посилання на екран
+  // ([[router.ts]]).
+  const { view, param, go } = useRouter()
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   // Set when a quick-category tap opens the form; cleared as soon as the form closes.
   const [presetCategoryId, setPresetCategoryId] = useState<number | null>(null)
@@ -110,12 +112,12 @@ function App() {
     } else {
       await createTx.mutateAsync(tx)
     }
-    setView('home')
+    go('home')
   }
 
   function startEdit(t: Transaction) {
     setEditingTx(t)
-    setView('add')
+    go('add')
   }
 
   function toggleRecurring(r: RecurringType) {
@@ -162,7 +164,7 @@ function App() {
               skipOnboarding()
               // Податки — окремий екран, а не ще три кроки в онбордингу: там ставки,
               // режим і ZUS, і це рішення на пів хвилини, а не на першу мінуту.
-              if (setUpTaxes) setView('tax')
+              if (setUpTaxes) go('tax')
             }}
           />
         </div>
@@ -175,7 +177,7 @@ function App() {
       <div className="mx-auto max-w-4xl px-4 py-6 pb-28 md:flex md:gap-8">
         <Nav
           current={view}
-          onGo={setView}
+          onGo={(v) => go(v)}
           showDev={import.meta.env.DEV}
           onLogout={auth.data?.required ? () => logout.mutate() : undefined}
         />
@@ -196,11 +198,11 @@ function App() {
             summary={summary.data ?? null}
             transactions={(transactions.data ?? []).filter((t) => !txUndo.hidden.includes(t.id))}
             onDelete={(id) => txUndo.request(id, 'Запис видалено', () => deleteTx.mutate(id))}
-            onAddIncome={() => { setIncomeFirst(true); setView('add') }}
-            onGoSavings={() => setView('savings')}
-            onGoAllocation={() => setView('allocation')}
-            onGoBalance={() => setView('balance')}
-            onQuickCategory={(categoryId) => { setPresetCategoryId(categoryId); setView('add') }}
+            onAddIncome={() => { setIncomeFirst(true); go('add') }}
+            onGoSavings={() => go('savings')}
+            onGoAllocation={() => go('allocation')}
+            onGoBalance={() => go('balance')}
+            onQuickCategory={(categoryId) => { setPresetCategoryId(categoryId); go('add') }}
             onEdit={startEdit}
           />
         )}
@@ -211,10 +213,10 @@ function App() {
             // який нічого не дає.
             envelopes={(summary.data?.envelopes ?? []).filter((e) => e.balance > 0)}
             onSave={handleSave}
-            onSaveIncome={async (i: SaveIncome) => { await createIncome.mutateAsync(i); setView('home') }}
-            onSaveRecurring={async (r) => { await createRecurring.mutateAsync(r); setView('home') }}
+            onSaveIncome={async (i: SaveIncome) => { await createIncome.mutateAsync(i); go('home') }}
+            onSaveRecurring={async (r) => { await createRecurring.mutateAsync(r); go('home') }}
             onCreateCategory={(c: SaveCategory) => createCategory.mutateAsync(c)}
-            onCancel={() => { setEditingTx(null); setPresetCategoryId(null); setIncomeFirst(false); setView('home') }}
+            onCancel={() => { setEditingTx(null); setPresetCategoryId(null); setIncomeFirst(false); go('home') }}
             editing={editingTx}
             presetCategoryId={presetCategoryId}
             initialKind={incomeFirst ? 'income' : 'expense'}
@@ -226,7 +228,7 @@ function App() {
             currency={settings.data?.displayCurrency ?? 'PLN'}
             onSet={(b) => setOpeningBalance.mutateAsync(b).then(() => {})}
             onClear={() => clearOpeningBalance.mutateAsync().then(() => {})}
-            onBack={() => setView('home')}
+            onBack={() => go('home')}
           />
         )}
         {view === 'settings' && (
@@ -234,7 +236,7 @@ function App() {
             settings={settings.data ?? null}
             onPickCurrency={(c) => setDisplayCurrency.mutateAsync(c).then(() => {})}
             onPickPeriodStartDay={(d) => setPeriodStartDay.mutateAsync(d).then(() => {})}
-            onBack={() => setView('home')}
+            onBack={() => go('home')}
           />
         )}
         {view === 'account' && (
@@ -248,10 +250,10 @@ function App() {
             // navigation needed, the auth query going false does it.
             onSignOutEverywhere={() => signOutEverywhere.mutateAsync().then(() => {})}
             onLogout={() => logout.mutate()}
-            onBack={() => setView('home')}
+            onBack={() => go('home')}
           />
         )}
-        {view === 'dev' && <DevTools onBack={() => setView('home')} />}
+        {view === 'dev' && <DevTools onBack={() => go('home')} />}
         {view === 'savings' && (
           <Savings
             data={savings.data
@@ -269,7 +271,11 @@ function App() {
             // лише порожню банку, а повертається вона тим самим ім'ям.
             onArchiveEnvelope={(id) => deleteEnvelope.mutateAsync(id).then(() => {})}
             onSetTarget={(id, t) => setEnvelopeTarget.mutateAsync({ id, data: t }).then(() => {})}
-            onBack={() => setView('home')}
+            // Відкрита банка — теж адреса (`/savings/3`), інакше «назад» із неї виходило б
+            // зі списку банок замість повернення до нього.
+            openId={param ? Number(param) : null}
+            onOpen={(id) => go('savings', id === null ? null : String(id))}
+            onBack={() => go('home')}
           />
         )}
         {view === 'allocation' && (
@@ -278,7 +284,7 @@ function App() {
             budget={summary.data?.periodBudget ?? null}
             currency={summary.data?.currency ?? 'PLN'}
             onSave={(a) => saveAllocation.mutateAsync(a).then(() => {})}
-            onBack={() => setView('home')}
+            onBack={() => go('home')}
           />
         )}
         {view === 'stats' && (
@@ -286,7 +292,7 @@ function App() {
             data={stats.data ?? null}
             selected={statsMonth}
             onSelectMonth={setStatsMonth}
-            onBack={() => setView('home')}
+            onBack={() => go('home')}
           />
         )}
         {view === 'recurring' && (
@@ -297,7 +303,7 @@ function App() {
             onToggle={toggleRecurring}
             onDelete={async (id) =>
               recurringUndo.request(id, 'Підписку видалено', () => deleteRecurring.mutate(id))}
-            onBack={() => setView('home')}
+            onBack={() => go('home')}
           />
         )}
         {view === 'categories' && (
@@ -306,7 +312,7 @@ function App() {
             onCreate={(c) => createCategory.mutateAsync(c)}
             onUpdate={(id, data) => updateCategory.mutateAsync({ id, data }).then(() => {})}
             onDelete={(id) => deleteCategory.mutateAsync(id).then(() => {})}
-            onBack={() => setView('home')}
+            onBack={() => go('home')}
           />
         )}
         {view === 'tax' && (
@@ -317,7 +323,7 @@ function App() {
             // розкривачкою, тут він поруч зі ставками, які його й порахували.
             month={summary.data?.monthTaxes ?? null}
             onSave={(p) => saveTaxProfile.mutateAsync(p).then(() => {})}
-            onBack={() => setView('home')}
+            onBack={() => go('home')}
           />
         )}
         </main>
@@ -327,7 +333,7 @@ function App() {
 
       {view === 'home' && (
         <button
-          onClick={() => { setEditingTx(null); setView('add') }}
+          onClick={() => { setEditingTx(null); go('add') }}
           className="fixed bottom-6 left-1/2 -translate-x-1/2 h-14 w-14 rounded-full bg-emerald-600 text-white text-3xl shadow-lg flex items-center justify-center"
           aria-label="Додати транзакцію"
         >
