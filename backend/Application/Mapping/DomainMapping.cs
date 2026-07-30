@@ -12,7 +12,16 @@ public static class DomainMapping
     public static TransactionResponse ToResponse(this Transaction t) => new(
         t.Id, t.Kind.ToString(), t.GrossWithVat, t.VatAmount, t.AmountOriginal, t.CurrencyOriginal, t.AmountBase, t.FxRate, t.FxDate,
         t.CategoryId, t.Category?.Name ?? "", t.EnvelopeId, t.Envelope?.Name, t.Frequency, t.Source.ToString(),
-        t.Date, t.MerchantRaw, t.Note, t.CreatedAt, t.AmountBase, Money.BaseCurrency);
+        t.Date, t.MerchantRaw, t.Note, t.CreatedAt, t.AmountBase, Money.BaseCurrency,
+        TypedGross(t));
+
+    /// Was the typed figure the gross one? What the user entered, converted to base, is either
+    /// the gross or the revenue, and those differ by the whole VAT — so comparing against the
+    /// stored gross recovers the answer without keeping a flag in the database for it.
+    private static bool TypedGross(Transaction t) =>
+        t.Kind == TransactionKind.Income
+        && t.GrossWithVat is { } gross
+        && Math.Abs(t.AmountOriginal * t.FxRate - gross) < 0.02m;
 
     public static CategoryResponse ToResponse(this Category c) =>
         new(c.Id, c.Name, c.Icon, c.Color, c.SortOrder, c.IsSystem);

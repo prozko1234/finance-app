@@ -64,6 +64,9 @@ export const api = {
     http<Transaction>('/api/transactions', { method: 'POST', body: JSON.stringify(tx) }),
   createIncome: (i: SaveIncome) =>
     http<Transaction>('/api/transactions/income', { method: 'POST', body: JSON.stringify(i) }),
+  /// Виправлення рахунку — окремий шлях, бо в доході ще є VAT.
+  updateIncome: (id: number, i: SaveIncome) =>
+    http<Transaction>(`/api/transactions/${id}/income`, { method: 'PUT', body: JSON.stringify(i) }),
   updateTransaction: (id: number, tx: SaveTransaction) =>
     http<Transaction>(`/api/transactions/${id}`, { method: 'PUT', body: JSON.stringify(tx) }),
   deleteTransaction: (id: number) =>

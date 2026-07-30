@@ -14,6 +14,9 @@ interface Props {
   envelopes: EnvelopeSummary[]
   onSave: (tx: SaveTransaction) => Promise<void>
   onSaveIncome: (income: SaveIncome) => Promise<void>
+  /// Виправлення рахунку. Окремо від onSave: у доході ще є VAT, і звичайне оновлення
+  /// поклало б брутто туди, де лежить przychód — бюджет поїхав би на суму VAT.
+  onUpdateIncome: (id: number, income: SaveIncome) => Promise<void>
   onSaveRecurring: (r: SaveRecurring) => Promise<void>
   onCreateCategory: (c: SaveCategory) => Promise<Category>
   onCancel: () => void
@@ -36,14 +39,15 @@ const KIND_TITLE: Record<Kind, string> = {
 
 
 export function AddTransaction({
-  categories, envelopes, onSave, onSaveIncome, onSaveRecurring, onCreateCategory, onCancel,
+  categories, envelopes, onSave, onSaveIncome, onUpdateIncome, onSaveRecurring, onCreateCategory, onCancel,
   editing, presetCategoryId, initialKind = 'expense',
 }: Props) {
   const [newCatOpen, setNewCatOpen] = useState(false)
   const [newCatName, setNewCatName] = useState('')
   const [newCatIcon, setNewCatIcon] = useState('')
   const last = readLastUsed()
-  const [kind, setKind] = useState<Kind>(initialKind)
+  const [kind, setKind] = useState<Kind>(
+    editing ? (editing.kind === 'Income' ? 'income' : 'expense') : initialKind)
   const isIncome = kind === 'income'
   const isSubscription = kind === 'subscription'
   const [amount, setAmount] = useState(editing ? String(editing.amountOriginal) : '')
@@ -60,7 +64,9 @@ export function AddTransaction({
   const [dayOfMonth, setDayOfMonth] = useState('1')
   const [incomeRepeats, setIncomeRepeats] = useState(false)
   const [envelopeId, setEnvelopeId] = useState<number | null>(editing?.envelopeId ?? null)
-  const [includesVat, setIncludesVat] = useState(true)
+  // Форма відкривається на тому ж перемикачі, з яким рахунок написали: сервер відновлює це
+  // з самого рядка (брутто й нетто різняться на цілий VAT), тож вгадувати нема чого.
+  const [includesVat, setIncludesVat] = useState(editing?.amountIncludesVat ?? true)
   const [note, setNote] = useState(editing?.note ?? '')
   // Remembered once per mount: the list only changes on save, and the form closes then.
   const [incomeSources] = useState(readIncomeSources)
@@ -99,13 +105,15 @@ export function AddTransaction({
         if (isIncome) rememberIncomeSource(note)
         else writeLastUsed({ categoryId: categoryId!, currency })
       } else if (isIncome) {
-        await onSaveIncome({
+        const income = {
           amount: amountNum,
           amountIncludesVat: includesVat,
           currency,
           date,
           note: note.trim() || null,
-        })
+        }
+        if (editing) await onUpdateIncome(editing.id, income)
+        else await onSaveIncome(income)
         rememberIncomeSource(note)
       } else {
         await onSave({

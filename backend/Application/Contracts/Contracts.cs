@@ -46,7 +46,11 @@ public record TransactionResponse(
     /// The same amount as the user reads it, converted at THIS transaction's date — so a
     /// July expense keeps its July size. Equals AmountBase while reading in PLN.
     decimal AmountDisplay,
-    string DisplayCurrency);
+    string DisplayCurrency,
+    /// Income only: whether the figure the user typed was the gross one. Derived rather than
+    /// stored — the two candidates differ by the whole VAT, so there is nothing to guess — and
+    /// sent so the edit form opens on the same toggle the invoice was written with.
+    bool AmountIncludesVat = false);
 
 public record CategoryResponse(int Id, string Name, string? Icon, string? Color, int SortOrder, bool IsSystem);
 

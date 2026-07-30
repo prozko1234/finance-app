@@ -220,6 +220,14 @@ export function useUpdateTransaction() {
   })
 }
 
+export function useUpdateIncome() {
+  const invalidate = useInvalidate()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: SaveIncome }) => api.updateIncome(id, data),
+    onSuccess: invalidate,
+  })
+}
+
 export function useDeleteTransaction() {
   const invalidate = useInvalidate()
   return useMutation({ mutationFn: (id: number) => api.deleteTransaction(id), onSuccess: invalidate })

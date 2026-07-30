@@ -35,6 +35,13 @@ public static class TransactionEndpoints
                 : r.Error.ToProblem();
         });
 
+        // Дохід редагується окремим шляхом: у ньому ще є VAT, якого звичайне оновлення не знає.
+        g.MapPut("/{id:int}/income", async (int id, SaveIncomeRequest req, ITransactionService svc, CancellationToken ct) =>
+        {
+            var r = await svc.UpdateIncomeAsync(id, req, ct);
+            return r.IsSuccess ? Results.Ok(r.Value) : r.Error.ToProblem();
+        });
+
         g.MapPut("/{id:int}", async (int id, SaveTransactionRequest req, ITransactionService svc, CancellationToken ct) =>
         {
             var r = await svc.UpdateAsync(id, req, ct);

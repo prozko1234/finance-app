@@ -36,6 +36,9 @@ export interface Transaction {
   envelopeName?: string | null
   frequency: Frequency
   source: string
+  /// Дохід: чи те, що вписали, було сумою з VAT. Відновлено з самого рядка — брутто й нетто
+  /// різняться на цілий VAT, тож форма редагування відкривається на тому самому перемикачі.
+  amountIncludesVat: boolean
   date: string
   merchant?: string | null
   note?: string | null

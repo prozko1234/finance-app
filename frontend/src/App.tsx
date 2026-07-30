@@ -7,7 +7,7 @@ import { Login } from './components/Login'
 import type { Recurring as RecurringType, SaveCategory, SaveIncome, SaveTransaction, Transaction } from './types'
 import {
   useCategories, useCreateRecurring, useCreateTransaction, useDeleteRecurring,
-  useCreateCategory, useCreateIncome, useUpdateTransaction, useDeleteCategory, useDeleteTransaction, useRecurring, useUpdateCategory, useSafeToSpend, useTransactions,
+  useCreateCategory, useCreateIncome, useUpdateTransaction, useUpdateIncome, useDeleteCategory, useDeleteTransaction, useRecurring, useUpdateCategory, useSafeToSpend, useTransactions,
   useUpdateRecurring, useTaxProfile, useTaxDefaults, useSaveTaxProfile,
   useAllocations, useSaveAllocation, useSettings, useSetDisplayCurrency, useSetPeriodStartDay,
   useSavings, useSaveSavingsPlan, useAddSavingsEntry, useUpdateSavingsEntry, useDeleteSavingsEntry,
@@ -88,6 +88,7 @@ function App() {
   const createTx = useCreateTransaction()
   const createIncome = useCreateIncome()
   const updateTx = useUpdateTransaction()
+  const updateIncome = useUpdateIncome()
   const createCategory = useCreateCategory()
   const updateCategory = useUpdateCategory()
   const deleteCategory = useDeleteCategory()
@@ -214,6 +215,11 @@ function App() {
             envelopes={(summary.data?.envelopes ?? []).filter((e) => e.balance > 0)}
             onSave={handleSave}
             onSaveIncome={async (i: SaveIncome) => { await createIncome.mutateAsync(i); go('home') }}
+            onUpdateIncome={async (id, i) => {
+              await updateIncome.mutateAsync({ id, data: i })
+              setEditingTx(null)
+              go('home')
+            }}
             onSaveRecurring={async (r) => { await createRecurring.mutateAsync(r); go('home') }}
             onCreateCategory={(c: SaveCategory) => createCategory.mutateAsync(c)}
             onCancel={() => { setEditingTx(null); setPresetCategoryId(null); setIncomeFirst(false); go('home') }}

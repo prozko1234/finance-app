@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { Home } from './Home'
 import type { SafeToSpend, Transaction } from '../types'
 
@@ -124,7 +125,7 @@ describe('Home', () => {
     const expense = (id: number, categoryId: number, categoryName: string, amount: number): Transaction => ({
       id, kind: 'Expense', amountOriginal: amount, currencyOriginal: 'PLN', amountBase: amount,
       amountDisplay: amount, displayCurrency: 'PLN', fxRate: 1, fxDate: '2026-07-24', categoryId, categoryName,
-      frequency: 'OneOff', source: 'Manual', date: '2026-07-24', createdAt: '',
+      frequency: 'OneOff', source: 'Manual', amountIncludesVat: false, date: '2026-07-24', createdAt: '',
     })
 
     render(
@@ -224,5 +225,21 @@ describe('Home', () => {
   it('offers to split the budget while the default scheme is on', () => {
     render(<Home {...props} summary={summary()} />)
     expect(screen.getByRole('button', { name: 'Розподіл →' })).toBeInTheDocument()
+  })
+  /// Дохід теж редагується: раніше тап по рядку доходу нічого не робив, і виправляти
+  /// рахунок доводилось видаленням і повторним уведенням — а саме там і губиться цифра.
+  it('opens an income row for editing, not only expenses', async () => {
+    const onEdit = vi.fn()
+    const income: Transaction = {
+      id: 7, kind: 'Income', amountOriginal: 12300, currencyOriginal: 'PLN', amountBase: 10000,
+      grossWithVat: 12300, vatAmount: 2300, amountDisplay: 10000, displayCurrency: 'PLN',
+      fxRate: 1, fxDate: '2026-07-24', categoryId: 1, categoryName: 'Дохід',
+      frequency: 'OneOff', source: 'Manual', amountIncludesVat: true, date: '2026-07-24', createdAt: '',
+    }
+
+    render(<Home {...props} summary={summary()} transactions={[income]} onEdit={onEdit} />)
+    await userEvent.setup().click(screen.getByText('Дохід'))
+
+    expect(onEdit).toHaveBeenCalledWith(income)
   })
 })

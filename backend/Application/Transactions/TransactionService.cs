@@ -73,14 +73,63 @@ public sealed class TransactionService(
     public async Task<Result<TransactionResponse>> CreateIncomeAsync(
         SaveIncomeRequest req, CancellationToken ct = default)
     {
-        var date = req.Date ?? DateOnly.FromDateTime(DateTime.Now);
+        var category = await db.Categories.OrderBy(c => c.Id).FirstAsync(ct);
+        var tx = new Transaction
+        {
+            Kind = TransactionKind.Income,
+            CurrencyOriginal = req.Currency.ToUpperInvariant(),
+            CategoryId = category.Id,
+            Frequency = Frequency.OneOff,
+            Source = TxSource.Manual,
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
 
-        var conv = await fx.ConvertToBaseAsync(req.Amount, req.Currency, date, ct);
+        var applied = await ApplyIncomeAsync(tx, req, ct);
+        if (!applied.IsSuccess) return applied.Error;
+
+        db.Transactions.Add(tx);
+        await db.SaveChangesAsync(ct);
+        await LoadCategoryAsync(tx, ct);
+        return Result<TransactionResponse>.Ok(await ShowAsync(tx, ct));
+    }
+
+    /// Correcting an invoice instead of deleting it and typing it again. A separate path from
+    /// the expense one on purpose: an income row keeps the revenue (przychód, VAT excluded) in
+    /// <see cref="Transaction.AmountBase"/>, and the ordinary update — which knows nothing about
+    /// VAT — would write the gross figure there and leave GrossWithVat and VatAmount describing
+    /// the old amount. Nothing would look broken; the month's budget would simply be wrong by
+    /// the VAT, which is the worst kind of bug this app can have.
+    public async Task<Result<TransactionResponse>> UpdateIncomeAsync(
+        int id, SaveIncomeRequest req, CancellationToken ct = default)
+    {
+        var tx = await db.Transactions.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (tx is null) return Error.NotFound($"Транзакцію {id} не знайдено.");
+        if (tx.Kind != TransactionKind.Income)
+            return Error.Validation("Це витрата, а не дохід — редагується вона як витрата.");
+
+        var applied = await ApplyIncomeAsync(tx, req, ct);
+        if (!applied.IsSuccess) return applied.Error;
+
+        await db.SaveChangesAsync(ct);
+        await LoadCategoryAsync(tx, ct);
+        return Result<TransactionResponse>.Ok(await ShowAsync(tx, ct));
+    }
+
+    /// The VAT split, shared by writing an invoice and correcting one, so the two can never
+    /// disagree about what «6 000 z VAT» means.
+    private async Task<Result<bool>> ApplyIncomeAsync(
+        Transaction tx, SaveIncomeRequest req, CancellationToken ct)
+    {
+        if (req.Amount <= 0) return Error.Validation("Сума має бути більшою за нуль.");
+
+        var date = req.Date ?? (tx.Date == default ? DateOnly.FromDateTime(DateTime.Now) : tx.Date);
+        var currency = req.Currency.ToUpperInvariant();
+
+        var conv = await fx.ConvertToBaseAsync(req.Amount, currency, date, ct);
         if (!conv.IsSuccess) return conv.Error;
         var enteredBase = conv.Value!.AmountBase;
 
-        var profile = await db.TaxProfiles.OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
-        var vatRate = profile is { VatPayer: true } ? profile.VatRate : 0m;
+        var vatRate = await VatRateForAsync(tx, ct);
 
         decimal grossWithVat, revenue;
         if (req.AmountIncludesVat)
@@ -94,34 +143,40 @@ public sealed class TransactionService(
             grossWithVat = Math.Round(enteredBase * (1 + vatRate), 2, MidpointRounding.AwayFromZero);
         }
 
-        var category = await db.Categories.OrderBy(c => c.Id).FirstAsync(ct);
-        var tx = new Transaction
-        {
-            Kind = TransactionKind.Income,
-            AmountOriginal = req.Amount,
-            CurrencyOriginal = req.Currency.ToUpperInvariant(),
-            AmountBase = revenue,          // revenue (VAT excluded) is what taxes build on
-            GrossWithVat = grossWithVat,
-            VatAmount = Math.Round(grossWithVat - revenue, 2, MidpointRounding.AwayFromZero),
-            FxRate = conv.Value.Rate,
-            FxDate = conv.Value.RateDate,
-            CategoryId = category.Id,
-            Frequency = Frequency.OneOff,
-            Source = TxSource.Manual,
-            Date = date,
-            Note = req.Note,
-            CreatedAt = DateTimeOffset.UtcNow,
-        };
-        db.Transactions.Add(tx);
-        await db.SaveChangesAsync(ct);
-        await LoadCategoryAsync(tx, ct);
-        return Result<TransactionResponse>.Ok(await ShowAsync(tx, ct));
+        tx.AmountOriginal = req.Amount;
+        tx.CurrencyOriginal = currency;
+        tx.AmountBase = revenue;          // revenue (VAT excluded) is what taxes build on
+        tx.GrossWithVat = grossWithVat;
+        tx.VatAmount = Math.Round(grossWithVat - revenue, 2, MidpointRounding.AwayFromZero);
+        tx.FxRate = conv.Value.Rate;
+        tx.FxDate = conv.Value.RateDate;
+        tx.Date = date;
+        tx.Note = req.Note;
+
+        return Result<bool>.Ok(true);
+    }
+
+    /// An invoice keeps the VAT treatment it was written under — the same rule the fx rate
+    /// follows. Re-splitting an old invoice at today's rate because the user has since
+    /// registered for VAT (or stopped) would rewrite a figure the tax office has already seen.
+    /// A row that has no VAT figures of its own is new, so the profile decides.
+    private async Task<decimal> VatRateForAsync(Transaction tx, CancellationToken ct)
+    {
+        if (tx.GrossWithVat is { } gross && tx.AmountBase > 0m)
+            return Math.Round(gross / tx.AmountBase - 1m, 4, MidpointRounding.AwayFromZero);
+
+        var profile = await db.TaxProfiles.OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
+        return profile is { VatPayer: true } ? profile.VatRate : 0m;
     }
 
     public async Task<Result<TransactionResponse>> UpdateAsync(int id, SaveTransactionRequest req, CancellationToken ct = default)
     {
         var tx = await db.Transactions.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (tx is null) return Error.NotFound($"Транзакцію {id} не знайдено.");
+        // Not a detail of the UI: this path would put the gross amount into AmountBase, where
+        // an income row keeps the revenue, and the month's budget would quietly gain the VAT.
+        if (tx.Kind == TransactionKind.Income)
+            return Error.Validation("Це дохід — його редагує форма доходу, бо там ще є VAT.");
 
         var applied = await ApplyAsync(tx, req, fallbackDate: tx.Date, ct);
         if (!applied.IsSuccess) return applied.Error;

@@ -279,9 +279,11 @@ function RecentList({ transactions, onDelete, onEdit }: { transactions: Transact
           >
             <span className="text-xl">{t.kind === 'Income' ? '💰' : iconFor(t)}</span>
             <button
-              onClick={() => t.kind === 'Expense' && onEdit(t)}
-              disabled={t.kind !== 'Expense'}
-              className="flex-1 min-w-0 text-left disabled:cursor-default"
+              // Дохід теж відкривається — формою доходу, бо в ньому ще є VAT. Раніше тап по
+              // рядку доходу нічого не робив, і виправляти рахунок доводилось видаленням і
+              // повторним уведенням — а саме там і губиться цифра.
+              onClick={() => onEdit(t)}
+              className="flex-1 min-w-0 text-left"
             >
               <p className="font-medium truncate">
                 {t.kind === 'Income' ? 'Дохід' : t.categoryName}
