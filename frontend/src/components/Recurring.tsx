@@ -29,9 +29,6 @@ export function Recurring({ categories, items, onCreate, onToggle, onDelete, onB
   const [day, setDay] = useState('1')
   const [note, setNote] = useState('')
   const [drafts, setDrafts] = useState<Draft[]>([])
-  /// Ids marked for deletion. Nothing is sent until the confirm bar is used —
-  /// a mis-tap on a small ✕ must not silently drop a subscription.
-  const [marked, setMarked] = useState<number[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -82,23 +79,6 @@ export function Recurring({ categories, items, onCreate, onToggle, onDelete, onB
       setError(e instanceof Error ? e.message : 'Не вдалося зберегти')
     } finally {
       setDrafts(left)
-      setSaving(false)
-    }
-  }
-
-  async function deleteMarked() {
-    setSaving(true)
-    setError(null)
-    let left = marked
-    try {
-      for (const id of marked) {
-        await onDelete(id)
-        left = left.filter((x) => x !== id)
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Не вдалося видалити')
-    } finally {
-      setMarked(left)
       setSaving(false)
     }
   }
@@ -192,60 +172,43 @@ export function Recurring({ categories, items, onCreate, onToggle, onDelete, onB
         <p className="text-center text-neutral-400 text-sm">Ще немає нічого регулярного.</p>
       ) : (
         <ul className="space-y-2">
-          {items.map((r) => {
-            const isMarked = marked.includes(r.id)
-            return (
-              <li
-                key={r.id}
-                className={`flex items-center gap-3 rounded-xl px-4 py-3 shadow-sm ${
-                  isMarked ? 'bg-red-50 dark:bg-red-950/40' : 'bg-white dark:bg-neutral-900'
-                } ${r.active || isMarked ? '' : 'opacity-50'}`}
-              >
-                <div className="flex-1 min-w-0">
-                  <p className={`font-medium truncate ${isMarked ? 'line-through text-neutral-400' : ''}`}>
-                    {r.note || r.categoryName}
-                  </p>
-                  <p className="text-xs text-neutral-400">
-                    кожного {r.dayOfMonth}-го · {r.kind === 'Income' ? 'дохід' : r.categoryName}
-                  </p>
-                </div>
-                <p className={`font-semibold tabular-nums ${isMarked ? 'text-neutral-400 line-through' : r.kind === 'Income' ? 'text-emerald-600' : ''}`}>
-                  {r.kind === 'Income' ? '+' : ''}{money(r.amountOriginal, r.currencyOriginal)}
+          {items.map((r) => (
+            <li
+              key={r.id}
+              className={`flex items-center gap-3 rounded-xl px-4 py-3 shadow-sm bg-white dark:bg-neutral-900 ${
+                r.active ? '' : 'opacity-50'
+              }`}
+            >
+              <div className="flex-1 min-w-0">
+                <p className="font-medium truncate">{r.note || r.categoryName}</p>
+                <p className="text-xs text-neutral-400">
+                  кожного {r.dayOfMonth}-го · {r.kind === 'Income' ? 'дохід' : r.categoryName}
                 </p>
-                <button
-                  onClick={() => onToggle(r)} disabled={isMarked}
-                  className="text-sm text-neutral-400 px-1 disabled:opacity-30"
-                  title={r.active ? 'Призупинити' : 'Відновити'}
-                >
-                  {r.active ? '⏸' : '▶'}
-                </button>
-                <button
-                  onClick={() => setMarked(isMarked ? marked.filter((id) => id !== r.id) : [...marked, r.id])}
-                  className={`px-1 ${isMarked ? 'text-neutral-500' : 'text-neutral-300 hover:text-red-500'}`}
-                  aria-label={isMarked ? 'Не видаляти' : 'Позначити на видалення'}
-                >
-                  {isMarked ? '↺' : '✕'}
-                </button>
-              </li>
-            )
-          })}
+              </div>
+              <p className={`font-semibold tabular-nums ${r.kind === 'Income' ? 'text-emerald-600' : ''}`}>
+                {r.kind === 'Income' ? '+' : ''}{money(r.amountOriginal, r.currencyOriginal)}
+              </p>
+              <button
+                onClick={() => onToggle(r)}
+                className="text-sm text-neutral-400 px-1"
+                title={r.active ? 'Призупинити' : 'Відновити'}
+              >
+                {r.active ? '⏸' : '▶'}
+              </button>
+              {/* Видаляє одразу: повернути можна панеллю «Повернути», спільною для всього
+                  застосунку. Пара «познач і підтверди» жила тут одна на весь застосунок. */}
+              <button
+                onClick={() => void onDelete(r.id)}
+                className="px-1 text-neutral-300 hover:text-red-500"
+                aria-label="Видалити"
+              >
+                ✕
+              </button>
+            </li>
+          ))}
         </ul>
       )}
 
-      {marked.length > 0 && (
-        <div className="sticky bottom-4 flex items-center gap-2 rounded-2xl bg-white dark:bg-neutral-900 p-3 shadow-lg">
-          <p className="flex-1 text-sm">Видалити {marked.length}?</p>
-          <button onClick={() => setMarked([])} className="rounded-xl bg-neutral-100 dark:bg-neutral-800 px-4 py-2 text-sm font-medium">
-            Скасувати
-          </button>
-          <button
-            onClick={deleteMarked} disabled={saving}
-            className="rounded-xl bg-red-600 text-white px-4 py-2 text-sm font-medium disabled:opacity-40"
-          >
-            {saving ? 'Видаляю…' : 'Видалити'}
-          </button>
-        </div>
-      )}
     </div>
   )
 }

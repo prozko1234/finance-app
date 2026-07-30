@@ -1,7 +1,9 @@
+using FinanceApp.Application.Allocations;
 using FinanceApp.Application.Common;
 using FinanceApp.Application.Contracts;
 using FinanceApp.Application.Tax;
 using FinanceApp.Domain;
+using FinanceApp.Domain.Budgeting;
 using FinanceApp.Domain.Savings;
 using FinanceApp.Domain.Tax;
 
@@ -35,13 +37,42 @@ public class IncomePreviewTests
         Frequency = Frequency.OneOff,
     };
 
+    /// Форма доходу обіцяла суму з плану, а відкладала схема — і в самій формі редактор
+    /// плану нічого не робив. Ціль тут має приходити з того самого джерела, що й усюди.
+    [Fact]
+    public async Task The_savings_line_follows_the_scheme_when_the_scheme_owns_the_goal()
+    {
+        using var mem = new SqliteInMemory();
+        mem.Db.TaxProfiles.Add(Profile());
+        // Тільки одна схема може бути активною, тож стартову спершу знімаємо.
+        foreach (var scheme in mem.Db.AllocationSchemes) scheme.IsActive = false;
+        await mem.Db.SaveChangesAsync();
+
+        // 50/30/20: 20% у заощадження. План каже 5% — і має бути проігнорований.
+        mem.Db.AllocationSchemes.Add(AllocationPresets.Find("50-30-20")!.ToScheme(isActive: true));
+        mem.Db.SavingsPlans.Add(new SavingsPlan
+        {
+            Mode = SavingsMode.Percent, Value = 5m, Active = true, UpdatedAt = DateTimeOffset.UtcNow,
+        });
+        await mem.Db.SaveChangesAsync();
+        var svc = new TaxService(mem.Db, new BudgetPeriodResolver(mem.Db), new AllocationService(mem.Db));
+
+        var r = await svc.PreviewIncomeAsync(new CalculateTakeHomeRequest(24_600m, AmountIncludesVat: true));
+
+        Assert.True(r.IsSuccess);
+        var p = r.Value!;
+        Assert.Equal("50/30/20", p.SavingsFromScheme);
+        // Рівно 20% від того бюджету, який ця фактура створює — не 5% плану.
+        Assert.Equal(Math.Floor(p.BudgetAfter * 0.20m * 100m) / 100m, p.SavingsGoalAfter);
+    }
+
     [Fact]
     public async Task First_invoice_of_the_month_splits_vat_out_of_the_gross()
     {
         using var mem = new SqliteInMemory();
         mem.Db.TaxProfiles.Add(Profile());
         await mem.Db.SaveChangesAsync();
-        var svc = new TaxService(mem.Db, new BudgetPeriodResolver(mem.Db));
+        var svc = new TaxService(mem.Db, new BudgetPeriodResolver(mem.Db), new AllocationService(mem.Db));
 
         // 24 600 brutto = 20 000 przychód + 4 600 VAT.
         var r = await svc.PreviewIncomeAsync(new CalculateTakeHomeRequest(24_600m, AmountIncludesVat: true));
@@ -63,7 +94,7 @@ public class IncomePreviewTests
         using var mem = new SqliteInMemory();
         mem.Db.TaxProfiles.Add(Profile());
         await mem.Db.SaveChangesAsync();
-        var svc = new TaxService(mem.Db, new BudgetPeriodResolver(mem.Db));
+        var svc = new TaxService(mem.Db, new BudgetPeriodResolver(mem.Db), new AllocationService(mem.Db));
 
         var firstPreview = await svc.PreviewIncomeAsync(new CalculateTakeHomeRequest(10_000m, false));
 
@@ -96,7 +127,7 @@ public class IncomePreviewTests
         mem.Db.TaxProfiles.Add(Profile());
         mem.Db.SavingsPlans.Add(new SavingsPlan { Mode = SavingsMode.Percent, Value = 10m, Active = true });
         await mem.Db.SaveChangesAsync();
-        var svc = new TaxService(mem.Db, new BudgetPeriodResolver(mem.Db));
+        var svc = new TaxService(mem.Db, new BudgetPeriodResolver(mem.Db), new AllocationService(mem.Db));
 
         var r = await svc.PreviewIncomeAsync(new CalculateTakeHomeRequest(20_000m, AmountIncludesVat: false));
 
@@ -113,7 +144,7 @@ public class IncomePreviewTests
         using var mem = new SqliteInMemory();
         mem.Db.TaxProfiles.Add(Profile());
         await mem.Db.SaveChangesAsync();
-        var svc = new TaxService(mem.Db, new BudgetPeriodResolver(mem.Db));
+        var svc = new TaxService(mem.Db, new BudgetPeriodResolver(mem.Db), new AllocationService(mem.Db));
 
         var p = (await svc.PreviewIncomeAsync(new CalculateTakeHomeRequest(20_000m, false))).Value!;
 

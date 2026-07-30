@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { setOnUnauthorized } from './api'
+import { useDeferredDelete } from './undo'
+import { UndoBar } from './components/Screen'
 import { Login } from './components/Login'
 import type { Recurring as RecurringType, SaveCategory, SaveIncome, SaveTransaction, Transaction } from './types'
 import {
@@ -11,10 +13,11 @@ import {
   useSavings, useSaveSavingsPlan, useAddSavingsEntry, useUpdateSavingsEntry, useDeleteSavingsEntry,
   useStats, useAuthStatus, useLogin, useLogout, queryKeys,
   useChangePassword, useChangeEmail, useSignOutEverywhere,
-  useOpeningBalance, useSetOpeningBalance,
+  useOpeningBalance, useSetOpeningBalance, useClearOpeningBalance,
 } from './hooks'
 import { Onboarding } from './components/Onboarding'
 import { Home } from './components/Home'
+import { Balance } from './components/Balance'
 import { AddTransaction } from './components/AddTransaction'
 import { Settings } from './components/Settings'
 import { Account } from './components/Account'
@@ -58,6 +61,7 @@ function App() {
   const transactions = useTransactions()
   const openingBalance = useOpeningBalance()
   const setOpeningBalance = useSetOpeningBalance()
+  const clearOpeningBalance = useClearOpeningBalance()
   const recurring = useRecurring()
   const savings = useSavings()
   const allocations = useAllocations()
@@ -84,6 +88,13 @@ function App() {
   const createRecurring = useCreateRecurring()
   const updateRecurring = useUpdateRecurring()
   const deleteRecurring = useDeleteRecurring()
+
+  // Видалення з відкладеним підтвердженням — по одному на список, бо id з різних таблиць
+  // збігаються, і спільний «сховати id 3» приховав би заодно чужий рядок.
+  const txUndo = useDeferredDelete()
+  const entryUndo = useDeferredDelete()
+  const recurringUndo = useDeferredDelete()
+  const undo = [txUndo, entryUndo, recurringUndo].find((u) => u.label !== null) ?? null
 
   const loadError = summary.error ?? transactions.error
 
@@ -178,11 +189,12 @@ function App() {
         {view === 'home' && (
           <Home
             summary={summary.data ?? null}
-            transactions={transactions.data ?? []}
-            onDelete={(id) => deleteTx.mutate(id)}
+            transactions={(transactions.data ?? []).filter((t) => !txUndo.hidden.includes(t.id))}
+            onDelete={(id) => txUndo.request(id, 'Запис видалено', () => deleteTx.mutate(id))}
             onAddIncome={() => { setIncomeFirst(true); setView('add') }}
             onGoSavings={() => setView('savings')}
             onGoAllocation={() => setView('allocation')}
+            onGoBalance={() => setView('balance')}
             onQuickCategory={(categoryId) => { setPresetCategoryId(categoryId); setView('add') }}
             onEdit={startEdit}
           />
@@ -190,7 +202,7 @@ function App() {
         {view === 'add' && (
           <AddTransaction
             categories={categories.data ?? []}
-            // Тільки ті, де є що витрачати: конверт із нулем як джерело — це вибір,
+            // Тільки ті, де є що витрачати: банка з нулем як джерело — це вибір,
             // який нічого не дає.
             envelopes={(summary.data?.envelopes ?? []).filter((e) => e.balance > 0)}
             onSave={handleSave}
@@ -201,6 +213,15 @@ function App() {
             editing={editingTx}
             presetCategoryId={presetCategoryId}
             initialKind={incomeFirst ? 'income' : 'expense'}
+          />
+        )}
+        {view === 'balance' && (
+          <Balance
+            data={openingBalance.data ?? null}
+            currency={settings.data?.displayCurrency ?? 'PLN'}
+            onSet={(b) => setOpeningBalance.mutateAsync(b).then(() => {})}
+            onClear={() => clearOpeningBalance.mutateAsync().then(() => {})}
+            onBack={() => setView('home')}
           />
         )}
         {view === 'settings' && (
@@ -228,11 +249,14 @@ function App() {
         {view === 'dev' && <DevTools onBack={() => setView('home')} />}
         {view === 'savings' && (
           <Savings
-            data={savings.data ?? null}
+            data={savings.data
+              ? { ...savings.data, recent: savings.data.recent.filter((e) => !entryUndo.hidden.includes(e.id)) }
+              : null}
             onSavePlan={(p) => saveSavingsPlan.mutateAsync(p).then(() => {})}
             onAddEntry={(e) => addSavingsEntry.mutateAsync(e).then(() => {})}
             onUpdateEntry={(id, e) => updateSavingsEntry.mutateAsync({ id, data: e }).then(() => {})}
-            onDeleteEntry={(id) => deleteSavingsEntry.mutateAsync(id).then(() => {})}
+            onDeleteEntry={async (id) =>
+              entryUndo.request(id, 'Рух видалено', () => deleteSavingsEntry.mutate(id))}
             onBack={() => setView('home')}
           />
         )}
@@ -256,10 +280,11 @@ function App() {
         {view === 'recurring' && (
           <Recurring
             categories={categories.data ?? []}
-            items={recurring.data ?? []}
+            items={(recurring.data ?? []).filter((r) => !recurringUndo.hidden.includes(r.id))}
             onCreate={(r) => createRecurring.mutateAsync(r).then(() => {})}
             onToggle={toggleRecurring}
-            onDelete={(id) => deleteRecurring.mutateAsync(id).then(() => {})}
+            onDelete={async (id) =>
+              recurringUndo.request(id, 'Підписку видалено', () => deleteRecurring.mutate(id))}
             onBack={() => setView('home')}
           />
         )}
@@ -276,12 +301,17 @@ function App() {
           <TaxProfile
             profile={taxProfile.data ?? null}
             defaults={taxDefaults.data ?? null}
+            // Розклад податків цього періоду переїхав сюди з головної — там він був
+            // розкривачкою, тут він поруч зі ставками, які його й порахували.
+            month={summary.data?.monthTaxes ?? null}
             onSave={(p) => saveTaxProfile.mutateAsync(p).then(() => {})}
             onBack={() => setView('home')}
           />
         )}
         </main>
       </div>
+
+      {undo && <UndoBar label={undo.label!} onUndo={undo.undo} />}
 
       {view === 'home' && (
         <button

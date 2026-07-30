@@ -135,18 +135,15 @@ export function useSettings() {
 }
 
 /// Так само, як валюта: день зарплати переставляє межі періоду, а отже й бюджет, денну
-/// норму, резерв підписок і цілі конвертів. Дешевше перечитати все, ніж вгадувати.
+/// норму, резерв підписок і цілі банок. Дешевше перечитати все, ніж вгадувати.
 export function useSetPeriodStartDay() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (day: number) => api.setPeriodStartDay(day),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.settings })
-      qc.invalidateQueries({ queryKey: queryKeys.summary })
-      qc.invalidateQueries({ queryKey: queryKeys.savings })
-      qc.invalidateQueries({ queryKey: queryKeys.allocations })
-      qc.invalidateQueries({ queryKey: queryKeys.openingBalance })
-    },
+    // Everything, not a hand-picked list. The list used to miss підписки (whose next charge
+    // moves with the period boundary) and транзакції (whose «з цього періоду» labels do),
+    // which is how half the screen changed its numbers and half did not.
+    onSuccess: () => qc.invalidateQueries(),
   })
 }
 
@@ -166,7 +163,7 @@ export function useSetDisplayCurrency() {
   })
 }
 
-/// Історія одного конверта. Id у ключі, тож перемикання між конвертами не мигає — уже
+/// Історія однієї банки. Id у ключі, тож перемикання між банками не мигає — уже
 /// переглянутий лишається в кеші. Ключ починається з savings, тому будь-який рух грошей
 /// (депозит, зняття) інвалідує й історію разом із рештою.
 export function useEnvelopeHistory(envelopeId: number | null) {

@@ -48,6 +48,38 @@ describe('Allocation', () => {
     expect(onSave).toHaveBeenCalledWith({ preset: '50-30-20' })
   })
 
+  /// «А гроші, які вже відкладені?» — питання виникає одразу після тапу, і відповідь має
+  /// бути тут же, а не в голові автора.
+  it('says what the change did to the period that is running', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    const { rerender } = render(<Allocation {...props} data={data()} onSave={onSave} />)
+
+    await userEvent.click(screen.getByText('50/30/20'))
+
+    // Сервер підтвердив: активна схема тепер інша.
+    rerender(
+      <Allocation
+        {...props}
+        onSave={onSave}
+        data={data({
+          active: {
+            name: '50/30/20',
+            preset: '50-30-20',
+            buckets: [
+              { name: 'Потреби', kind: 'Spending', percent: 50 },
+              { name: 'Бажання', kind: 'Spending', percent: 30 },
+              { name: 'Заощадження', kind: 'Savings', percent: 20 },
+            ],
+          },
+        })}
+      />,
+    )
+
+    expect(screen.getByText(/Цей період перерахували/)).toBeInTheDocument()
+    expect(screen.getByText(/у банки 1200,00/)).toBeInTheDocument()
+    expect(screen.getByText(/Минулі періоди лишились як були/)).toBeInTheDocument()
+  })
+
   it('refuses to save a custom split that does not add up to 100', async () => {
     render(<Allocation {...props} data={data()} onSave={vi.fn()} />)
 

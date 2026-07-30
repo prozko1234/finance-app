@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-export type View = 'home' | 'add' | 'settings' | 'recurring' | 'tax' | 'categories' | 'savings' | 'allocation' | 'stats' | 'account' | 'dev'
+export type View = 'home' | 'add' | 'balance' | 'settings' | 'recurring' | 'tax' | 'categories' | 'savings' | 'allocation' | 'stats' | 'account' | 'dev'
 
 interface Props {
   current: View
@@ -21,7 +21,8 @@ type Item = { view: View; label: string; icon: string }
 
 const MONEY: Item[] = [
   { view: 'home', label: 'Головна', icon: '◉' },
-  { view: 'savings', label: 'Конверти', icon: '🐖' },
+  { view: 'balance', label: 'Скільки в мене зараз', icon: '🧮' },
+  { view: 'savings', label: 'Банки', icon: '🐖' },
   { view: 'allocation', label: 'Розподіл бюджету', icon: '🧩' },
   { view: 'recurring', label: 'Підписки й регулярні', icon: '↻' },
   { view: 'stats', label: 'Статистика', icon: '📊' },

@@ -5,6 +5,7 @@ using FinanceApp.Application.Mapping;
 using FinanceApp.Domain;
 using FinanceApp.Domain.Common;
 using FinanceApp.Domain.Savings;
+using FinanceApp.Application.Allocations;
 using FinanceApp.Domain.Tax;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,7 +19,8 @@ public interface ITaxService
     TaxDefaultsResponse GetDefaults();
 }
 
-public sealed class TaxService(IAppDbContext db, IBudgetPeriods periods) : ITaxService
+public sealed class TaxService(
+    IAppDbContext db, IBudgetPeriods periods, IAllocationService allocations) : ITaxService
 {
     public async Task<TaxProfileResponse> GetProfileAsync(CancellationToken ct = default)
     {
@@ -88,8 +90,16 @@ public sealed class TaxService(IAppDbContext db, IBudgetPeriods periods) : ITaxS
 
         // The savings goal follows the budget, so it has to be computed against the budget
         // this invoice produces — not the one on screen a second ago.
+        //
+        // And it comes from the SAME source as the rest of the app: a scheme bucket owns the
+        // goal when there is one, and only then does the plan decide. This used to ask the
+        // plan alone, so a scheme with a savings bucket made the form promise a number the
+        // app was never going to put aside — and the plan editor inside the form silently
+        // did nothing.
         var plan = await db.SavingsPlans.OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
-        var goalAfter = SavingsCalculator.MonthGoal(plan, after.Value!.TakeHome);
+        var breakdown = await allocations.BreakdownAsync(after.Value!.TakeHome, ct);
+        var goalAfter = breakdown.SavingsGoal ?? SavingsCalculator.MonthGoal(plan, after.Value!.TakeHome);
+        var fromScheme = breakdown.SavingsGoal is null ? null : breakdown.SchemeName;
 
         var b = invoice.Value!;
         return Result<IncomePreviewResponse>.Ok(new IncomePreviewResponse(
@@ -97,7 +107,7 @@ public sealed class TaxService(IAppDbContext db, IBudgetPeriods periods) : ITaxS
             budgetBefore, after.Value!.TakeHome, after.Value!.TakeHome - budgetBefore,
             revenueSoFar == 0m, after.Value!.ToMonthBreakdown(),
             (plan?.Mode ?? SavingsMode.Percent).ToString(), plan?.Value ?? 0m, plan?.Active ?? false,
-            goalAfter, Money.BaseCurrency));
+            goalAfter, Money.BaseCurrency, fromScheme));
     }
 
     public TaxDefaultsResponse GetDefaults() => new(

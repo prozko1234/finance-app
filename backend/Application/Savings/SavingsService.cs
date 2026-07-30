@@ -10,6 +10,7 @@ using FinanceApp.Domain.Fx;
 using FinanceApp.Application.Summaries;
 using FinanceApp.Domain.Savings;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace FinanceApp.Application.Savings;
 
@@ -20,18 +21,15 @@ public interface ISavingsService
     Task<Result<SavingsResponse>> AddEntryAsync(SaveSavingsEntryRequest req, CancellationToken ct = default);
     Task<Result<SavingsResponse>> UpdateEntryAsync(int id, SaveSavingsEntryRequest req, CancellationToken ct = default);
     Task<Result<SavingsResponse>> DeleteEntryAsync(int id, CancellationToken ct = default);
-
-    /// Balance + this month's goal. Takes take-home because a percentage goal depends on it.
-    Task<SavingsStatus> StatusAsync(decimal monthlyTakeHome, CancellationToken ct = default);
 }
 
 public sealed class SavingsService(
     IAppDbContext db, IMonthlyBudget monthlyBudget, IFxConverter fx,
     IAllocationService allocations, IEnvelopeService envelopes,
-    IMoneyViewFactory moneyViews) : ISavingsService
+    IMoneyViewFactory moneyViews, ILogger<SavingsService> log) : ISavingsService
 {
     public async Task<SavingsResponse> GetAsync(CancellationToken ct = default) =>
-        await BuildAsync(await TakeHomeAsync(ct), ct);
+        await BuildAsync(await MonthAsync(ct), ct);
 
     public async Task<Result<SavingsResponse>> SavePlanAsync(
         SaveSavingsPlanRequest req, CancellationToken ct = default)
@@ -56,7 +54,7 @@ public sealed class SavingsService(
         plan.UpdatedAt = DateTimeOffset.UtcNow;
 
         await db.SaveChangesAsync(ct);
-        return Result<SavingsResponse>.Ok(await BuildAsync(await TakeHomeAsync(ct), ct));
+        return Result<SavingsResponse>.Ok(await BuildAsync(await MonthAsync(ct), ct));
     }
 
     public async Task<Result<SavingsResponse>> AddEntryAsync(
@@ -68,14 +66,18 @@ public sealed class SavingsService(
 
         db.SavingsEntries.Add(entry);
         await db.SaveChangesAsync(ct);
-        return Result<SavingsResponse>.Ok(await BuildAsync(await TakeHomeAsync(ct), ct));
+        return Result<SavingsResponse>.Ok(await BuildAsync(await MonthAsync(ct), ct));
     }
 
     public async Task<Result<SavingsResponse>> UpdateEntryAsync(
         int id, SaveSavingsEntryRequest req, CancellationToken ct = default)
     {
         var entry = await db.SavingsEntries.FirstOrDefaultAsync(x => x.Id == id, ct);
-        if (entry is null) return Error.NotFound($"Операцію {id} не знайдено.");
+        if (entry is null)
+        {
+            log.LogWarning("Savings: entry {Id} was edited but no longer exists", id);
+            return Error.NotFound($"Операцію {id} не знайдено.");
+        }
 
         // The row being edited is already part of the balance, so it has to be taken out
         // before checking the new amount — otherwise correcting a withdrawal down would
@@ -86,7 +88,7 @@ public sealed class SavingsService(
         if (!applied.IsSuccess) return applied.Error;
 
         await db.SaveChangesAsync(ct);
-        return Result<SavingsResponse>.Ok(await BuildAsync(await TakeHomeAsync(ct), ct));
+        return Result<SavingsResponse>.Ok(await BuildAsync(await MonthAsync(ct), ct));
     }
 
     /// Shared by add and edit so both validate identically and convert on the same date —
@@ -111,7 +113,7 @@ public sealed class SavingsService(
         // pension deposit cannot silently move it into savings.
         var envelopeId = req.EnvelopeId ?? (entry.EnvelopeId != 0 ? entry.EnvelopeId : await DefaultEnvelopeIdAsync(ct));
         if (!await db.Envelopes.AnyAsync(e => e.Id == envelopeId, ct))
-            return Error.NotFound($"Конверт {envelopeId} не знайдено.");
+            return Error.NotFound($"Банку {envelopeId} не знайдено.");
 
         var conv = await fx.ConvertToBaseAsync(req.Amount, currency, date, ct);
         if (!conv.IsSuccess) return conv.Error;
@@ -121,7 +123,7 @@ public sealed class SavingsService(
         var available = await BalanceAsync(envelopeId, ct)
             - (entry.EnvelopeId == envelopeId ? replacing : 0m);
         if (kind == SavingsEntryKind.Withdrawal && conv.Value!.AmountBase > available)
-            return Error.Validation($"У конверті лише {available:0.00}. Стільки зняти не вийде.");
+            return Error.Validation($"У банці лише {available:0.00}. Стільки зняти не вийде.");
 
         entry.EnvelopeId = envelopeId;
         entry.Date = date;
@@ -139,36 +141,34 @@ public sealed class SavingsService(
     public async Task<Result<SavingsResponse>> DeleteEntryAsync(int id, CancellationToken ct = default)
     {
         var entry = await db.SavingsEntries.FirstOrDefaultAsync(x => x.Id == id, ct);
-        if (entry is null) return Error.NotFound($"Операцію {id} не знайдено.");
+        if (entry is null)
+        {
+            log.LogWarning("Savings: entry {Id} was deleted but no longer exists", id);
+            return Error.NotFound($"Операцію {id} не знайдено.");
+        }
 
         db.SavingsEntries.Remove(entry);
         await db.SaveChangesAsync(ct);
-        return Result<SavingsResponse>.Ok(await BuildAsync(await TakeHomeAsync(ct), ct));
-    }
-
-    public async Task<SavingsStatus> StatusAsync(decimal monthlyTakeHome, CancellationToken ct = default)
-    {
-        var e = await DefaultStatusAsync(monthlyTakeHome, ct);
-        return new SavingsStatus(e.Balance, e.MonthGoal, e.DepositedThisMonth, e.StillToReserve);
+        return Result<SavingsResponse>.Ok(await BuildAsync(await MonthAsync(ct), ct));
     }
 
     /// The default envelope, which is what the plan on this screen feeds.
-    private async Task<EnvelopeStatus> DefaultStatusAsync(decimal monthlyTakeHome, CancellationToken ct)
+    private async Task<EnvelopeStatus> DefaultStatusAsync(MonthlyBudgetResult month, CancellationToken ct)
     {
-        var all = await envelopes.StatusAsync(monthlyTakeHome, ct: ct);
+        var all = await envelopes.StatusAsync(month, ct);
         return all.FirstOrDefault(e => e.IsDefault) ?? all[0];
     }
 
-    private async Task<SavingsResponse> BuildAsync(decimal monthlyTakeHome, CancellationToken ct)
+    private async Task<SavingsResponse> BuildAsync(MonthlyBudgetResult month, CancellationToken ct)
     {
         var plan = await db.SavingsPlans.OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
-        var all = await envelopes.StatusAsync(monthlyTakeHome, ct: ct);
+        var all = await envelopes.StatusAsync(month, ct);
         var status = all.FirstOrDefault(e => e.IsDefault) ?? all[0];
 
         // A scheme bucket named like the default envelope owns its goal, and then the plan's
         // own value is ignored — the screen has to say so rather than show a number that does
         // nothing.
-        var breakdown = await allocations.BreakdownAsync(monthlyTakeHome, ct);
+        var breakdown = await allocations.BreakdownAsync(month.Budget ?? 0m, ct);
         var fromScheme = breakdown.SavingsGoal is null ? null : breakdown.SchemeName;
 
         var rows = await db.SavingsEntries
@@ -186,7 +186,7 @@ public sealed class SavingsService(
             entries.Add(new SavingsEntryResponse(
                 x.Id, x.Date, x.Kind.ToString(), await view.FromBaseAsync(x.AmountBase, x.Date, ct),
                 x.AmountOriginal, x.CurrencyOriginal, x.Note,
-                x.EnvelopeId, x.Envelope?.Name ?? ""));
+                x.EnvelopeId, x.Envelope?.Name ?? "", x.IsAuto));
 
         var summaries = new List<EnvelopeSummary>(all.Count);
         foreach (var e in all)
@@ -208,17 +208,20 @@ public sealed class SavingsService(
             view.Currency,
             entries,
             summaries,
-            fromScheme);
+            fromScheme,
+            month.FromOpeningBalance ? month.WindowStart : null);
     }
 
-    /// A percentage goal is a share of what is actually the user's after tax.
-    private async Task<decimal> TakeHomeAsync(CancellationToken ct) =>
-        (await monthlyBudget.ResolveAsync(ct)).Budget ?? 0m;
+    /// A percentage goal is a share of what is actually the user's after tax — and the plan
+    /// only runs at all when the period was not started by counting a balance, so the whole
+    /// resolution travels together rather than just the amount.
+    private Task<MonthlyBudgetResult> MonthAsync(CancellationToken ct) =>
+        monthlyBudget.ResolveAsync(ct);
 
     /// Where money goes when nobody said. StatusAsync creates the envelopes if they are
     /// missing, so this can never come back empty.
     private async Task<int> DefaultEnvelopeIdAsync(CancellationToken ct) =>
-        (await DefaultStatusAsync(await TakeHomeAsync(ct), ct)).Id;
+        (await DefaultStatusAsync(await MonthAsync(ct), ct)).Id;
 
     /// Balance of ONE envelope. Withdrawing is checked against the pot the money is being
     /// taken from, never against the total — otherwise a full pension envelope would let

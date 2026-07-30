@@ -177,7 +177,10 @@ public record SavingsEntryResponse(
     string CurrencyOriginal,
     string? Note,
     int EnvelopeId = 0,
-    string EnvelopeName = "");
+    string EnvelopeName = "",
+    /// Written by the app carrying out the scheme, not by hand. Editing or deleting one is
+    /// undone by the next page load, so the UI must not offer either.
+    bool IsAuto = false);
 
 public record SavingsResponse(
     string Mode,
@@ -194,7 +197,11 @@ public record SavingsResponse(
     IReadOnlyList<EnvelopeSummary> Envelopes,
     /// Name of the allocation scheme that dictates the goal, or null when the plan below
     /// still decides it. Set = the plan's own value is ignored, and the UI must say so.
-    string? GoalFromScheme = null);
+    string? GoalFromScheme = null,
+    /// The day a balance was counted, when that is what stood the plan down until the next
+    /// payday. Otherwise null. Without it the screen shows a live plan next to a goal of 0
+    /// and looks broken — the reason has to be on screen, not only in the code.
+    DateOnly? PlanPausedFrom = null);
 
 public record SaveRecurringRequest(
     decimal Amount,
@@ -262,7 +269,10 @@ public record IncomePreviewResponse(
     decimal SavingsValue,
     bool SavingsActive,
     decimal SavingsGoalAfter,
-    string Currency);
+    string Currency,
+    /// Name of the scheme that dictates the goal, or null when the plan still decides it.
+    /// Set = the plan editor in the form would change nothing, and the form has to say so.
+    string? SavingsFromScheme = null);
 
 public record RecurringResponse(
     int Id,

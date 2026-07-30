@@ -1,5 +1,6 @@
 using static FinanceApp.Api.Tests.TestIncome;
 using FinanceApp.Application.Common;
+using Microsoft.Extensions.Logging.Abstractions;
 using FinanceApp.Api.Tests.Integration;
 using FinanceApp.Application.Recurring;
 using FinanceApp.Application.Savings;
@@ -55,7 +56,7 @@ public class RecurringIncomeSummaryTests
             mem.Db, fx,
             new RecurringMaterializer(mem.Db, fx),
             new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db)),
-            new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db)),
+            new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db), NullLogger<EnvelopeService>.Instance),
             new AllocationService(mem.Db),
             new MoneyViewFactory(mem.Db, fx),
             new BudgetPeriodResolver(mem.Db));

@@ -62,8 +62,7 @@ public sealed class SummaryService(
         // by hand. Deposits count too — a deposit is not an expense transaction, so without
         // them the money that left the account would come back as spendable, and the goal
         // would reserve less the more of it was actually saved.
-        var envelopes = await envelopeService.StatusAsync(
-            budget ?? 0m, month.FromOpeningBalance ? month.WindowStart : null, ct);
+        var envelopes = await envelopeService.StatusAsync(month, ct);
         var heldBack = envelopes.Sum(e => e.HeldBack);
 
         var r = SafeToSpendCalculator.Calculate(

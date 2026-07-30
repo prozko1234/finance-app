@@ -1,8 +1,6 @@
-import type { ReactNode } from 'react'
 import type { EnvelopeSummary, SafeToSpend, Transaction } from '../types'
 import { dayMonth, money } from '../format'
 import { buildQuickCategories, type QuickCategory } from '../quickCategories'
-import { RatesNote } from './Screen'
 
 interface Props {
   summary: SafeToSpend | null
@@ -13,17 +11,21 @@ interface Props {
   onEdit: (t: Transaction) => void
   onGoSavings: () => void
   onGoAllocation: () => void
+  onGoBalance: () => void
 }
 
 export function Home({
   summary, transactions, onDelete, onAddIncome, onQuickCategory, onEdit, onGoSavings, onGoAllocation,
+  onGoBalance,
 }: Props) {
   const quick = buildQuickCategories(transactions, (name) => ICONS[name] ?? '📦')
 
   return (
     <div className="space-y-6">
       <SafeToSpendCard summary={summary} onAddIncome={onAddIncome} />
-      {summary?.budgetSet && <MonthCard summary={summary} onGoAllocation={onGoAllocation} />}
+      {summary?.budgetSet && (
+        <PeriodCard summary={summary} onGoAllocation={onGoAllocation} onGoBalance={onGoBalance} />
+      )}
       {summary && (
         <EnvelopesCard envelopes={summary.envelopes} currency={summary.currency} onOpen={onGoSavings} />
       )}
@@ -69,9 +71,8 @@ function SafeToSpendCard({ summary, onAddIncome }: { summary: SafeToSpend | null
     return (
       <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm text-center space-y-3">
         <p className="font-medium">Новий період — скільки прийшло?</p>
-        <p className="text-sm text-neutral-500 leading-relaxed">
-          Період почався {dayMonth(summary.periodStart)}, доходу за нього ще немає. Впиши
-          суму — і додаток знову казатиме одну цифру: скільки можна витратити сьогодні.
+        <p className="text-sm text-neutral-500">
+          Період почався {dayMonth(summary.periodStart)}, доходу за нього ще немає.
         </p>
         <button
           onClick={onAddIncome}
@@ -87,9 +88,9 @@ function SafeToSpendCard({ summary, onAddIncome }: { summary: SafeToSpend | null
   const positive = left >= 0
   const c = summary.currency
 
-  // Одне речення замість чотирьох рядків дрібних чисел. Залишок місяця, бюджет і
-  // витрачене живуть у картці «Місяць» — до M24 вони були в обох, і два місця з тією
-  // самою арифметикою читались як дві різні цифри.
+  // Одна цифра, один рядок під нею. Все, що пояснює, звідки вона взялась, живе в картці
+  // періоду нижче: до M25 тут був ще й абзац про вікно розрахунку, і головна читалась як
+  // текст, а не як відповідь на одне питання.
   return (
     <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm text-center">
       <p className="text-sm uppercase tracking-wide text-neutral-400">
@@ -98,13 +99,12 @@ function SafeToSpendCard({ summary, onAddIncome }: { summary: SafeToSpend | null
       <p className={`mt-1 text-5xl font-bold tabular-nums ${positive ? 'text-emerald-600' : 'text-red-600'}`}>
         {money(positive ? left : -left, c)}
       </p>
-      <p className="mt-2 text-sm text-neutral-500 leading-relaxed">
+      <p className="mt-2 text-sm text-neutral-500">
         {summary.spentToday > 0
-          ? `З норми ${money(summary.dailyNorm ?? 0, c)} на сьогодні вже витрачено ${money(summary.spentToday, c)}.`
-          : `Це норма на сьогодні. Лишилось ${summary.daysLeftInPeriod} дн.`}
+          ? `Норма ${money(summary.dailyNorm ?? 0, c)}, витрачено ${money(summary.spentToday, c)}`
+          : `Норма на день · ще ${summary.daysLeftInPeriod} дн.`}
       </p>
       <TomorrowNote summary={summary} />
-      <WindowNote summary={summary} />
     </div>
   )
 }
@@ -117,19 +117,6 @@ function periodLabel(summary: SafeToSpend): string {
   if (Number(summary.periodStart.slice(8, 10)) === 1) return 'Місяць'
 
   return `${dayMonth(summary.periodStart)} – ${dayMonth(summary.periodEnd)}`
-}
-
-/// Коли рахунок іде не з 1 числа, це треба сказати прямо — інакше «витрачено» виглядає
-/// підозріло малим, і незрозуміло, чи додаток щось загубив.
-function WindowNote({ summary }: { summary: SafeToSpend }) {
-  if (!summary.fromOpeningBalance || !summary.windowStart) return null
-
-  return (
-    <p className="mt-3 text-xs text-neutral-400 leading-relaxed">
-      Рахуємо з {dayMonth(summary.windowStart)} — від суми, яку ти тоді порахував.
-      Те, що витрачено раніше, вже в ній.
-    </p>
-  )
 }
 
 /// The point of M15: today's spending already changes tomorrow's number — say it out loud
@@ -148,97 +135,78 @@ function TomorrowNote({ summary }: { summary: SafeToSpend }) {
   )
 }
 
-/// Одна картка на весь місяць: звідки взявся бюджет, що з нього вже пішло і що лишилось.
-/// До M23 це були три окремі картки (підсумок, розподіл, податки) — три заголовки для
-/// однієї арифметики. Тепер один стовпчик, який справді сходиться, а деталі — під
-/// розкривачками, щоб головна не була простинею.
-function MonthCard({ summary, onGoAllocation }: { summary: SafeToSpend; onGoAllocation: () => void }) {
+/// Період — три цифри в один рядок, не стовпчик із семи. До M25 тут була таблиця з
+/// податками, схемою розподілу і двома розкривачками: щоб дізнатись «скільки лишилось»,
+/// доводилось прочитати весь місяць. Тепер картка відповідає одним рядком, а те, що
+/// потрібно раз на місяць, живе на своїх екранах (податки — на екрані податків, кошики —
+/// на розподілі), де воно й так є повністю.
+function PeriodCard({ summary, onGoAllocation, onGoBalance }: {
+  summary: SafeToSpend; onGoAllocation: () => void; onGoBalance: () => void
+}) {
   const c = summary.currency
   const taxes = summary.monthTaxes
-  const a = summary.allocation
-  const split = a !== null && a.buckets.length > 1
+  const held = heldBack(summary)
+  const split = summary.allocation !== null && summary.allocation.buckets.length > 1
   const from = summary.fromOpeningBalance && summary.windowStart
     ? dayMonth(summary.windowStart)
     : null
 
   return (
-    <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm">
-      <h2 className="text-sm font-medium text-neutral-400 mb-3">
-        {from ? `З ${from}` : periodLabel(summary)}
-      </h2>
-      <dl className="space-y-1.5 text-sm">
-        {taxes && (
-          <>
-            {/* Податкові рядки лишаються у валюті рушія — це цифри для книгової. Показати
-                їх із міткою гривні означало б написати суму, якої немає в жодному документі. */}
-            <Row label="Прийшло на рахунок" value={money(taxes.gross, taxes.currency)} />
-            <Row label="Відкладено на податки" value={`− ${money(taxes.setAside, taxes.currency)}`} muted />
-            <Details summary="з чого · VAT, ZUS, здоровотна, податок">
-              <Row label="VAT" value={money(taxes.vat, taxes.currency)} small />
-              <Row label="ZUS, соціальні внески" value={money(taxes.zusSocial, taxes.currency)} small />
-              <Row label="Здоровотна" value={money(taxes.health, taxes.currency)} small />
-              <Row label="Податок (ryczałt)" value={money(taxes.tax, taxes.currency)} small />
-              <RatesNote year={taxes.ratesYear} />
-            </Details>
-            {taxes.currency !== c && (
-              <p className="text-xs text-neutral-400 leading-relaxed pt-0.5">
-                Податки рахуються у {taxes.currency} — так їх бачить книгова. Нижче все
-                у {c}.
-              </p>
-            )}
-          </>
+    <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm space-y-1.5">
+      <div className="flex items-baseline justify-between gap-3">
+        {/* Коли бюджет іде від порахованого залишку, заголовок веде туди, де цю суму можна
+            перерахувати або прибрати. Доти це просто межі періоду — тиснути нема на що. */}
+        {from ? (
+          <button onClick={onGoBalance} className="text-sm font-medium text-neutral-400">
+            З {from} · залишок
+          </button>
+        ) : (
+          <h2 className="text-sm font-medium text-neutral-400">{periodLabel(summary)}</h2>
         )}
+        <button onClick={onGoAllocation} className="text-xs text-neutral-400 shrink-0">
+          {split ? `${summary.allocation!.schemeName} →` : 'Розподіл →'}
+        </button>
+      </div>
 
-        <Row
-          label={from ? 'Було на руках' : 'Бюджет періоду'}
-          value={money(summary.periodBudget ?? 0, c)}
-          strong
-        />
-        <Row label={from ? `Витрачено з ${from}` : 'Витрачено'} value={`− ${money(summary.spentThisPeriod, c)}`} muted />
+      <p className="text-sm tabular-nums">
+        <span className="text-neutral-400">{from ? 'Було' : 'Бюджет'} </span>
+        {money(summary.periodBudget ?? 0, c)}
+        <span className="text-neutral-400"> · витрачено </span>
+        {money(summary.spentThisPeriod, c)}
+        <span className="text-neutral-400"> · лишилось </span>
+        <span className="font-semibold">{money(summary.remainingThisPeriod ?? 0, c)}</span>
+      </p>
 
-        {summary.reservedRecurring > 0 && (
-          <Row label="Зарезервовано на підписки" value={`− ${money(summary.reservedRecurring, c)}`} muted />
-        )}
-        {heldBack(summary) > 0 && (
-          <Row label="Відкладено у конверти" value={`− ${money(heldBack(summary), c)}`} muted />
-        )}
+      {(held > 0 || summary.reservedRecurring > 0) && (
+        <p className="text-xs text-neutral-400 tabular-nums">
+          {[
+            held > 0 ? `у банках ${money(held, c)}` : null,
+            summary.reservedRecurring > 0 ? `на підписки ${money(summary.reservedRecurring, c)}` : null,
+          ].filter(Boolean).join(' · ')}
+          {' — уже відкладено з бюджету'}
+        </p>
+      )}
 
-        {split && (
-          <Details summary={`куди пішов бюджет · ${a!.schemeName}`}>
-            {a!.buckets.map((b) => (
-              <Row key={b.id} label={`${b.name} · ${b.percent}%`} value={money(b.amount, c)} small />
-            ))}
-          </Details>
-        )}
-
-        <Row label="Лишилось" value={money(summary.remainingThisPeriod ?? 0, c)} strong />
-      </dl>
-
-      <button onClick={onGoAllocation} className="mt-3 text-xs text-neutral-400">
-        {split ? 'Змінити розподіл →' : 'Ділити бюджет за схемою (50/30/20 та інші) →'}
-      </button>
+      {/* Податки лишаються у валюті рушія: це цифри для книгової, і сума з міткою гривні
+          не збіглася б ні з одним документом. Розклад по VAT/ZUS — на екрані податків. */}
+      {taxes && (
+        <p className="text-xs text-neutral-400 tabular-nums">
+          Прийшло {money(taxes.gross, taxes.currency)} · на податки{' '}
+          {money(taxes.setAside, taxes.currency)}
+        </p>
+      )}
     </div>
   )
 }
 
-/// Розкривачка з однаковим виглядом у всій картці — щоб «деталі» скрізь означали одне.
-function Details({ summary, children }: { summary: string; children: ReactNode }) {
-  return (
-    <details>
-      <summary className="cursor-pointer list-none text-xs text-neutral-400 pl-3 py-1">{summary}</summary>
-      <div className="pl-3 pt-1 space-y-1 text-xs text-neutral-400">{children}</div>
-    </details>
-  )
-}
-
-/// Скільки місячна арифметика тримає в конвертах. Одним рядком, а не по кошиках: вже
+/// Скільки місячна арифметика тримає в банках. Одним рядком, а не по кошиках: вже
 /// відкладене вручну і те, що ще тримається з бюджету, — це та сама зарезервована сума,
 /// і два рядки читались би як подвійне утримання.
 function heldBack(summary: SafeToSpend): number {
   return summary.envelopes.reduce((s, e) => s + e.depositedThisMonth + e.stillToReserve, 0)
 }
 
-/// Envelopes get their own card, not lines in the month summary: a balance that survives
+/// Банки get their own card, not lines in the period summary: a balance that survives
 /// across months is a different kind of number from this month's arithmetic.
 ///
 /// Every pot is listed, not just savings. A scheme with a pension bucket used to hold money
@@ -277,10 +245,11 @@ function EnvelopesCard({ envelopes, currency, onOpen }: {
               {e.monthGoal > 0 && (
                 <span className="text-neutral-400 text-xs">
                   {' · '}
-                  {/* Схема відкладає сама, тож зазвичай тут «відкладено ✓». Розбіжність
-                      лишається видимою: коли вручну довнесли понад план. */}
+                  {/* Схема відкладає сама, тож зазвичай план виконаний. Суму тут не
+                      повторюємо: вона вже стоїть праворуч у тому ж рядку, і два однакові
+                      числа поруч не влізали в рядок на телефоні. */}
                   {e.depositedThisMonth >= e.monthGoal
-                    ? `відкладено ${money(e.depositedThisMonth, currency)} ✓`
+                    ? 'за планом ✓'
                     : `${money(e.depositedThisMonth, currency)} з ${money(e.monthGoal, currency)}`}
                 </span>
               )}
@@ -295,17 +264,6 @@ function EnvelopesCard({ envelopes, currency, onOpen }: {
 
 const ENVELOPE_ICONS: Record<string, string> = {
   Savings: '🐖', Investing: '📈', Debt: '🏦', Other: '📦', Spending: '💳',
-}
-
-function Row({ label, value, muted, strong, small }: {
-  label: string; value: string; muted?: boolean; strong?: boolean; small?: boolean
-}) {
-  return (
-    <div className={`flex justify-between gap-3 ${strong ? 'border-t border-neutral-100 dark:border-neutral-800 pt-1.5 font-semibold' : ''}`}>
-      <dt className={muted || small ? 'text-neutral-400' : ''}>{label}</dt>
-      <dd className={`tabular-nums shrink-0 ${muted ? 'text-neutral-400' : ''}`}>{value}</dd>
-    </div>
-  )
 }
 
 function RecentList({ transactions, onDelete, onEdit }: { transactions: Transaction[]; onDelete: (id: number) => void; onEdit: (t: Transaction) => void }) {

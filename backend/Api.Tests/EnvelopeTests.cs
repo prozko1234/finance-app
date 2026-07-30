@@ -8,6 +8,7 @@ using FinanceApp.Application.Savings;
 using FinanceApp.Application.Summaries;
 using FinanceApp.Domain;
 using FinanceApp.Domain.Budgeting;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace FinanceApp.Api.Tests;
 
@@ -19,14 +20,24 @@ public class EnvelopeTests
     private const decimal Budget = 6_000m;
 
     private static EnvelopeService Sut(SqliteInMemory mem) =>
-        new(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db));
+        new(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db),
+            NullLogger<EnvelopeService>.Instance);
+
+    private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.Now);
+
+    /// An ordinary period: the budget came from income, so the plan runs.
+    private static MonthlyBudgetResult Month(decimal budget) =>
+        new(budget, null, BudgetPeriods.For(Today, BudgetPeriods.FirstOfMonth).Start, false);
+
+    /// A period started by counting what is in the account — the plan stands down.
+    private static MonthlyBudgetResult Counted(decimal budget) => new(budget, null, Today, true);
 
     private static SavingsService Savings(SqliteInMemory mem)
     {
         var fx = new FakeFxConverter();
         return new SavingsService(
             mem.Db, new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db)), fx, new AllocationService(mem.Db),
-            Sut(mem), new MoneyViewFactory(mem.Db, fx));
+            Sut(mem), new MoneyViewFactory(mem.Db, fx), NullLogger<SavingsService>.Instance);
     }
 
     private static async Task ActivateAsync(SqliteInMemory mem, string preset)
@@ -46,7 +57,7 @@ public class EnvelopeTests
         // 60% зобовʼязання / 10 пенсія / 10 довгі заощадження / 10 нерегулярні / 10 розваги
         await ActivateAsync(mem, "60-solution");
 
-        var envelopes = await Sut(mem).StatusAsync(Budget);
+        var envelopes = await Sut(mem).StatusAsync(Month(Budget));
         var names = envelopes.Select(e => e.Name).ToList();
 
         Assert.Contains("Пенсія", names);
@@ -62,7 +73,7 @@ public class EnvelopeTests
         mem.Db.Transactions.Add(Income(Budget));
         await mem.Db.SaveChangesAsync();
 
-        var envelopes = await Sut(mem).StatusAsync(Budget);
+        var envelopes = await Sut(mem).StatusAsync(Month(Budget));
 
         // Otherwise there would be nowhere to put money until a scheme is chosen.
         var def = Assert.Single(envelopes, e => e.IsDefault);
@@ -77,7 +88,7 @@ public class EnvelopeTests
 
         // Reading the status is enough: choosing a scheme is the decision, carrying it out
         // is not a chore to hand back to the user every month.
-        var pension = (await Sut(mem).StatusAsync(Budget)).Single(e => e.Name == "Пенсія");
+        var pension = (await Sut(mem).StatusAsync(Month(Budget))).Single(e => e.Name == "Пенсія");
 
         Assert.Equal(600m, pension.Balance);
         Assert.Equal(600m, pension.DepositedThisMonth);
@@ -91,10 +102,10 @@ public class EnvelopeTests
         using var mem = new SqliteInMemory();
         await ActivateAsync(mem, "60-solution");
 
-        await Sut(mem).StatusAsync(Budget);
-        await Sut(mem).StatusAsync(Budget);
+        await Sut(mem).StatusAsync(Month(Budget));
+        await Sut(mem).StatusAsync(Month(Budget));
 
-        var pension = (await Sut(mem).StatusAsync(Budget)).Single(e => e.Name == "Пенсія");
+        var pension = (await Sut(mem).StatusAsync(Month(Budget))).Single(e => e.Name == "Пенсія");
         Assert.Equal(600m, pension.Balance);
     }
 
@@ -106,8 +117,8 @@ public class EnvelopeTests
         using var mem = new SqliteInMemory();
         await ActivateAsync(mem, "60-solution");
 
-        await Sut(mem).StatusAsync(Budget);
-        var pension = (await Sut(mem).StatusAsync(Budget * 2)).Single(e => e.Name == "Пенсія");
+        await Sut(mem).StatusAsync(Month(Budget));
+        var pension = (await Sut(mem).StatusAsync(Month(Budget * 2))).Single(e => e.Name == "Пенсія");
 
         Assert.Equal(1_200m, pension.Balance);
         Assert.Equal(1_200m, pension.DepositedThisMonth);
@@ -119,10 +130,10 @@ public class EnvelopeTests
         using var mem = new SqliteInMemory();
         await ActivateAsync(mem, "60-solution");
 
-        var pension = (await Sut(mem).StatusAsync(Budget)).Single(e => e.Name == "Пенсія");
+        var pension = (await Sut(mem).StatusAsync(Month(Budget))).Single(e => e.Name == "Пенсія");
         await Savings(mem).AddEntryAsync(new("Deposit", 250m, null, null, null, pension.Id));
 
-        var after = (await Sut(mem).StatusAsync(Budget)).Single(e => e.Name == "Пенсія");
+        var after = (await Sut(mem).StatusAsync(Month(Budget))).Single(e => e.Name == "Пенсія");
 
         // Moving money in by hand used to be the only way to meet the goal, so it counted
         // towards it. The app meets the goal now, so a hand-made deposit means "more than
@@ -139,7 +150,7 @@ public class EnvelopeTests
         using var mem = new SqliteInMemory();
         await ActivateAsync(mem, "60-solution");
 
-        var pension = (await Sut(mem).StatusAsync(Budget)).Single(e => e.Name == "Пенсія");
+        var pension = (await Sut(mem).StatusAsync(Month(Budget))).Single(e => e.Name == "Пенсія");
         mem.Db.Transactions.Add(new Transaction
         {
             Kind = TransactionKind.Expense, CurrencyOriginal = "PLN",
@@ -149,7 +160,7 @@ public class EnvelopeTests
         });
         await mem.Db.SaveChangesAsync();
 
-        var after = (await Sut(mem).StatusAsync(Budget)).Single(e => e.Name == "Пенсія");
+        var after = (await Sut(mem).StatusAsync(Month(Budget))).Single(e => e.Name == "Пенсія");
 
         Assert.Equal(450m, after.Balance); // 600 put aside, 150 paid out of it
 
@@ -168,7 +179,7 @@ public class EnvelopeTests
         using var mem = new SqliteInMemory();
         await ActivateAsync(mem, "60-solution");
 
-        var pension = (await Sut(mem).StatusAsync(Budget)).Single(e => e.Name == "Пенсія");
+        var pension = (await Sut(mem).StatusAsync(Month(Budget))).Single(e => e.Name == "Пенсія");
         await Savings(mem).AddEntryAsync(new("Deposit", 250m, null, null, null, pension.Id));
 
         var history = await Sut(mem).HistoryAsync(pension.Id, 3);
@@ -186,7 +197,7 @@ public class EnvelopeTests
         using var mem = new SqliteInMemory();
         await ActivateAsync(mem, "60-solution");
 
-        var pension = (await Sut(mem).StatusAsync(Budget)).Single(e => e.Name == "Пенсія");
+        var pension = (await Sut(mem).StatusAsync(Month(Budget))).Single(e => e.Name == "Пенсія");
         // Dated in an earlier period, so it must show up as an opening balance, not as
         // movement of the period being looked at.
         await Savings(mem).AddEntryAsync(new(
@@ -204,7 +215,7 @@ public class EnvelopeTests
         using var mem = new SqliteInMemory();
         await ActivateAsync(mem, "60-solution");
 
-        var all = await Sut(mem).StatusAsync(Budget);
+        var all = await Sut(mem).StatusAsync(Month(Budget));
         var pension = all.Single(e => e.Name == "Пенсія");
         var savings = all.Single(e => e.IsDefault);
 
@@ -222,7 +233,7 @@ public class EnvelopeTests
         using var mem = new SqliteInMemory();
         await ActivateAsync(mem, "60-solution");
 
-        var pension = (await Sut(mem).StatusAsync(Budget)).Single(e => e.Name == "Пенсія");
+        var pension = (await Sut(mem).StatusAsync(Month(Budget))).Single(e => e.Name == "Пенсія");
         var yesterday = DateOnly.FromDateTime(DateTime.Now).AddDays(-1);
         await Savings(mem).AddEntryAsync(new("Deposit", 400m, yesterday, null, null, pension.Id));
 
@@ -230,10 +241,47 @@ public class EnvelopeTests
         // would drop the daily norm to almost nothing — the exact thing the opening balance
         // is there to fix. The 400 put aside yesterday is already outside that 1800, and
         // what the app itself had set aside on paper this period is taken back out.
-        var after = await Sut(mem).StatusAsync(1_800m, DateOnly.FromDateTime(DateTime.Now));
+        var after = await Sut(mem).StatusAsync(Counted(1_800m));
 
         Assert.All(after, e => Assert.Equal(0m, e.HeldBack));
         Assert.Equal(400m, after.Single(e => e.Name == "Пенсія").Balance);
+    }
+
+    /// Two screens, one truth. The savings screen used to resolve the budget without the
+    /// window the home screen used, so a counted balance stood the goals down on one and not
+    /// on the other: every page load deleted or re-created the app's own deposit, the balance
+    /// flipped between two numbers depending on which screen had loaded last, and the id churn
+    /// turned an ordinary edit into «Операцію не знайдено».
+    [Fact]
+    public async Task A_counted_balance_stands_the_plan_down_on_the_savings_screen_too()
+    {
+        using var mem = new SqliteInMemory();
+        await ActivateAsync(mem, "60-solution");
+
+        // Filled by the scheme first, the way an ordinary period fills it.
+        await Sut(mem).StatusAsync(Month(Budget));
+
+        mem.Db.OpeningBalances.Add(new OpeningBalance
+        {
+            Date = Today, AmountOriginal = 1_800m, CurrencyOriginal = "PLN",
+            AmountBase = 1_800m, UpdatedAt = DateTimeOffset.UtcNow,
+        });
+        await mem.Db.SaveChangesAsync();
+
+        var first = await Savings(mem).GetAsync();
+        var ids = first.Recent.Select(e => e.Id).ToList();
+
+        // The home screen in between: whatever it writes, the savings screen must read back.
+        await Sut(mem).StatusAsync(Counted(1_800m));
+        var second = await Savings(mem).GetAsync();
+
+        Assert.All(first.Envelopes, e => Assert.Equal(0m, e.MonthGoal));
+        Assert.Equal(Today, first.PlanPausedFrom);
+        Assert.Equal(ids, second.Recent.Select(e => e.Id).ToList());
+        Assert.Equal(first.Balance, second.Balance);
+        Assert.Equal(
+            first.Envelopes.Select(e => e.Balance).ToList(),
+            second.Envelopes.Select(e => e.Balance).ToList());
     }
 
     [Fact]
@@ -242,12 +290,12 @@ public class EnvelopeTests
         using var mem = new SqliteInMemory();
         await ActivateAsync(mem, "60-solution");
 
-        var pension = (await Sut(mem).StatusAsync(Budget)).Single(e => e.Name == "Пенсія");
+        var pension = (await Sut(mem).StatusAsync(Month(Budget))).Single(e => e.Name == "Пенсія");
         await Savings(mem).AddEntryAsync(new("Deposit", 400m, null, null, null, pension.Id));
 
         await ActivateAsync(mem, "80-20"); // no pension bucket any more
 
-        var after = (await Sut(mem).StatusAsync(Budget)).Single(e => e.Name == "Пенсія");
+        var after = (await Sut(mem).StatusAsync(Month(Budget))).Single(e => e.Name == "Пенсія");
         Assert.Equal(400m, after.Balance);  // the money did not evaporate with the scheme
         Assert.Equal(0m, after.MonthGoal);  // but it no longer takes anything from the norm
         Assert.Equal(0m, after.StillToReserve);

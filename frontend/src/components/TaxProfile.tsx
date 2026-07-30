@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
-import type { SaveTaxProfile, TaxDefaults, TaxRegime, TaxProfile as TaxProfileData } from '../types'
+import type { MonthTaxes, SaveTaxProfile, TaxDefaults, TaxRegime, TaxProfile as TaxProfileData } from '../types'
 import { money } from '../format'
-import { Card, CardSkeleton, FormError, PrimaryButton, RatesNote, Screen } from './Screen'
+import { Card, CardSkeleton, FormError, PrimaryButton, RatesNote, Screen, SectionTitle } from './Screen'
 
 interface Props {
   profile: TaxProfileData | null
   defaults: TaxDefaults | null
+  /// Що цей період уже нарахував за цим профілем. null — доходу ще немає.
+  month: MonthTaxes | null
   onSave: (p: SaveTaxProfile) => Promise<void>
   onBack: () => void
 }
@@ -13,7 +15,7 @@ interface Props {
 /// M17: the standalone calculator is gone — the income form already answers "скільки
 /// лишиться", and two places computing the same number is how they start to disagree.
 /// What stays here is the profile: the rates that calculation runs on.
-export function TaxProfile({ profile, defaults, onSave, onBack }: Props) {
+export function TaxProfile({ profile, defaults, month, onSave, onBack }: Props) {
   return (
     <Screen
       title="Податковий профіль"
@@ -23,10 +25,45 @@ export function TaxProfile({ profile, defaults, onSave, onBack }: Props) {
         ? 'Розрахунок орієнтовний — звір із книговою. Рік, на який перевірені ставки, підписаний під ними.'
         : undefined}
     >
+      <MonthCard month={month} />
       {profile
         ? <ProfileForm profile={profile} defaults={defaults} onSave={onSave} />
         : <CardSkeleton />}
     </Screen>
+  )
+}
+
+/// Розклад цього періоду — цифри для книгової. Жив на головній під розкривачкою «з чого»,
+/// де його читали раз на місяць, а решту часу він робив головну довшою. Тут він на своєму
+/// місці: поруч зі ставками, з яких і вийшов.
+function MonthCard({ month }: { month: MonthTaxes | null }) {
+  if (!month) return null
+
+  return (
+    <Card>
+      <SectionTitle>Цей період</SectionTitle>
+      <dl className="text-sm space-y-1.5">
+        <Row label="Прийшло на рахунок" value={money(month.gross, month.currency)} />
+        <Row label="VAT" value={money(month.vat, month.currency)} muted />
+        <Row label="ZUS, соціальні внески" value={money(month.zusSocial, month.currency)} muted />
+        <Row label="Здоровотна" value={money(month.health, month.currency)} muted />
+        <Row label="Податок (ryczałt)" value={money(month.tax, month.currency)} muted />
+        <Row label="Відкладено на податки" value={money(month.setAside, month.currency)} strong />
+        <Row label="Лишається тобі" value={money(month.takeHome, month.currency)} strong />
+      </dl>
+      <RatesNote year={month.ratesYear} />
+    </Card>
+  )
+}
+
+function Row({ label, value, muted, strong }: {
+  label: string; value: string; muted?: boolean; strong?: boolean
+}) {
+  return (
+    <div className={`flex justify-between gap-3 ${strong ? 'border-t border-neutral-100 dark:border-neutral-800 pt-1.5 font-semibold' : ''}`}>
+      <dt className={muted ? 'text-neutral-400 pl-3' : ''}>{label}</dt>
+      <dd className={`tabular-nums shrink-0 ${muted ? 'text-neutral-400' : ''}`}>{value}</dd>
+    </div>
   )
 }
 

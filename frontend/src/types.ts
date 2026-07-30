@@ -31,7 +31,7 @@ export interface Transaction {
   fxDate: string
   categoryId: number
   categoryName: string
-  /// З якого конверта заплачено. null — зі звичайних грошей на витрати.
+  /// З якої банки заплачено. null — зі звичайних грошей на витрати.
   envelopeId?: number | null
   envelopeName?: string | null
   frequency: Frequency
@@ -50,7 +50,7 @@ export interface SaveTransaction {
   date?: string | null
   merchant?: string | null
   note?: string | null
-  /// Звідки гроші: null (і за замовчуванням) — зі звичайних, інакше id конверта.
+  /// Звідки гроші: null (і за замовчуванням) — зі звичайних, інакше id банки.
   envelopeId?: number | null
 }
 
@@ -108,6 +108,9 @@ export interface IncomePreview {
   savingsActive: boolean
   savingsGoalAfter: number
   currency: string
+  /// Назва схеми, яка диктує ціль, або null — тоді вирішує план. Якщо задано, редактор
+  /// плану у формі нічого не змінить, і форма має це сказати.
+  savingsFromScheme: string | null
 }
 
 export interface SavingsSummary {
@@ -117,12 +120,12 @@ export interface SavingsSummary {
   stillToReserve: number
 }
 
-/// Один конверт: скільки в ньому назбиралось і як іде цей місяць.
+/// Одна банка: скільки в ній назбиралось і як іде цей місяць.
 export interface EnvelopeSummary {
   id: number
   name: string
   kind: BucketKind
-  /// Конверт, який існує завжди і який годує план заощаджень.
+  /// Банка, яка існує завжди і яку годує план заощаджень.
   isDefault: boolean
   balance: number
   monthGoal: number
@@ -142,6 +145,9 @@ export interface SavingsEntry {
   note: string | null
   envelopeId: number
   envelopeName: string
+  /// Записав додаток, виконуючи схему, а не людина руками. Редагування чи видалення такого
+  /// руху скасовується наступним завантаженням екрана, тому UI цього й не пропонує.
+  isAuto: boolean
 }
 
 export interface Savings {
@@ -154,10 +160,13 @@ export interface Savings {
   stillToReserve: number
   currency: string
   recent: SavingsEntry[]
-  /// Усі конверти, не тільки заощадження — інакше в пенсійний нічого не покласти.
+  /// Усі банки, не тільки заощадження — інакше в пенсійний нічого не покласти.
   envelopes: EnvelopeSummary[]
   /// Назва схеми розподілу, якщо ціль тепер диктує вона, а не план нижче.
   goalFromScheme: string | null
+  /// День, коли порахували залишок, якщо саме це поставило план на паузу до наступної
+  /// зарплати. Інакше null.
+  planPausedFrom: string | null
 }
 
 export interface SaveSavingsPlan {
@@ -172,7 +181,7 @@ export interface SaveSavingsEntry {
   date?: string | null
   note?: string | null
   currency?: string | null
-  /// У який конверт. Не вказано — у той, що за замовчуванням.
+  /// У яку банку. Не вказано — у ту, що за замовчуванням.
   envelopeId?: number
 }
 
@@ -379,7 +388,7 @@ export interface Credentials {
   password: string
 }
 
-/// Один період у житті конверта: скільки в нього зайшло чи вийшло і що стало з балансом.
+/// Один період у житті банки: скільки в нього зайшло чи вийшло і що стало з балансом.
 export interface EnvelopePeriod {
   start: string
   end: string

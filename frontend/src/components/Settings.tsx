@@ -46,25 +46,34 @@ function PaydayCard({ settings, onPick }: {
 }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const day = settings?.periodStartDay ?? 1
-  // Дата, показана в пікері: остання зарплата за нинішнім налаштуванням.
-  const [picked, setPicked] = useState(() => settings?.periodStart ?? todayIso())
+  // Що людина обрала останнім — тільки щоб пояснити розбіжність, не як стан пікера.
+  const [typed, setTyped] = useState<string | null>(null)
 
-  const pickedDay = Number(picked.slice(8, 10))
+  const day = settings?.periodStartDay ?? 1
+  // Пікер показує ту дату, яку додаток справді запамʼятав, а не те, що набрали. Раніше це
+  // був окремий стан, заповнений один раз при першому рендері: коли налаштування ще не
+  // приїхали, у пікері лишалось «сьогодні» назавжди, а період під ним показував інше — два
+  // числа на одному екрані, які не сходяться.
+  const shown = settings?.periodStart ?? todayIso()
+  const value = busy ? typed ?? shown : shown
+
+  const typedDay = typed === null ? null : Number(typed.slice(8, 10))
   // 29–31 є не в кожному місяці: «31 число» тихо означало б чотири різні дати на рік.
   // Не мовчимо про це і не забороняємо дату — беремо 28-ме і кажемо, що взяли.
-  const effective = Number.isNaN(pickedDay) ? day : Math.min(pickedDay, 28)
-  const clamped = !Number.isNaN(pickedDay) && pickedDay > 28
+  const clamped = typedDay !== null && typedDay > 28
+  // Обрали ту саму дату іншого місяця: зберігається лише число, тож пікер стрибне на
+  // останню зарплату за цим числом. Це теж треба сказати, а не молча переставити.
+  const moved = typed !== null && !clamped && typed !== shown && !busy
 
   async function pick(iso: string) {
-    setPicked(iso)
-    const value = Math.min(Number(iso.slice(8, 10)), 28)
-    if (busy || Number.isNaN(value) || value === day) return
+    setTyped(iso)
+    const next = Math.min(Number(iso.slice(8, 10)), 28)
+    if (busy || Number.isNaN(next) || next === day) return
 
     setBusy(true)
     setError(null)
     try {
-      await onPick(value)
+      await onPick(next)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Не вдалося змінити день')
     } finally {
@@ -78,7 +87,7 @@ function PaydayCard({ settings, onPick }: {
 
       <input
         type="date"
-        value={picked}
+        value={value}
         disabled={busy}
         onChange={(e) => void pick(e.target.value)}
         aria-label="Дата останньої зарплати"
@@ -96,13 +105,18 @@ function PaydayCard({ settings, onPick }: {
               : `Період: ${dayMonth(settings.periodStart)} – ${dayMonth(settings.periodEnd)}`}
           </p>
           <p className="text-xs text-neutral-500">
-            {effective === 1
+            {day === 1
               ? 'Гроші приходять 1 числа — період збігається з календарним місяцем.'
-              : `Далі гроші чекаємо ${effective} числа кожного місяця. Бюджет, денна норма й конверти рахуються від зарплати до зарплати.`}
+              : `Далі гроші чекаємо ${day} числа кожного місяця. Бюджет, денна норма й банки рахуються від зарплати до зарплати.`}
           </p>
           {clamped && (
             <p className="text-xs text-amber-600">
-              {pickedDay} числа немає в кожному місяці, тому рахуємо з 28-го.
+              {typedDay} числа немає в кожному місяці, тому рахуємо з 28-го.
+            </p>
+          )}
+          {moved && (
+            <p className="text-xs text-neutral-500">
+              Запамʼятали тільки число ({day}) — остання зарплата за ним була {dayMonth(shown)}.
             </p>
           )}
         </div>

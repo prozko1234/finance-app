@@ -84,30 +84,19 @@ describe('Recurring — batch add', () => {
   })
 })
 
-describe('Recurring — batch delete', () => {
-  it('deletes marked items only after confirming', async () => {
+describe('Recurring — delete', () => {
+  /// Пара «познач і підтверди» жила тут одна на весь застосунок: транзакцію видаляв один
+  /// тап без питань, а підписку — два з підтвердженням. Тепер патерн один — видаляємо
+  /// одразу, а повернути дає панель «Повернути» рівнем вище (див. undo.ts).
+  it('deletes on the first tap and leaves the undo to the app', async () => {
     const user = userEvent.setup()
     const p = props({ items: [item(), item({ id: 2, note: 'Оренда', categoryId: 2 })] })
     render(<Recurring {...p} />)
 
-    await user.click(screen.getAllByLabelText('Позначити на видалення')[0])
-    await user.click(screen.getAllByLabelText('Позначити на видалення')[0])
-    expect(p.onDelete).not.toHaveBeenCalled()
+    await user.click(screen.getAllByLabelText('Видалити')[0])
 
-    await user.click(screen.getByText('Видалити'))
-    await waitFor(() => expect(p.onDelete).toHaveBeenCalledTimes(2))
-    expect(p.onDelete.mock.calls.map(([id]) => id)).toEqual([1, 2])
-  })
-
-  it('unmarks everything on cancel', async () => {
-    const user = userEvent.setup()
-    const p = props({ items: [item()] })
-    render(<Recurring {...p} />)
-
-    await user.click(screen.getByLabelText('Позначити на видалення'))
-    await user.click(screen.getByText('Скасувати'))
-
-    expect(screen.queryByText(/Видалити 1/)).not.toBeInTheDocument()
-    expect(p.onDelete).not.toHaveBeenCalled()
+    await waitFor(() => expect(p.onDelete).toHaveBeenCalledTimes(1))
+    expect(p.onDelete).toHaveBeenCalledWith(1)
+    expect(screen.queryByText(/Видалити 1\?/)).not.toBeInTheDocument()
   })
 })

@@ -24,6 +24,8 @@ const KINDS: { kind: BucketKind; label: string }[] = [
 
 export function Allocation({ data, budget, currency, onSave, onBack }: Props) {
   const [error, setError] = useState<string | null>(null)
+  // Назва щойно застосованої схеми — щоб сказати, що саме змінилось у цьому періоді.
+  const [appliedName, setAppliedName] = useState<string | null>(null)
 
   // The header stays while loading — the way back must not depend on the data arriving.
   if (!data) {
@@ -34,10 +36,11 @@ export function Allocation({ data, budget, currency, onSave, onBack }: Props) {
     )
   }
 
-  async function apply(a: SaveAllocation) {
+  async function apply(a: SaveAllocation, name: string) {
     setError(null)
     try {
       await onSave(a)
+      setAppliedName(name)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Не вдалося зберегти')
     }
@@ -48,8 +51,10 @@ export function Allocation({ data, budget, currency, onSave, onBack }: Props) {
       title="Розподіл бюджету"
       onBack={onBack}
       subtitle="Денна норма рахується лише з того, що на витрати. Решта відкладається ще до того, як ти побачиш «Ще сьогодні»."
+      footnote="Нова схема діє одразу на цей період — додаток перекладає гроші в банках сам. Минулі періоди не змінюються, а те, що ти вніс руками, лишається понад план."
     >
       <FormError>{error}</FormError>
+      <AppliedNote active={data.active} appliedName={appliedName} budget={budget} currency={currency} />
 
       <div className="space-y-2">
         {data.presets.map((p) => (
@@ -59,7 +64,7 @@ export function Allocation({ data, budget, currency, onSave, onBack }: Props) {
             budget={budget}
             currency={currency}
             active={data.active.preset === p.key}
-            onPick={() => apply({ preset: p.key })}
+            onPick={() => apply({ preset: p.key }, p.name)}
           />
         ))}
       </div>
@@ -68,9 +73,35 @@ export function Allocation({ data, budget, currency, onSave, onBack }: Props) {
         current={data.active}
         budget={budget}
         currency={currency}
-        onSave={(name, buckets) => apply({ name, buckets })}
+        onSave={(name, buckets) => apply({ name, buckets }, name)}
       />
     </Screen>
+  )
+}
+
+/// Що саме зробила зміна схеми. Питання «а гроші, які вже відкладені?» виникає одразу, і
+/// відповідь має бути на цьому ж екрані: цей період перерахований, минулі — ні. Показуємо
+/// тільки коли сервер уже підтвердив нову схему, інакше це були б цифри старої.
+function AppliedNote({ active, appliedName, budget, currency }: {
+  active: { name: string; buckets: AllocationBucket[] }
+  appliedName: string | null
+  budget: number | null
+  currency: string
+}) {
+  if (appliedName === null || active.name !== appliedName) return null
+
+  const share = (spending: boolean) => active.buckets
+    .filter((b) => (b.kind === 'Spending') === spending)
+    .reduce((s, b) => s + b.percent, 0)
+
+  const shown = (percent: number) =>
+    budget === null ? `${pct(percent)}%` : money(budget * percent / 100, currency)
+
+  return (
+    <p className="rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2.5 text-xs text-neutral-500">
+      Застосовано. Цей період перерахували: на витрати {shown(share(true))}
+      {share(false) > 0 && `, у банки ${shown(share(false))}`}. Минулі періоди лишились як були.
+    </p>
   )
 }
 

@@ -19,7 +19,7 @@ function summary(over: Partial<SafeToSpend> = {}): SafeToSpend {
 
 const props = {
   transactions: [], onDelete: vi.fn(), onAddIncome: vi.fn(), onQuickCategory: vi.fn(), onEdit: vi.fn(),
-  onGoSavings: vi.fn(), onGoAllocation: vi.fn(),
+  onGoSavings: vi.fn(), onGoAllocation: vi.fn(), onGoBalance: vi.fn(),
 }
 
 describe('Home', () => {
@@ -57,10 +57,14 @@ describe('Home', () => {
       />,
     )
 
-    expect(screen.getByText('Прийшло на рахунок')).toBeInTheDocument()
+    // Одним рядком: скільки прийшло і скільки з того на податки. Розклад по VAT/ZUS
+    // переїхав на екран податків — на головній він був розкривачкою, яку ніхто не
+    // відкриває двічі.
+    expect(screen.getByText(/Прийшло/)).toBeInTheDocument()
     expect(screen.getByText(/24 600,00/)).toBeInTheDocument()
-    expect(screen.getByText('Відкладено на податки')).toBeInTheDocument()
-    expect(screen.getByText(/− 9355,00/)).toBeInTheDocument()
+    expect(screen.getByText(/на податки/)).toBeInTheDocument()
+    expect(screen.getByText(/9355,00/)).toBeInTheDocument()
+    expect(screen.queryByText(/ZUS/)).not.toBeInTheDocument()
   })
 
   it('shows every pot with what has piled up in it', () => {
@@ -86,7 +90,7 @@ describe('Home', () => {
     // Пенсія раніше тільки віднімалась від норми і ніде не було видно, що вона росте.
     expect(screen.getByText(/Пенсія/)).toBeInTheDocument()
     expect(screen.getByText(/1200,00/)).toBeInTheDocument()
-    expect(screen.getByText('Відкладено у конверти')).toBeInTheDocument()
+    expect(screen.getByText('Відкладено')).toBeInTheDocument()
   })
 
   it('offers to set up saving when the envelope is empty', () => {
@@ -137,12 +141,19 @@ describe('Home', () => {
     expect(screen.queryByRole('button', { name: /25,00/ })).not.toBeInTheDocument()
   })
 
-  it('hides the month summary when there is no income to explain', () => {
-    render(<Home {...props} summary={summary()} />)
-    expect(screen.queryByText('Підсумок місяця')).not.toBeInTheDocument()
+  it('hides the period line until there is income to explain', () => {
+    render(
+      <Home
+        {...props}
+        summary={summary({ budgetSet: false, periodBudget: null, remainingThisPeriod: null })}
+      />,
+    )
+    expect(screen.queryByText(/лишилось/)).not.toBeInTheDocument()
   })
 
-  it('puts the month arithmetic in one column, схема included', async () => {
+  /// Три цифри в один рядок. До M25 це був стовпчик із семи рядків і двох розкривачок:
+  /// щоб побачити «скільки лишилось», доводилось прочитати весь місяць.
+  it('puts the period arithmetic in one line and links the схема', async () => {
     render(
       <Home
         {...props}
@@ -165,12 +176,13 @@ describe('Home', () => {
     )
 
     expect(screen.getByText('Місяць')).toBeInTheDocument()
-    expect(screen.getByText('Бюджет періоду')).toBeInTheDocument()
+    expect(screen.getByText(/Бюджет/)).toBeInTheDocument()
+    expect(screen.getByText(/лишилось/)).toBeInTheDocument()
     // Одним рядком: 1200 у заощадження + 600 у борг. Два рядки читались би як
     // подвійне утримання тих самих грошей.
-    expect(screen.getByText('Відкладено у конверти')).toBeInTheDocument()
-    expect(screen.getByText('− 1800,00 zł')).toBeInTheDocument()
-    expect(screen.getByText(/куди пішов бюджет/)).toBeInTheDocument()
+    expect(screen.getByText(/у банках 1800,00/)).toBeInTheDocument()
+    // Кошики схеми повністю є на екрані розподілу, тому тут лишається тільки шлях туди.
+    expect(screen.getByRole('button', { name: '70/20/10 →' })).toBeInTheDocument()
   })
 
   /// Для людини, якій платять 10-го, картка «Місяць» з періодом 10.07–09.08 читається
@@ -195,21 +207,22 @@ describe('Home', () => {
       />,
     )
 
-    // Інакше «витрачено 400» за місяць виглядає так, ніби додаток щось загубив.
-    expect(screen.getByText(/Рахуємо з 20 липня/)).toBeInTheDocument()
-    expect(screen.getByText('Було на руках')).toBeInTheDocument()
-    expect(screen.getByText(/Витрачено з 20 липня/)).toBeInTheDocument()
+    // Інакше «витрачено 400» за місяць виглядає так, ніби додаток щось загубив. Раніше
+    // це був абзац під головною цифрою; тепер це заголовок рядка періоду — те саме
+    // сказано там, де стоять числа, яких воно стосується.
+    expect(screen.getByRole('button', { name: /З 20 липня/ })).toBeInTheDocument()
+    expect(screen.getByText(/Було/)).toBeInTheDocument()
   })
 
   it('keeps the ordinary month wording when the count started on the 1st', () => {
     render(<Home {...props} summary={summary({ spentThisPeriod: 400 })} />)
 
-    expect(screen.queryByText(/Рахуємо з/)).not.toBeInTheDocument()
-    expect(screen.getByText('Бюджет періоду')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^З / })).not.toBeInTheDocument()
+    expect(screen.getByText(/Бюджет/)).toBeInTheDocument()
   })
 
   it('offers to split the budget while the default scheme is on', () => {
     render(<Home {...props} summary={summary()} />)
-    expect(screen.getByText(/Ділити бюджет за схемою/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Розподіл →' })).toBeInTheDocument()
   })
 })

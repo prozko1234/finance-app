@@ -3,8 +3,10 @@ using FinanceApp.Application.Allocations;
 using FinanceApp.Application.Common;
 using FinanceApp.Domain;
 using FinanceApp.Domain.Budgeting;
+using FinanceApp.Application.Summaries;
 using FinanceApp.Domain.Savings;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace FinanceApp.Application.Envelopes;
 
@@ -30,14 +32,16 @@ public record EnvelopeStatus(
 public interface IEnvelopeService
 {
     /// Every envelope with its balance and this month's goal, in scheme order.
-    /// <param name="countedOn">The day an opening balance was taken, when the month started
-    /// mid-way. That figure is what is left to LIVE on: whatever was meant to be put aside
-    /// either already was — and is therefore already outside the counted money — or is out
-    /// of reach this month. So goals stand down, and only deposits made SINCE the count are
-    /// held back. Reserving percentages of the remainder again would drop the daily norm to
-    /// almost nothing, which is the exact problem the opening balance exists to fix.</param>
+    /// <param name="month">The budget AND the window it covers, deliberately one argument.
+    /// They used to be two — an amount plus an optional "counted on" date — and the savings
+    /// screen passed the amount while forgetting the date. The goals then stood down on the
+    /// home screen and not on the savings one, so every page load undid what the previous
+    /// one wrote: the app's own deposit was deleted and re-created under a new id, the
+    /// balance flipped between two numbers depending on which screen was open last, and
+    /// editing a movement the other screen had just deleted answered «Операцію не знайдено».
+    /// One argument cannot be half-passed.</param>
     Task<IReadOnlyList<EnvelopeStatus>> StatusAsync(
-        decimal monthlyBudget, DateOnly? countedOn = null, CancellationToken ct = default);
+        MonthlyBudgetResult month, CancellationToken ct = default);
 
     /// One envelope, period by period: what moved and what the balance became. The screen
     /// used to show a flat list of movements, which answers "що я робив" but not the
@@ -54,18 +58,27 @@ public interface IEnvelopeService
 public record EnvelopePeriod(DateOnly Start, DateOnly End, decimal Moved, decimal BalanceAfter);
 
 public sealed class EnvelopeService(
-    IAppDbContext db, IAllocationService allocations, IBudgetPeriods periods) : IEnvelopeService
+    IAppDbContext db, IAllocationService allocations, IBudgetPeriods periods,
+    ILogger<EnvelopeService> log) : IEnvelopeService
 {
     public async Task<IReadOnlyList<EnvelopeStatus>> StatusAsync(
-        decimal monthlyBudget, DateOnly? countedOn = null, CancellationToken ct = default)
+        MonthlyBudgetResult month, CancellationToken ct = default)
     {
+        // The day an opening balance was taken, when the period started mid-way. That figure
+        // is what is left to LIVE on: whatever was meant to be put aside either already was —
+        // and is therefore already outside the counted money — or is out of reach this period.
+        // So goals stand down, and only deposits made SINCE the count are held back.
+        // Reserving percentages of the remainder again would drop the daily norm to almost
+        // nothing, which is the exact problem the opening balance exists to fix.
+        var countedOn = month.FromOpeningBalance ? month.WindowStart : (DateOnly?)null;
+
         var scheme = await allocations.GetActiveAsync(ct);
         var goals = countedOn is null
-            ? await GoalsAsync(scheme, monthlyBudget, ct)
+            ? await GoalsAsync(scheme, month.Budget ?? 0m, ct)
             : [];
         var envelopes = await SyncAsync(scheme, ct);
         var period = await periods.CurrentAsync(ct);
-        await FillAsync(scheme, envelopes, goals, period, ct);
+        await FillAsync(scheme, envelopes, goals, period, countedOn, ct);
 
         var balances = await db.SavingsEntries
             .GroupBy(x => x.EnvelopeId)
@@ -189,7 +202,7 @@ public sealed class EnvelopeService(
     /// daily norm apart from underneath.
     private async Task FillAsync(
         AllocationScheme scheme, List<Envelope> envelopes, Dictionary<string, decimal> goals,
-        BudgetPeriod period, CancellationToken ct)
+        BudgetPeriod period, DateOnly? countedOn, CancellationToken ct)
     {
         var entries = await db.SavingsEntries
             .Where(x => x.Date >= period.Start && x.Date <= period.End)
@@ -197,6 +210,14 @@ public sealed class EnvelopeService(
 
         var today = DateOnly.FromDateTime(DateTime.Now);
         var changed = false;
+
+        // Logged because this method writes to the database while merely reading a screen,
+        // and every number the user then argues with comes out of these three decisions.
+        // Standing down is Debug: it is true for every read of the period, not an event.
+        if (countedOn is { } counted)
+            log.LogDebug(
+                "Envelopes: plan stood down for {Start:yyyy-MM-dd}..{End:yyyy-MM-dd} — balance counted on {Counted:yyyy-MM-dd}",
+                period.Start, period.End, counted);
 
         foreach (var envelope in envelopes)
         {
@@ -222,6 +243,9 @@ public sealed class EnvelopeService(
                     CreatedAt = DateTimeOffset.UtcNow,
                 });
                 changed = true;
+                log.LogInformation(
+                    "Envelopes: «{Envelope}» filled with {Amount} by scheme «{Scheme}» for {Start:yyyy-MM-dd}",
+                    envelope.Name, amount, scheme.Name, period.Start);
             }
             else if (amount <= 0)
             {
@@ -229,9 +253,15 @@ public sealed class EnvelopeService(
                 // that says nothing and still has to be read.
                 db.SavingsEntries.Remove(auto);
                 changed = true;
+                log.LogInformation(
+                    "Envelopes: «{Envelope}» no longer has a goal — withdrew the {Amount} the scheme had set aside",
+                    envelope.Name, auto.AmountBase);
             }
             else if (auto.AmountBase != amount)
             {
+                log.LogInformation(
+                    "Envelopes: «{Envelope}» re-poured {Was} → {Now} (scheme «{Scheme}», period from {Start:yyyy-MM-dd})",
+                    envelope.Name, auto.AmountBase, amount, scheme.Name, period.Start);
                 auto.AmountOriginal = amount;
                 auto.AmountBase = amount;
                 changed = true;

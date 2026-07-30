@@ -148,7 +148,7 @@ public sealed class TransactionService(
             return Error.Validation($"Категорію {req.CategoryId} не знайдено.");
 
         if (req.EnvelopeId is { } envelopeId && !await db.Envelopes.AnyAsync(e => e.Id == envelopeId, ct))
-            return Error.Validation($"Конверт {envelopeId} не знайдено.");
+            return Error.Validation($"Банку {envelopeId} не знайдено.");
 
         var date = req.Date ?? fallbackDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
         var conv = await fx.ConvertToBaseAsync(req.Amount, req.Currency, date, ct);

@@ -16,18 +16,20 @@ interface Props {
 
 /// Два екрани замість одного перевантаженого. Раніше тут одночасно жили чипси вибору,
 /// велика цифра, форма «покласти/зняти», форма плану і список рухів — п'ять блоків, і
-/// незрозуміло, який конверт зараз на екрані.
+/// незрозуміло, яка банка зараз на екрані.
 ///
-/// Тепер: список усіх конвертів → тап → екран одного конверта з історією по періодах.
-/// Списком відповідаємо на «де скільки лежить», екраном конверта — на «за місяць скільки
-/// пішло і скільки там тепер».
+/// Тепер: список усіх банок → тап → екран однієї банки з історією по періодах. Списком
+/// відповідаємо на «де скільки лежить», екраном банки — на «за місяць скільки пішло і
+/// скільки там тепер».
+///
+/// «Банка», не «конверт»: метафора з монобанку, яку не треба вчити.
 export function Savings({ data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteEntry, onBack }: Props) {
   const [openId, setOpenId] = useState<number | null>(null)
 
   // The header stays while loading — the way back must not depend on the data arriving.
   if (!data) {
     return (
-      <Screen title="Конверти" onBack={onBack}>
+      <Screen title="Банки" onBack={onBack}>
         <CardSkeleton />
       </Screen>
     )
@@ -51,12 +53,27 @@ export function Savings({ data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteE
 
   return (
     <Screen
-      title="Конверти"
+      title="Банки"
       onBack={onBack}
       footnote="Відкладене не входить у «Можна витратити сьогодні». Зняти можна будь-коли — це твої гроші, не податки."
     >
+      <PausedNote pausedFrom={data.planPausedFrom} />
       <EnvelopeList envelopes={data.envelopes} currency={data.currency} onOpen={setOpenId} />
     </Screen>
+  )
+}
+
+/// План стоїть, бо період почався з підрахунку залишку: та сума — це гроші на життя, і
+/// відкласти з них ще раз означало б порізати денну норму навпіл. Без цього рядка екран
+/// показує живий план поруч із ціллю 0 і виглядає зламаним.
+function PausedNote({ pausedFrom }: { pausedFrom: string | null }) {
+  if (!pausedFrom) return null
+
+  return (
+    <p className="rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2.5 text-xs text-neutral-500">
+      Цей період нічого не відкладаємо: {dayMonth(pausedFrom)} ти порахував залишок, і це
+      гроші на життя до наступної зарплати. План знову вмикається з нею.
+    </p>
   )
 }
 
@@ -100,7 +117,7 @@ function EnvelopeList({ envelopes, currency, onOpen }: {
   )
 }
 
-/// Один конверт: баланс, історія по періодах і все, що з ним можна зробити.
+/// Одна банка: баланс, історія по періодах і все, що з нею можна зробити.
 function EnvelopeDetail({ envelope, data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteEntry, onBack }: {
   envelope: EnvelopeSummary
   data: SavingsData
@@ -117,7 +134,7 @@ function EnvelopeDetail({ envelope, data, onSavePlan, onAddEntry, onUpdateEntry,
   return (
     <Screen title={envelope.name} onBack={onBack}>
       <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm text-center">
-        <p className="text-sm uppercase tracking-wide text-neutral-400">Зараз у конверті</p>
+        <p className="text-sm uppercase tracking-wide text-neutral-400">Зараз у банці</p>
         <p className="mt-1 text-4xl font-bold tabular-nums">{money(envelope.balance, data.currency)}</p>
         {envelope.monthGoal > 0 && (
           <p className="mt-2 text-xs text-neutral-400">
@@ -136,7 +153,7 @@ function EnvelopeDetail({ envelope, data, onSavePlan, onAddEntry, onUpdateEntry,
         onAdd={onAddEntry}
       />
 
-      {/* Тільки для конверта за замовчуванням: решті ціль диктує схема, і форма плану
+      {/* Тільки для банки за замовчуванням: решті ціль диктує схема, і форма плану
           обіцяла б зміну, яка нічого не робить. */}
       {envelope.isDefault && <PlanForm data={data} onSave={onSavePlan} />}
 
@@ -356,7 +373,7 @@ function History({ data, envelopeId, editing, onEdit, onSave, onDelete }: {
   onSave: (id: number, e: SaveSavingsEntry) => Promise<void>
   onDelete: (id: number) => Promise<void>
 }) {
-  // Рухи саме цього конверта: список усіх разом не сходився б із балансом над ним.
+  // Рухи саме цієї банки: список усіх разом не сходився б із балансом над ним.
   const rows = data.recent.filter((e) => e.envelopeId === envelopeId)
   if (rows.length === 0) return null
 
@@ -371,10 +388,19 @@ function History({ data, envelopeId, editing, onEdit, onSave, onDelete }: {
             ) : (
               <div className="flex items-center gap-3">
                 <span className="text-xl">{e.kind === 'Deposit' ? '🐖' : '↩️'}</span>
-                <button onClick={() => onEdit(e)} className="flex-1 min-w-0 text-left">
-                  <p className="font-medium truncate">{e.kind === 'Deposit' ? 'У заощадження' : 'Знято'}</p>
+                {/* Внесок за схемою не редагується і не видаляється: наступне завантаження
+                    екрана привело б його назад, і дія виглядала б так, ніби скасувалась
+                    сама. Хочеш іншу суму — міняй схему або план. */}
+                <button
+                  onClick={() => onEdit(e)}
+                  disabled={e.isAuto}
+                  className="flex-1 min-w-0 text-left disabled:cursor-default"
+                >
+                  <p className="font-medium truncate">{label(e)}</p>
                   <p className="text-xs text-neutral-400 truncate">
-                    {e.note || (e.date === todayIso() ? 'сьогодні' : e.date)}
+                    {e.isAuto
+                      ? 'за схемою'
+                      : e.note || (e.date === todayIso() ? 'сьогодні' : e.date)}
                     {/* Only worth showing when it differs from the balance's currency. */}
                     {e.currencyOriginal !== data.currency && ` · ${money(e.amountOriginal, e.currencyOriginal)}`}
                   </p>
@@ -382,9 +408,13 @@ function History({ data, envelopeId, editing, onEdit, onSave, onDelete }: {
                 <p className={`font-semibold tabular-nums ${e.kind === 'Deposit' ? 'text-emerald-600' : ''}`}>
                   {e.kind === 'Deposit' ? '+' : '−'}{money(e.amount, data.currency)}
                 </p>
-                <button onClick={() => onDelete(e.id)} className="text-neutral-300 hover:text-red-500 px-1" aria-label="Видалити">
-                  ✕
-                </button>
+                {e.isAuto
+                  ? <span className="px-1 text-neutral-300 dark:text-neutral-700" aria-hidden>🔒</span>
+                  : (
+                    <button onClick={() => onDelete(e.id)} className="text-neutral-300 hover:text-red-500 px-1" aria-label="Видалити">
+                      ✕
+                    </button>
+                  )}
               </div>
             )}
           </li>
@@ -392,6 +422,12 @@ function History({ data, envelopeId, editing, onEdit, onSave, onDelete }: {
       </ul>
     </div>
   )
+}
+
+/// Підпис руху. Раніше кожен внесок у будь-яку банку звався «У заощадження» — у банці
+/// «Борг» це читалось як помилка додатка.
+function label(entry: SavingsEntry): string {
+  return entry.kind === 'Deposit' ? 'Внесок' : 'Знято'
 }
 
 /// Editing keeps the original currency: the entry is a record of what was moved, and

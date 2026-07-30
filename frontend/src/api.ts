@@ -19,11 +19,19 @@ async function http<T>(url: string, options?: RequestInit): Promise<T> {
   if (!res.ok) {
     let message = `HTTP ${res.status}`
     try {
+      // ProblemDetails (RFC 7807), which is what the API returns: the sentence written for
+      // the user lives in `detail`. This used to look for `error`, a field the API has never
+      // sent — so every failure reached the screen as "HTTP 400" and the actual reason
+      // («У банці лише 240.00») was thrown away on the way.
       const body = await res.json()
-      if (body?.error) message = body.error
+      const detail = body?.detail ?? body?.title ?? body?.error
+      if (typeof detail === 'string' && detail !== '') message = detail
     } catch {
       /* body is not JSON — keep the status message */
     }
+    // Logged as well as thrown: a component may swallow the error into a red line the user
+    // then screenshots, and the console is where the method, url and status still are.
+    console.error(`API ${options?.method ?? 'GET'} ${url} → ${res.status}: ${message}`)
     throw new Error(message)
   }
   if (res.status === 204) return undefined as T

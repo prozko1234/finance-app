@@ -87,3 +87,19 @@ export function RatesNote({ year }: { year: number }) {
     <p className="text-xs text-neutral-400 pt-1">Ставки актуальні на {year} рік</p>
   )
 }
+
+/// Панель «Повернути» — один вигляд на всі видалення в застосунку. Живе над кнопкою «+»,
+/// бо саме там великий палець і саме туди дивишся після тапу.
+export function UndoBar({ label, onUndo }: { label: string; onUndo: () => void }) {
+  return (
+    <div
+      role="status"
+      className="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 flex items-center gap-4 rounded-2xl bg-neutral-900 dark:bg-white px-4 py-2.5 shadow-lg"
+    >
+      <span className="text-sm text-white dark:text-neutral-900">{label}</span>
+      <button onClick={onUndo} className="text-sm font-semibold text-white dark:text-neutral-900 underline">
+        Повернути
+      </button>
+    </div>
+  )
+}

@@ -9,7 +9,7 @@ import { readIncomeSources, readLastUsed, rememberIncomeSource, writeLastUsed } 
 
 interface Props {
   categories: Category[]
-  /// Конверти з балансом — з них можна заплатити напряму. Порожній список = вибору немає,
+  /// Банки з балансом — з них можна заплатити напряму. Порожній список = вибору немає,
   /// і питання «звідки гроші» не показується взагалі.
   envelopes: EnvelopeSummary[]
   onSave: (tx: SaveTransaction) => Promise<void>
@@ -103,6 +103,7 @@ export function AddTransaction({
           amount: amountNum,
           amountIncludesVat: includesVat,
           currency,
+          date,
           note: note.trim() || null,
         })
         rememberIncomeSource(note)
@@ -305,7 +306,7 @@ export function AddTransaction({
                 </div>
                 {envelopeId !== null && (
                   <p className="mt-1 text-xs text-neutral-400">
-                    Зменшить конверт, а не денну норму — ці гроші вже відкладені.
+                    Зменшить банку, а не денну норму — ці гроші вже відкладені.
                   </p>
                 )}
               </div>
@@ -326,8 +327,9 @@ export function AddTransaction({
           </div>
         )}
 
-        {/* Date — logging yesterday must be as easy as today */}
-        {!isIncome && !isSubscription && (
+        {/* Коли. Дохід теж: зарплата, яку вписали через три дні, має лягти у свій період,
+            а не в той, у якому її нарешті ввели. API поле приймав давно — форма ні. */}
+        {!isSubscription && !repeats && (
           <div>
             <label className="text-xs text-neutral-400">Коли</label>
             <div className="mt-1 flex gap-2 items-center">
@@ -484,6 +486,9 @@ function IncomePreviewBlock({ amount, includesVat, currency }: {
 function SavingsRow({ preview }: { preview: IncomePreview }) {
   const savePlan = useSaveSavingsPlan()
   const [editing, setEditing] = useState(false)
+  // Ціль диктує схема — тоді редактор плану тут був би кнопкою, яка нічого не робить.
+  // Раніше форма ще й показувала суму з плану, якої додаток відкладати не збирався.
+  const fromScheme = preview.savingsFromScheme
   const [mode, setMode] = useState<'Fixed' | 'Percent'>(preview.savingsMode)
   const [value, setValue] = useState(preview.savingsValue > 0 ? String(preview.savingsValue) : '')
 
@@ -494,6 +499,17 @@ function SavingsRow({ preview }: { preview: IncomePreview }) {
     if (!valid || savePlan.isPending) return
     await savePlan.mutateAsync({ mode, value: num, active: num > 0 })
     setEditing(false)
+  }
+
+  if (fromScheme) {
+    return (
+      <div className="flex justify-between gap-3 border-t border-neutral-200 dark:border-neutral-700 pt-1.5 text-xs">
+        <span className="text-neutral-400">У банки за схемою «{fromScheme}»</span>
+        <span className="tabular-nums font-medium">
+          {money(preview.savingsGoalAfter, preview.currency)}
+        </span>
+      </div>
+    )
   }
 
   if (!editing) {
