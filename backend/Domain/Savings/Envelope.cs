@@ -25,6 +25,14 @@ public class Envelope
 
     public DateTimeOffset CreatedAt { get; set; }
 
+    /// When the user put this envelope away, or null while it is in use. Archived rather than
+    /// deleted because deposits and withdrawals point at it: a hard delete would either take a
+    /// history of real money movements with it or be refused by the database. Archiving is
+    /// only allowed once the envelope is empty, so nothing ever disappears from the total.
+    public DateTimeOffset? ArchivedAt { get; set; }
+
+    public bool IsArchived => ArchivedAt is not null;
+
     /// Name of the default envelope, and the one the savings plan feeds.
     public const string DefaultName = "Заощадження";
 }

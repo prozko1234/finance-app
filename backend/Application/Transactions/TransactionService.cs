@@ -147,7 +147,8 @@ public sealed class TransactionService(
         if (!await db.Categories.AnyAsync(c => c.Id == req.CategoryId, ct))
             return Error.Validation($"Категорію {req.CategoryId} не знайдено.");
 
-        if (req.EnvelopeId is { } envelopeId && !await db.Envelopes.AnyAsync(e => e.Id == envelopeId, ct))
+        if (req.EnvelopeId is { } envelopeId
+            && !await db.Envelopes.AnyAsync(e => e.Id == envelopeId && e.ArchivedAt == null, ct))
             return Error.Validation($"Банку {envelopeId} не знайдено.");
 
         var date = req.Date ?? fallbackDate ?? DateOnly.FromDateTime(DateTime.UtcNow);

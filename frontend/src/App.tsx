@@ -11,6 +11,7 @@ import {
   useUpdateRecurring, useTaxProfile, useTaxDefaults, useSaveTaxProfile,
   useAllocations, useSaveAllocation, useSettings, useSetDisplayCurrency, useSetPeriodStartDay,
   useSavings, useSaveSavingsPlan, useAddSavingsEntry, useUpdateSavingsEntry, useDeleteSavingsEntry,
+  useCreateEnvelope, useUpdateEnvelope, useDeleteEnvelope,
   useStats, useAuthStatus, useLogin, useLogout, queryKeys,
   useChangePassword, useChangeEmail, useSignOutEverywhere,
   useOpeningBalance, useSetOpeningBalance, useClearOpeningBalance,
@@ -70,6 +71,9 @@ function App() {
   const addSavingsEntry = useAddSavingsEntry()
   const updateSavingsEntry = useUpdateSavingsEntry()
   const deleteSavingsEntry = useDeleteSavingsEntry()
+  const createEnvelope = useCreateEnvelope()
+  const updateEnvelope = useUpdateEnvelope()
+  const deleteEnvelope = useDeleteEnvelope()
   const stats = useStats(MONTHS_BACK, statsMonth, view === 'stats')
   const settings = useSettings()
   const setDisplayCurrency = useSetDisplayCurrency()
@@ -257,6 +261,12 @@ function App() {
             onUpdateEntry={(id, e) => updateSavingsEntry.mutateAsync({ id, data: e }).then(() => {})}
             onDeleteEntry={async (id) =>
               entryUndo.request(id, 'Рух видалено', () => deleteSavingsEntry.mutate(id))}
+            onCreateEnvelope={(e) => createEnvelope.mutateAsync(e).then(() => {})}
+            onUpdateEnvelope={(id, e) => updateEnvelope.mutateAsync({ id, data: e }).then(() => {})}
+            // Не через «Повернути»: сервер відмовляє, якщо в банці ще є гроші, і відкладений
+            // запит доносив би цю відмову вже після того, як екран закрився. Прибрати можна
+            // лише порожню банку, а повертається вона тим самим ім'ям.
+            onArchiveEnvelope={(id) => deleteEnvelope.mutateAsync(id).then(() => {})}
             onBack={() => setView('home')}
           />
         )}

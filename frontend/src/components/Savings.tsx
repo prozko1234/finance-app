@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { EnvelopePeriod as EnvelopePeriodType, EnvelopeSummary, Savings as SavingsData, SaveSavingsEntry, SavingsEntry, SaveSavingsPlan } from '../types'
+import type { BucketKind, EnvelopePeriod as EnvelopePeriodType, EnvelopeSummary, SaveEnvelope, Savings as SavingsData, SaveSavingsEntry, SavingsEntry, SaveSavingsPlan } from '../types'
 import { BASE_CURRENCY, CURRENCIES, todayIso } from '../types'
 import { dayMonth, money } from '../format'
 import { useEnvelopeHistory } from '../hooks'
@@ -11,8 +11,19 @@ interface Props {
   onAddEntry: (e: SaveSavingsEntry) => Promise<void>
   onUpdateEntry: (id: number, e: SaveSavingsEntry) => Promise<void>
   onDeleteEntry: (id: number) => Promise<void>
+  onCreateEnvelope: (e: SaveEnvelope) => Promise<void>
+  onUpdateEnvelope: (id: number, e: SaveEnvelope) => Promise<void>
+  onArchiveEnvelope: (id: number) => Promise<void>
   onBack: () => void
 }
+
+/// Види банки словами. `Spending` тут немає свідомо: гроші на витрати — це денна норма.
+const KINDS: { kind: BucketKind; label: string }[] = [
+  { kind: 'Savings', label: 'Заощадження' },
+  { kind: 'Investing', label: 'Інвестиції' },
+  { kind: 'Debt', label: 'Борг' },
+  { kind: 'Other', label: 'Інше' },
+]
 
 /// Два екрани замість одного перевантаженого. Раніше тут одночасно жили чипси вибору,
 /// велика цифра, форма «покласти/зняти», форма плану і список рухів — п'ять блоків, і
@@ -23,7 +34,10 @@ interface Props {
 /// скільки там тепер».
 ///
 /// «Банка», не «конверт»: метафора з монобанку, яку не треба вчити.
-export function Savings({ data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteEntry, onBack }: Props) {
+export function Savings({
+  data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteEntry,
+  onCreateEnvelope, onUpdateEnvelope, onArchiveEnvelope, onBack,
+}: Props) {
   const [openId, setOpenId] = useState<number | null>(null)
 
   // The header stays while loading — the way back must not depend on the data arriving.
@@ -46,6 +60,9 @@ export function Savings({ data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteE
         onAddEntry={onAddEntry}
         onUpdateEntry={onUpdateEntry}
         onDeleteEntry={onDeleteEntry}
+        onRename={onUpdateEnvelope}
+        // Порожня банка зникає — і екран разом із нею, бо дивитись уже нема на що.
+        onArchive={async (id) => { await onArchiveEnvelope(id); setOpenId(null) }}
         onBack={() => setOpenId(null)}
       />
     )
@@ -59,6 +76,7 @@ export function Savings({ data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteE
     >
       <PausedNote pausedFrom={data.planPausedFrom} />
       <EnvelopeList envelopes={data.envelopes} currency={data.currency} onOpen={setOpenId} />
+      <NewEnvelope onCreate={onCreateEnvelope} />
     </Screen>
   )
 }
@@ -117,14 +135,188 @@ function EnvelopeList({ envelopes, currency, onOpen }: {
   )
 }
 
+/// Банка під власну ціль. Слово «банка» саме запрошує зробити банку на відпустку — а до цього
+/// єдиним способом було зайти в схему розподілу й вигадати тій відпустці відсоток від доходу.
+///
+/// Згорнута в один рядок, поки не потрібна: список банок — це відповідь на «де скільки лежить»,
+/// і форма створення над ним щодня заважала б читати цифри.
+function NewEnvelope({ onCreate }: { onCreate: (e: SaveEnvelope) => Promise<void> }) {
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState('')
+  const [kind, setKind] = useState<BucketKind>('Savings')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="w-full rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700 px-4 py-3 text-sm text-neutral-500"
+      >
+        + Нова банка
+      </button>
+    )
+  }
+
+  async function create() {
+    if (!name.trim() || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      await onCreate({ name: name.trim(), kind })
+      setName('')
+      setOpen(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не вдалося створити')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card>
+      <SectionTitle>Нова банка</SectionTitle>
+      <input
+        type="text"
+        autoFocus
+        placeholder="Відпустка"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        className="w-full rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2.5 outline-none"
+      />
+      <KindPicker kind={kind} onPick={setKind} />
+      <FormError>{error}</FormError>
+      <div className="flex gap-2">
+        <PrimaryButton onClick={create} disabled={!name.trim() || busy}>Створити</PrimaryButton>
+        <button
+          onClick={() => { setOpen(false); setError(null) }}
+          className="rounded-xl bg-neutral-100 dark:bg-neutral-800 px-4 py-2.5 text-sm"
+        >
+          Скасувати
+        </button>
+      </div>
+      <p className="text-xs text-neutral-400">
+        Банка починається з нуля й нічого не тримає з денної норми, поки ти сам туди не покладеш.
+      </p>
+    </Card>
+  )
+}
+
+function KindPicker({ kind, onPick }: { kind: BucketKind; onPick: (k: BucketKind) => void }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {KINDS.map((k) => (
+        <button
+          key={k.kind}
+          onClick={() => onPick(k.kind)}
+          className={`rounded-xl px-3 py-2 text-sm ${
+            kind === k.kind
+              ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+              : 'bg-neutral-100 dark:bg-neutral-800'
+          }`}
+        >
+          {k.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/// Перейменувати й прибрати — тільки для банки, зробленої руками. І в банки за замовчуванням,
+/// і в банки зі схеми назва — це те, за чим застосунок їх знаходить: перейменування тихо
+/// віддало б баланс банці, яку ніхто не наповнює, а прибирання скасувалось би саме собою при
+/// наступному завантаженні екрана.
+function EnvelopeSettings({ envelope, currency, onRename, onArchive }: {
+  envelope: EnvelopeSummary
+  currency: string
+  onRename: (id: number, e: SaveEnvelope) => Promise<void>
+  onArchive: (id: number) => Promise<void>
+}) {
+  const [name, setName] = useState(envelope.name)
+  const [kind, setKind] = useState<BucketKind>(envelope.kind)
+  const [busy, setBusy] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => setSaved(false), [name, kind])
+
+  if (envelope.isDefault || envelope.isFromScheme) {
+    return (
+      <p className="text-xs text-neutral-400 px-1">
+        {envelope.isDefault
+          ? 'Це банка за замовчуванням: гроші, для яких не вибрали банку, йдуть сюди. Назву застосунок шукає сам, тому вона незмінна.'
+          : 'Назву й ціль цієї банки задає схема розподілу — перейменуй кошик у схемі, і банка перейменується разом із ним.'}
+      </p>
+    )
+  }
+
+  const changed = name.trim() !== envelope.name || kind !== envelope.kind
+  const empty = envelope.balance === 0
+
+  async function run(fn: () => Promise<void>) {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      await fn()
+      setSaved(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не вдалося зберегти')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card>
+      <SectionTitle>Назва й вид</SectionTitle>
+      <input
+        type="text"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        className="w-full rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2.5 outline-none"
+      />
+      <KindPicker kind={kind} onPick={setKind} />
+      <FormError>{error}</FormError>
+      <PrimaryButton
+        onClick={() => run(() => onRename(envelope.id, { name: name.trim(), kind }))}
+        disabled={!name.trim() || !changed || busy}
+        saved={saved}
+      >
+        Зберегти
+      </PrimaryButton>
+
+      {/* Тільки порожню: банка, що зникла з грошима всередині, забрала б їх із «Відкладено
+          всього» — тобто з тієї єдиної цифри, якій застосунок просить вірити. */}
+      {empty ? (
+        <button
+          onClick={() => run(() => onArchive(envelope.id))}
+          disabled={busy}
+          className="w-full rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2.5 text-sm text-red-600 disabled:opacity-40"
+        >
+          Прибрати банку
+        </button>
+      ) : (
+        <p className="text-xs text-neutral-400">
+          Щоб прибрати банку, спорожни її: у ній ще {money(envelope.balance, currency)}. Рухи
+          нікуди не зникнуть — прибрана банка просто йде зі списку, і повертається, якщо
+          створити її з тією ж назвою.
+        </p>
+      )}
+    </Card>
+  )
+}
+
 /// Одна банка: баланс, історія по періодах і все, що з нею можна зробити.
-function EnvelopeDetail({ envelope, data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteEntry, onBack }: {
+function EnvelopeDetail({ envelope, data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteEntry, onRename, onArchive, onBack }: {
   envelope: EnvelopeSummary
   data: SavingsData
   onSavePlan: (p: SaveSavingsPlan) => Promise<void>
   onAddEntry: (e: SaveSavingsEntry) => Promise<void>
   onUpdateEntry: (id: number, e: SaveSavingsEntry) => Promise<void>
   onDeleteEntry: (id: number) => Promise<void>
+  onRename: (id: number, e: SaveEnvelope) => Promise<void>
+  onArchive: (id: number) => Promise<void>
   onBack: () => void
 }) {
   // Which movement is open for editing — at most one, so the list stays readable.
@@ -156,6 +348,13 @@ function EnvelopeDetail({ envelope, data, onSavePlan, onAddEntry, onUpdateEntry,
       {/* Тільки для банки за замовчуванням: решті ціль диктує схема, і форма плану
           обіцяла б зміну, яка нічого не робить. */}
       {envelope.isDefault && <PlanForm data={data} onSave={onSavePlan} />}
+
+      <EnvelopeSettings
+        envelope={envelope}
+        currency={data.currency}
+        onRename={onRename}
+        onArchive={onArchive}
+      />
 
       <History
         data={data}

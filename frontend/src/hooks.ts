@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api'
 import type {
-  Credentials, SaveAllocation, SaveCategory, SaveIncome, SaveOpeningBalance, SaveRecurring, SaveSavingsEntry, SaveSavingsPlan, SaveTaxProfile, SaveTransaction,
+  Credentials, SaveAllocation, SaveCategory, SaveEnvelope, SaveIncome, SaveOpeningBalance, SaveRecurring, SaveSavingsEntry, SaveSavingsPlan, SaveTaxProfile, SaveTransaction,
 } from './types'
 
 export const queryKeys = {
@@ -341,6 +341,21 @@ export function useUpdateSavingsEntry() {
 
 export function useDeleteSavingsEntry() {
   return useSavingsMutation((id: number) => api.deleteSavingsEntry(id))
+}
+
+/// Банки як самостійна річ. Той самий інвалідатор, що й у рухів: список банок живе всередині
+/// `savings`, а порожня банка все одно нічого не тримає з норми — але наступна може.
+export function useCreateEnvelope() {
+  return useSavingsMutation((e: SaveEnvelope) => api.createEnvelope(e))
+}
+
+export function useUpdateEnvelope() {
+  return useSavingsMutation(({ id, data }: { id: number; data: SaveEnvelope }) =>
+    api.updateEnvelope(id, data))
+}
+
+export function useDeleteEnvelope() {
+  return useSavingsMutation((id: number) => api.deleteEnvelope(id))
 }
 
 /// Dev-only helpers. The endpoints exist only when the API runs in Development;

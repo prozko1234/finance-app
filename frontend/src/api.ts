@@ -1,5 +1,5 @@
 import type {
-  AuthStatus, AppSettings, Category, Credentials, EnvelopePeriod, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
+  AuthStatus, AppSettings, Category, Credentials, Envelope, EnvelopePeriod, SaveEnvelope, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
   Allocation, SaveAllocation, IncomePreview, OpeningBalance, SaveOpeningBalance, SaveSavingsEntry, SaveSavingsPlan, Savings, Stats, TaxDefaults, TaxProfile, Transaction,
 } from './types'
 
@@ -87,6 +87,14 @@ export const api = {
 
   getEnvelopeHistory: (id: number, periods = 6) =>
     http<EnvelopePeriod[]>(`/api/envelopes/${id}/history?periods=${periods}`),
+  createEnvelope: (e: SaveEnvelope) =>
+    http<Envelope>('/api/envelopes', { method: 'POST', body: JSON.stringify(e) }),
+  updateEnvelope: (id: number, e: SaveEnvelope) =>
+    http<Envelope>(`/api/envelopes/${id}`, { method: 'PUT', body: JSON.stringify(e) }),
+  /// Прибирає банку з очей, а не з історії: рухи в ній лишаються, тому це можливо лише
+  /// для порожньої банки — сервер відповість сумою, якщо там ще щось є.
+  deleteEnvelope: (id: number) =>
+    http<void>(`/api/envelopes/${id}`, { method: 'DELETE' }),
 
   getRecurring: () => http<Recurring[]>('/api/recurring'),
   createRecurring: (r: SaveRecurring) =>

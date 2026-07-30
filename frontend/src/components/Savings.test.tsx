@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Savings } from './Savings'
-import type { EnvelopeSummary, Savings as SavingsData } from '../types'
+import type { EnvelopeSummary, SaveEnvelope, Savings as SavingsData } from '../types'
 
 vi.mock('../hooks', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../hooks')>()),
@@ -19,6 +19,7 @@ function envelope(over: Partial<EnvelopeSummary> = {}): EnvelopeSummary {
   return {
     id: 1, name: 'Заощадження', kind: 'Savings', isDefault: true,
     balance: 8200, monthGoal: 1200, depositedThisMonth: 1200, stillToReserve: 0,
+    isFromScheme: false,
     ...over,
   }
 }
@@ -33,7 +34,15 @@ function data(envelopes: EnvelopeSummary[], over: Partial<SavingsData> = {}): Sa
   }
 }
 
-function renderScreen(d: SavingsData, onDeleteEntry: (id: number) => Promise<void> = vi.fn()) {
+function renderScreen(
+  d: SavingsData,
+  onDeleteEntry: (id: number) => Promise<void> = vi.fn(),
+  envelopeHandlers: Partial<{
+    onCreateEnvelope: (e: SaveEnvelope) => Promise<void>
+    onUpdateEnvelope: (id: number, e: SaveEnvelope) => Promise<void>
+    onArchiveEnvelope: (id: number) => Promise<void>
+  }> = {},
+) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
@@ -43,6 +52,10 @@ function renderScreen(d: SavingsData, onDeleteEntry: (id: number) => Promise<voi
         onAddEntry={vi.fn()}
         onUpdateEntry={vi.fn()}
         onDeleteEntry={onDeleteEntry}
+        onCreateEnvelope={vi.fn()}
+        onUpdateEnvelope={vi.fn()}
+        onArchiveEnvelope={vi.fn()}
+        {...envelopeHandlers}
         onBack={vi.fn()}
       />
     </QueryClientProvider>,
@@ -122,5 +135,65 @@ describe('Savings', () => {
     await user.click(screen.getByText('Пенсія'))
 
     expect(screen.queryByText(/Відкладати щомісяця/)).not.toBeInTheDocument()
+  })
+  // Банки як самостійна річ: до цього банку можна було отримати лише як кошик схеми.
+
+  /// Слово «банка» саме запрошує зробити банку на відпустку — а зробити її було неможливо.
+  it('makes a pot of its own from a name and a kind', async () => {
+    const onCreateEnvelope = vi.fn()
+    renderScreen(data([envelope()]), vi.fn(), { onCreateEnvelope })
+    const user = userEvent.setup()
+
+    await user.click(screen.getByText('+ Нова банка'))
+    await user.type(screen.getByPlaceholderText('Відпустка'), 'Ремонт')
+    await user.click(screen.getByText('Інше'))
+    await user.click(screen.getByText('Створити'))
+
+    await waitFor(() =>
+      expect(onCreateEnvelope).toHaveBeenCalledWith({ name: 'Ремонт', kind: 'Other' }))
+  })
+
+  it('renames a hand-made pot and puts it away once it is empty', async () => {
+    const onUpdateEnvelope = vi.fn()
+    const onArchiveEnvelope = vi.fn()
+    const own = envelope({ id: 3, name: 'Відпустка', isDefault: false, balance: 0, monthGoal: 0 })
+    renderScreen(data([own]), vi.fn(), { onUpdateEnvelope, onArchiveEnvelope })
+    const user = userEvent.setup()
+
+    await user.click(screen.getByText('Відпустка'))
+    const nameInput = screen.getByDisplayValue('Відпустка')
+    await user.clear(nameInput)
+    await user.type(nameInput, 'Відпустка 2027')
+    await user.click(screen.getByText('Зберегти'))
+
+    await waitFor(() => expect(onUpdateEnvelope)
+      .toHaveBeenCalledWith(3, { name: 'Відпустка 2027', kind: 'Savings' }))
+
+    await user.click(screen.getByText('Прибрати банку'))
+    await waitFor(() => expect(onArchiveEnvelope).toHaveBeenCalledWith(3))
+  })
+
+  /// Банка, що зникла з грошима всередині, забрала б їх із «Відкладено всього» — тобто з
+  /// тієї єдиної цифри, якій застосунок просить вірити.
+  it('does not offer to put away a pot that still holds money', async () => {
+    renderScreen(data([envelope({ id: 3, name: 'Відпустка', isDefault: false, balance: 240 })]))
+    const user = userEvent.setup()
+
+    await user.click(screen.getByText('Відпустка'))
+
+    expect(screen.queryByText('Прибрати банку')).not.toBeInTheDocument()
+    expect(screen.getByText(/у ній ще 240,00/)).toBeInTheDocument()
+  })
+
+  /// Назву банки зі схеми шукає кошик — перейменування тихо віддало б баланс банці, яку
+  /// ніхто не наповнює.
+  it('does not offer renaming for a pot the scheme owns', async () => {
+    renderScreen(data([envelope({ id: 2, name: 'Пенсія', isDefault: false, isFromScheme: true })]))
+    const user = userEvent.setup()
+
+    await user.click(screen.getByText('Пенсія'))
+
+    expect(screen.queryByText('Назва й вид')).not.toBeInTheDocument()
+    expect(screen.getByText(/задає схема розподілу/)).toBeInTheDocument()
   })
 })

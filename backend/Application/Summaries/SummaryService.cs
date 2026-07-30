@@ -96,7 +96,7 @@ public sealed class SummaryService(
             await Task.WhenAll(envelopes.Select(async e => new EnvelopeSummary(
                 e.Id, e.Name, e.Kind.ToString(), e.IsDefault,
                 await show(e.Balance), await show(e.MonthGoal),
-                await show(e.DepositedThisMonth), await show(e.StillToReserve)))),
+                await show(e.DepositedThisMonth), await show(e.StillToReserve), e.IsFromScheme))),
             new AllocationSummary(
                 allocation.SchemeName, allocation.Preset,
                 await show(allocation.Spendable), await show(allocation.Reserved),

@@ -112,7 +112,9 @@ public sealed class SavingsService(
         // An entry keeps its envelope when the request does not name one, so editing a
         // pension deposit cannot silently move it into savings.
         var envelopeId = req.EnvelopeId ?? (entry.EnvelopeId != 0 ? entry.EnvelopeId : await DefaultEnvelopeIdAsync(ct));
-        if (!await db.Envelopes.AnyAsync(e => e.Id == envelopeId, ct))
+        // A put-away envelope is not a destination: it was emptied on purpose, and money
+        // arriving in it would be money the list no longer shows.
+        if (!await db.Envelopes.AnyAsync(e => e.Id == envelopeId && e.ArchivedAt == null, ct))
             return Error.NotFound($"Банку {envelopeId} не знайдено.");
 
         var conv = await fx.ConvertToBaseAsync(req.Amount, currency, date, ct);
@@ -195,7 +197,8 @@ public sealed class SavingsService(
                 await view.FromBaseTodayAsync(e.Balance, ct),
                 await view.FromBaseTodayAsync(e.MonthGoal, ct),
                 await view.FromBaseTodayAsync(e.DepositedThisMonth, ct),
-                await view.FromBaseTodayAsync(e.StillToReserve, ct)));
+                await view.FromBaseTodayAsync(e.StillToReserve, ct),
+                e.IsFromScheme));
 
         return new SavingsResponse(
             plan?.Mode.ToString() ?? SavingsMode.Fixed.ToString(),

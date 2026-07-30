@@ -140,6 +140,8 @@ public record SavingsSummary(
     decimal StillToReserve);
 
 /// One pot on the home screen: what has piled up in it, and how this month is going.
+/// <param name="IsFromScheme">The active scheme has a bucket by this name, so it owns both the
+/// goal and the name — the screen offers neither renaming nor putting the pot away.</param>
 public record EnvelopeSummary(
     int Id,
     string Name,
@@ -148,7 +150,14 @@ public record EnvelopeSummary(
     decimal Balance,
     decimal MonthGoal,
     decimal DepositedThisMonth,
-    decimal StillToReserve);
+    decimal StillToReserve,
+    bool IsFromScheme = false);
+
+/// A pot made by hand: a name and what sort of pot it is. Kind is a <c>BucketKind</c> name and
+/// may be anything except Spending — a pot for money being spent is just the daily norm.
+public record SaveEnvelopeRequest(string Name, string Kind);
+
+public record EnvelopeResponse(int Id, string Name, string Kind, bool IsDefault);
 
 /// "How much I have right now, until the end of the month" — the mid-month start.
 /// Currency is optional and defaults to the one the user is reading in.

@@ -131,6 +131,23 @@ export interface EnvelopeSummary {
   monthGoal: number
   depositedThisMonth: number
   stillToReserve: number
+  /// Банку принесла схема: назву й ціль задає її кошик, тому тут їх не міняють.
+  isFromScheme: boolean
+}
+
+/// Банка сама по собі, без цифр періоду — відповідь на створення й перейменування.
+export interface Envelope {
+  id: number
+  name: string
+  kind: BucketKind
+  isDefault: boolean
+}
+
+/// Банка, зроблена руками: «Відпустка», «Ремонт». Вид — будь-який, крім `Spending`:
+/// гроші на витрати — це денна норма, а не банка.
+export interface SaveEnvelope {
+  name: string
+  kind: BucketKind
 }
 
 export interface SavingsEntry {

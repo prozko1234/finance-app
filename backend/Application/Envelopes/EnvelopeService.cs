@@ -3,6 +3,7 @@ using FinanceApp.Application.Allocations;
 using FinanceApp.Application.Common;
 using FinanceApp.Domain;
 using FinanceApp.Domain.Budgeting;
+using FinanceApp.Domain.Common;
 using FinanceApp.Application.Summaries;
 using FinanceApp.Domain.Savings;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +16,9 @@ namespace FinanceApp.Application.Envelopes;
 /// <param name="StillToReserve">Goal not yet moved by hand. This is what hides from
 /// safe-to-spend; a deposit already made hides through <see cref="DepositedThisMonth"/>,
 /// so the same money is never held back twice.</param>
+/// <param name="IsFromScheme">A bucket in the active scheme carries this name, so the scheme
+/// owns the envelope: its goal, and — because bucket and envelope are matched by name — its
+/// name too. Sent to the screen so it can say why renaming is not on offer here.</param>
 public record EnvelopeStatus(
     int Id,
     string Name,
@@ -23,7 +27,8 @@ public record EnvelopeStatus(
     decimal Balance,
     decimal MonthGoal,
     decimal DepositedThisMonth,
-    decimal StillToReserve)
+    decimal StillToReserve,
+    bool IsFromScheme = false)
 {
     /// What this envelope takes out of "скільки можна витратити" this month.
     public decimal HeldBack => DepositedThisMonth + StillToReserve;
@@ -49,6 +54,21 @@ public interface IEnvelopeService
     /// там тепер». Periods, not calendar months, so it lines up with everything else.
     Task<IReadOnlyList<EnvelopePeriod>> HistoryAsync(
         int envelopeId, int count = 6, CancellationToken ct = default);
+
+    /// A pot the user made up themselves — «Відпустка», «Ремонт» — rather than one a scheme
+    /// bucket brought along. The word "банка" invites exactly this, and until now the only way
+    /// to get one was to add a percentage bucket to the scheme.
+    Task<Result<Envelope>> CreateAsync(string name, BucketKind kind, CancellationToken ct = default);
+
+    /// Renames an envelope and/or changes what kind of pot it is. Only ever a hand-made one:
+    /// the default envelope is found by name, and a scheme's envelope IS its bucket's name.
+    Task<Result<Envelope>> UpdateAsync(int id, string name, BucketKind kind, CancellationToken ct = default);
+
+    /// Puts an empty envelope away: it leaves the list and stops being somewhere to put money,
+    /// while its movements stay readable. Refused while there is still money in it — a pot that
+    /// vanished with a balance inside would take that money out of «Відкладено всього», and out
+    /// of the only figure this app asks the user to trust.
+    Task<Result<Envelope>> ArchiveAsync(int id, CancellationToken ct = default);
 }
 
 /// <param name="Moved">Net movement over the period: deposits minus withdrawals minus
@@ -124,6 +144,13 @@ public sealed class EnvelopeService(
             .Select((b, i) => (b.Name, Index: i))
             .ToDictionary(x => x.Name, x => x.Index);
 
+        // Whose name belongs to the scheme. Read from the buckets themselves and not from
+        // goals: a stood-down plan leaves goals empty, and the scheme still owns the name.
+        var fromScheme = scheme.Buckets
+            .Where(b => b.Kind != BucketKind.Spending)
+            .Select(b => b.Name)
+            .ToHashSet();
+
         return envelopes
             .OrderBy(e => order.TryGetValue(e.Name, out var i) ? i : int.MaxValue)
             .ThenBy(e => e.Id)
@@ -134,7 +161,8 @@ public sealed class EnvelopeService(
                 var status = SavingsCalculator.Status(goal, balances.GetValueOrDefault(e.Id), deposited);
                 return new EnvelopeStatus(
                     e.Id, e.Name, e.Kind, e.IsDefault,
-                    status.Balance, status.MonthGoal, status.DepositedThisMonth, status.StillToReserve);
+                    status.Balance, status.MonthGoal, status.DepositedThisMonth, status.StillToReserve,
+                    fromScheme.Contains(e.Name));
             })
             .ToList();
     }
@@ -178,6 +206,130 @@ public sealed class EnvelopeService(
         // Newest first: the period you are living in is the one you came here to look at.
         result.Reverse();
         return result;
+    }
+
+    public async Task<Result<Envelope>> CreateAsync(
+        string name, BucketKind kind, CancellationToken ct = default)
+    {
+        name = name.Trim();
+
+        if (kind == BucketKind.Spending)
+            return Error.Validation("Витрати — це не банка: банка тримає гроші, які ти не витрачаєш.");
+
+        var same = await db.Envelopes.FirstOrDefaultAsync(e => e.Name == name, ct);
+        if (same is not null)
+        {
+            // An archived envelope comes back instead of being duplicated: the balance and the
+            // history under that name are the ones the user means, and the unique index on the
+            // name would refuse a second row anyway.
+            if (!same.IsArchived)
+                return Error.Conflict($"Банка «{name}» вже є.");
+
+            same.ArchivedAt = null;
+            same.Kind = kind;
+            await db.SaveChangesAsync(ct);
+            log.LogInformation("Envelopes: «{Envelope}» un-archived instead of created anew", name);
+            return Result<Envelope>.Ok(same);
+        }
+
+        var envelope = New(name, kind, isDefault: false);
+        db.Envelopes.Add(envelope);
+        await db.SaveChangesAsync(ct);
+        log.LogInformation("Envelopes: «{Envelope}» created by hand ({Kind})", name, kind);
+        return Result<Envelope>.Ok(envelope);
+    }
+
+    public async Task<Result<Envelope>> UpdateAsync(
+        int id, string name, BucketKind kind, CancellationToken ct = default)
+    {
+        name = name.Trim();
+
+        if (kind == BucketKind.Spending)
+            return Error.Validation("Витрати — це не банка: банка тримає гроші, які ти не витрачаєш.");
+
+        var envelope = await db.Envelopes.FirstOrDefaultAsync(e => e.Id == id, ct);
+        if (envelope is null) return Error.NotFound($"Банку {id} не знайдено.");
+
+        if (envelope.Name != name)
+        {
+            var blocked = await RenameBlockedAsync(envelope, ct);
+            if (blocked is not null) return blocked;
+
+            if (await db.Envelopes.AnyAsync(e => e.Name == name && e.Id != id, ct))
+                return Error.Conflict($"Банка «{name}» вже є.");
+
+            log.LogInformation("Envelopes: «{Was}» renamed to «{Now}»", envelope.Name, name);
+            envelope.Name = name;
+        }
+
+        envelope.Kind = kind;
+        await db.SaveChangesAsync(ct);
+        return Result<Envelope>.Ok(envelope);
+    }
+
+    public async Task<Result<Envelope>> ArchiveAsync(int id, CancellationToken ct = default)
+    {
+        var envelope = await db.Envelopes.FirstOrDefaultAsync(e => e.Id == id, ct);
+        if (envelope is null) return Error.NotFound($"Банку {id} не знайдено.");
+        if (envelope.IsArchived) return Result<Envelope>.Ok(envelope);
+
+        if (envelope.IsDefault)
+            return Error.Validation(
+                "Це банка за замовчуванням — гроші, які нікуди більше не вказали, йдуть сюди. " +
+                "Її не прибрати.");
+
+        // A scheme envelope would be created again by the next screen load, and money would be
+        // poured into it by the scheme — the removal would look like it undid itself.
+        var scheme = await allocations.GetActiveAsync(ct);
+        if (scheme.Buckets.Any(b => b.Kind != BucketKind.Spending && b.Name == envelope.Name))
+            return Error.Validation(
+                $"Цю банку наповнює схема «{scheme.Name}». Прибери кошик «{envelope.Name}» зі схеми — " +
+                "тоді банку можна буде прибрати.");
+
+        var balance = await BalanceAsync(id, ct);
+        if (balance != 0m)
+            return Error.Validation(
+                $"У банці ще {balance:0.00}. Зніми ці гроші або перекинь в іншу банку — " +
+                "порожню банку прибрати можна будь-коли.");
+
+        envelope.ArchivedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(ct);
+        log.LogInformation("Envelopes: «{Envelope}» archived", envelope.Name);
+        return Result<Envelope>.Ok(envelope);
+    }
+
+    /// Why this envelope's name is not the user's to change. Both reasons are the same one:
+    /// something else in the app looks the envelope up BY NAME, so a rename would quietly
+    /// hand the balance to a pot nobody is feeding.
+    private async Task<Error?> RenameBlockedAsync(Envelope envelope, CancellationToken ct)
+    {
+        if (envelope.IsDefault)
+            return Error.Validation(
+                $"«{Envelope.DefaultName}» — банка за замовчуванням, її назву застосунок шукає сам. " +
+                "Зроби нову банку під ціль, якщо потрібна інша назва.");
+
+        var scheme = await allocations.GetActiveAsync(ct);
+        if (scheme.Buckets.Any(b => b.Kind != BucketKind.Spending && b.Name == envelope.Name))
+            return Error.Validation(
+                $"Назву цієї банки задає схема «{scheme.Name}». Перейменуй кошик «{envelope.Name}» у схемі — " +
+                "банка перейменується разом із ним.");
+
+        return null;
+    }
+
+    /// What is in one envelope right now: movements in and out, less anything paid straight
+    /// out of it. The same arithmetic StatusAsync does for the list, for a single pot.
+    private async Task<decimal> BalanceAsync(int envelopeId, CancellationToken ct)
+    {
+        var moved = await db.SavingsEntries
+            .Where(x => x.EnvelopeId == envelopeId)
+            .SumAsync(x => x.Kind == SavingsEntryKind.Deposit ? x.AmountBase : -x.AmountBase, ct);
+
+        var spent = await db.Transactions
+            .Where(t => t.EnvelopeId == envelopeId && t.Kind == TransactionKind.Expense)
+            .SumAsync(t => (decimal?)t.AmountBase, ct) ?? 0m;
+
+        return moved - spent;
     }
 
     /// Carries out the scheme instead of asking the user to. Choosing «20% у заощадження»
@@ -296,17 +448,25 @@ public sealed class EnvelopeService(
     /// Makes sure every non-spending bucket has a pot to actually put money in, and that the
     /// default one always exists. Reading creates rows, like recurring materialization does:
     /// the alternative is a scheme that promises a pension bucket the user cannot deposit to.
+    ///
+    /// Archived envelopes are read too, and matched by name: an archived pot whose name a
+    /// bucket carries comes back rather than being duplicated — the money under that name is
+    /// what the bucket means, and the unique index would refuse the second row anyway.
     private async Task<List<Envelope>> SyncAsync(AllocationScheme scheme, CancellationToken ct)
     {
         var existing = await db.Envelopes.ToListAsync(ct);
         var byName = existing.ToDictionary(e => e.Name);
         var added = false;
 
-        if (!existing.Any(e => e.IsDefault))
+        if (!existing.Any(e => e.IsDefault && !e.IsArchived))
         {
             // Adopt a same-named envelope rather than adding a second one — the unique index
             // on the name would reject it anyway, and the balance belongs to that name.
-            if (byName.TryGetValue(Envelope.DefaultName, out var same)) same.IsDefault = true;
+            if (byName.TryGetValue(Envelope.DefaultName, out var same))
+            {
+                same.IsDefault = true;
+                same.ArchivedAt = null;
+            }
             else
             {
                 var def = New(Envelope.DefaultName, BucketKind.Savings, isDefault: true);
@@ -319,7 +479,17 @@ public sealed class EnvelopeService(
 
         foreach (var bucket in scheme.Buckets.Where(b => b.Kind != BucketKind.Spending))
         {
-            if (byName.ContainsKey(bucket.Name)) continue;
+            if (byName.TryGetValue(bucket.Name, out var known))
+            {
+                if (!known.IsArchived) continue;
+
+                known.ArchivedAt = null;
+                added = true;
+                log.LogInformation(
+                    "Envelopes: «{Envelope}» came back — the scheme has a bucket by that name again",
+                    known.Name);
+                continue;
+            }
 
             var e = New(bucket.Name, bucket.Kind, isDefault: false);
             db.Envelopes.Add(e);
@@ -329,7 +499,9 @@ public sealed class EnvelopeService(
         }
 
         if (added) await db.SaveChangesAsync(ct);
-        return existing;
+
+        // Put-away pots are not filled and not shown; their movements stay reachable by id.
+        return existing.Where(e => !e.IsArchived).ToList();
     }
 
     private static Envelope New(string name, BucketKind kind, bool isDefault) => new()

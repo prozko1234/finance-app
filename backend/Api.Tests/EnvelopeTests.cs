@@ -8,6 +8,8 @@ using FinanceApp.Application.Savings;
 using FinanceApp.Application.Summaries;
 using FinanceApp.Domain;
 using FinanceApp.Domain.Budgeting;
+using FinanceApp.Domain.Common;
+using FinanceApp.Domain.Savings;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace FinanceApp.Api.Tests;
@@ -299,5 +301,149 @@ public class EnvelopeTests
         Assert.Equal(400m, after.Balance);  // the money did not evaporate with the scheme
         Assert.Equal(0m, after.MonthGoal);  // but it no longer takes anything from the norm
         Assert.Equal(0m, after.StillToReserve);
+    }
+
+    // Банки як самостійна річ: до цього банку можна було отримати лише як кошик схеми, тобто
+    // «Відпустка» вимагала зайти в схему й вигадати їй відсоток.
+
+    [Fact]
+    public async Task A_pot_can_be_made_by_hand_and_stands_beside_the_scheme_ones()
+    {
+        using var mem = new SqliteInMemory();
+        await ActivateAsync(mem, "50-30-20");
+
+        var made = await Sut(mem).CreateAsync("Відпустка", BucketKind.Savings);
+        Assert.True(made.IsSuccess);
+
+        var all = await Sut(mem).StatusAsync(Month(Budget));
+        var holiday = all.Single(e => e.Name == "Відпустка");
+        Assert.Equal(0m, holiday.Balance);
+        Assert.False(holiday.IsFromScheme);       // нічого не диктує ні назву, ні ціль
+        Assert.Equal(0m, holiday.MonthGoal);      // і нічого не тримає з норми
+        Assert.Contains(all, e => e.IsFromScheme);
+    }
+
+    [Fact]
+    public async Task Two_pots_cannot_share_a_name_because_the_name_is_what_a_bucket_matches()
+    {
+        using var mem = new SqliteInMemory();
+        await ActivateAsync(mem, "50-30-20");
+        await Sut(mem).StatusAsync(Month(Budget));
+
+        var again = await Sut(mem).CreateAsync(Envelope.DefaultName, BucketKind.Savings);
+
+        Assert.False(again.IsSuccess);
+        Assert.Equal(ErrorType.Conflict, again.Error.Type);
+    }
+
+    [Fact]
+    public async Task A_pot_put_away_comes_back_with_its_history_instead_of_being_made_twice()
+    {
+        using var mem = new SqliteInMemory();
+        await ActivateAsync(mem, "50-30-20");
+        var made = (await Sut(mem).CreateAsync("Ремонт", BucketKind.Other)).Value!;
+
+        // Money in and out again: the pot is empty, so it can be put away — but it has a past.
+        await Savings(mem).AddEntryAsync(new("Deposit", 300m, null, null, null, made.Id));
+        await Savings(mem).AddEntryAsync(new("Withdrawal", 300m, null, null, null, made.Id));
+        Assert.True((await Sut(mem).ArchiveAsync(made.Id)).IsSuccess);
+
+        var back = await Sut(mem).CreateAsync("Ремонт", BucketKind.Other);
+
+        Assert.True(back.IsSuccess);
+        Assert.Equal(made.Id, back.Value!.Id);
+        Assert.Equal(2, (await Savings(mem).GetAsync()).Recent.Count(e => e.EnvelopeId == made.Id));
+    }
+
+    [Fact]
+    public async Task A_pot_put_away_leaves_the_list_but_keeps_its_movements_readable()
+    {
+        using var mem = new SqliteInMemory();
+        await ActivateAsync(mem, "50-30-20");
+        var made = (await Sut(mem).CreateAsync("Ремонт", BucketKind.Other)).Value!;
+        await Savings(mem).AddEntryAsync(new("Deposit", 300m, null, null, null, made.Id));
+        await Savings(mem).AddEntryAsync(new("Withdrawal", 300m, null, null, null, made.Id));
+
+        Assert.True((await Sut(mem).ArchiveAsync(made.Id)).IsSuccess);
+
+        Assert.DoesNotContain(await Sut(mem).StatusAsync(Month(Budget)), e => e.Id == made.Id);
+        Assert.NotEmpty(await Sut(mem).HistoryAsync(made.Id));
+        Assert.Equal(2, (await Savings(mem).GetAsync()).Recent.Count(e => e.EnvelopeId == made.Id));
+        // And it is no longer a destination: money there would be money the list never shows.
+        var blocked = await Savings(mem).AddEntryAsync(new("Deposit", 50m, null, null, null, made.Id));
+        Assert.False(blocked.IsSuccess);
+    }
+
+    [Fact]
+    public async Task A_pot_with_money_still_in_it_is_not_put_away()
+    {
+        using var mem = new SqliteInMemory();
+        await ActivateAsync(mem, "50-30-20");
+        var made = (await Sut(mem).CreateAsync("Відпустка", BucketKind.Savings)).Value!;
+        await Savings(mem).AddEntryAsync(new("Deposit", 240m, null, null, null, made.Id));
+
+        var refused = await Sut(mem).ArchiveAsync(made.Id);
+
+        Assert.False(refused.IsSuccess);
+        Assert.Contains("240", refused.Error.Message);  // сказати, скільки саме там лежить
+        Assert.Contains(await Sut(mem).StatusAsync(Month(Budget)), e => e.Id == made.Id);
+    }
+
+    [Fact]
+    public async Task The_default_pot_and_the_schemes_own_pots_are_neither_renamed_nor_put_away()
+    {
+        using var mem = new SqliteInMemory();
+        // 60-solution, not 50-30-20: there the savings bucket IS the default pot, and the two
+        // reasons would not be told apart.
+        await ActivateAsync(mem, "60-solution");
+        var all = await Sut(mem).StatusAsync(Month(Budget));
+        var def = all.Single(e => e.IsDefault);
+        var fromScheme = all.First(e => e.IsFromScheme && !e.IsDefault);
+
+        // Both are looked up BY NAME — by the app itself, or by the scheme's bucket — so a
+        // rename would hand the balance to a pot nobody feeds, and a removal would undo itself
+        // on the next screen load.
+        Assert.False((await Sut(mem).UpdateAsync(def.Id, "Мої гроші", def.Kind)).IsSuccess);
+        Assert.False((await Sut(mem).ArchiveAsync(def.Id)).IsSuccess);
+        Assert.False((await Sut(mem).UpdateAsync(fromScheme.Id, "Інша назва", fromScheme.Kind)).IsSuccess);
+        Assert.False((await Sut(mem).ArchiveAsync(fromScheme.Id)).IsSuccess);
+    }
+
+    [Fact]
+    public async Task A_hand_made_pot_can_be_renamed_and_keeps_the_money_that_was_in_it()
+    {
+        using var mem = new SqliteInMemory();
+        await ActivateAsync(mem, "50-30-20");
+        var made = (await Sut(mem).CreateAsync("Відпустка", BucketKind.Savings)).Value!;
+        await Savings(mem).AddEntryAsync(new("Deposit", 240m, null, null, null, made.Id));
+
+        var renamed = await Sut(mem).UpdateAsync(made.Id, "Відпустка 2027", BucketKind.Savings);
+
+        Assert.True(renamed.IsSuccess);
+        var after = (await Sut(mem).StatusAsync(Month(Budget))).Single(e => e.Id == made.Id);
+        Assert.Equal("Відпустка 2027", after.Name);
+        Assert.Equal(240m, after.Balance);
+    }
+
+    [Fact]
+    public async Task A_bucket_added_back_to_the_scheme_revives_the_pot_that_holds_its_money()
+    {
+        using var mem = new SqliteInMemory();
+        await ActivateAsync(mem, "60-solution");
+        var pension = (await Sut(mem).StatusAsync(Month(Budget))).Single(e => e.Name == "Пенсія");
+        await Savings(mem).AddEntryAsync(new("Deposit", 400m, null, null, null, pension.Id));
+        await Savings(mem).AddEntryAsync(new("Withdrawal", 400m, null, null, null, pension.Id));
+
+        // Emptied, the scheme dropped, then put away — and the scheme brought back. The screen
+        // load in between is what withdraws what the old scheme had set aside by itself.
+        await ActivateAsync(mem, "80-20");
+        await Sut(mem).StatusAsync(Month(Budget));
+        Assert.True((await Sut(mem).ArchiveAsync(pension.Id)).IsSuccess);
+        await ActivateAsync(mem, "60-solution");
+
+        var all = await Sut(mem).StatusAsync(Month(Budget));
+        var again = all.Single(e => e.Name == "Пенсія");
+        Assert.Equal(pension.Id, again.Id);  // не друга «Пенсія» поруч зі старою
+        Assert.True(again.MonthGoal > 0m);
     }
 }
