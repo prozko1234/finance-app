@@ -6,6 +6,10 @@ import { buildQuickCategories, type QuickCategory } from '../quickCategories'
 interface Props {
   summary: SafeToSpend | null
   transactions: Transaction[]
+  /// Питання про день зарплати тому, хто ніколи його не бачив: онбординг показується лише
+  /// порожньому застосунку, тож у того, хто вже мав дані, період і досі йде з 1 числа.
+  /// null — питати нема про що.
+  paydayNudge: { onGo: () => void; onDismiss: () => void } | null
   /// Ще є що показувати — сервер віддав рівно стільки, скільки просили.
   canLoadMore: boolean
   onLoadMore: () => void
@@ -19,7 +23,7 @@ interface Props {
 }
 
 export function Home({
-  summary, transactions, canLoadMore, onLoadMore, onDelete, onAddIncome, onQuickCategory, onEdit, onGoSavings, onGoAllocation,
+  summary, transactions, paydayNudge, canLoadMore, onLoadMore, onDelete, onAddIncome, onQuickCategory, onEdit, onGoSavings, onGoAllocation,
   onGoBalance,
 }: Props) {
   const quick = buildQuickCategories(transactions, (name) => ICONS[name] ?? '📦')
@@ -27,6 +31,7 @@ export function Home({
   return (
     <div className="space-y-6">
       <SafeToSpendCard summary={summary} onAddIncome={onAddIncome} />
+      {paydayNudge && <PaydayNudge {...paydayNudge} />}
       {summary?.budgetSet && (
         <PeriodCard summary={summary} onGoAllocation={onGoAllocation} onGoBalance={onGoBalance} />
       )}
@@ -41,6 +46,36 @@ export function Home({
         onDelete={onDelete}
         onEdit={onEdit}
       />
+    </div>
+  )
+}
+
+/// Одне питання, один раз. Питається саме тут, бо саме цю цифру воно й міняє: поки період
+/// іде з 1 числа, наприкінці місяця норма обіцяє гроші, яких на рахунку вже немає.
+///
+/// «Так і є» закриває його назавжди — нудж, який повертається, це вже не питання, а докір.
+function PaydayNudge({ onGo, onDismiss }: { onGo: () => void; onDismiss: () => void }) {
+  return (
+    <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm space-y-2">
+      <p className="text-sm font-medium">Коли до тебе приходять гроші?</p>
+      <p className="text-xs text-neutral-500">
+        Зараз період рахується з 1 числа. Якщо зарплата приходить, скажімо, 10-го — цифра
+        наприкінці місяця обіцяє те, чого на рахунку вже немає.
+      </p>
+      <div className="flex gap-2">
+        <button
+          onClick={onGo}
+          className="flex-1 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 px-3 py-2 text-sm font-medium"
+        >
+          Вказати день
+        </button>
+        <button
+          onClick={onDismiss}
+          className="rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-500"
+        >
+          Гроші приходять 1-го
+        </button>
+      </div>
     </div>
   )
 }

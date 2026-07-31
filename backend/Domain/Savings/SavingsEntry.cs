@@ -39,6 +39,12 @@ public class SavingsEntry
     /// not leave a trail of correcting deposits.
     public bool IsAuto { get; set; }
 
+    /// Ties the two halves of a move between jars: the withdrawal from one and the deposit
+    /// into the other carry the same key. They are one act, so they are undone as one — half a
+    /// transfer left behind would make «Відкладено всього» grow by money nobody received.
+    /// Null for an ordinary movement, which is almost all of them.
+    public string? TransferKey { get; set; }
+
     public string? Note { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }

@@ -191,6 +191,19 @@ export interface SavingsEntry {
   /// Записав додаток, виконуючи схему, а не людина руками. Редагування чи видалення такого
   /// руху скасовується наступним завантаженням екрана, тому UI цього й не пропонує.
   isAuto: boolean
+  /// Половина перекидання між банками. Редагується лише цілком: видалення забирає й другу
+  /// половину, бо гроші, що пішли з однієї банки й не прийшли в жодну, — це не факт.
+  isTransfer: boolean
+}
+
+/// Перекидання між банками: одна дія замість «зняти тут і не забути покласти там».
+export interface SaveTransfer {
+  fromEnvelopeId: number
+  toEnvelopeId: number
+  amount: number
+  currency?: string | null
+  date?: string | null
+  note?: string | null
 }
 
 export interface Savings {

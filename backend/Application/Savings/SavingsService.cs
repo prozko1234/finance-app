@@ -21,6 +21,11 @@ public interface ISavingsService
     Task<Result<SavingsResponse>> AddEntryAsync(SaveSavingsEntryRequest req, CancellationToken ct = default);
     Task<Result<SavingsResponse>> UpdateEntryAsync(int id, SaveSavingsEntryRequest req, CancellationToken ct = default);
     Task<Result<SavingsResponse>> DeleteEntryAsync(int id, CancellationToken ct = default);
+
+    /// Moving money from one jar to another. Two movements by hand did the job — a withdrawal
+    /// here, a deposit there — but between them the money existed nowhere, and if the second
+    /// one was forgotten it stayed nowhere.
+    Task<Result<SavingsResponse>> TransferAsync(TransferRequest req, CancellationToken ct = default);
 }
 
 public sealed class SavingsService(
@@ -78,6 +83,11 @@ public sealed class SavingsService(
             log.LogWarning("Savings: entry {Id} was edited but no longer exists", id);
             return Error.NotFound($"Операцію {id} не знайдено.");
         }
+
+        // Half a transfer is not a movement of its own: correcting one side would leave the
+        // other saying something else about the same act. Delete it and move the money again.
+        if (entry.TransferKey is not null)
+            return Error.Validation("Це перекидання між банками — його можна лише скасувати цілком.");
 
         // The row being edited is already part of the balance, so it has to be taken out
         // before checking the new amount — otherwise correcting a withdrawal down would
@@ -140,6 +150,61 @@ public sealed class SavingsService(
         return Result<SavingsEntry>.Ok(entry);
     }
 
+    public async Task<Result<SavingsResponse>> TransferAsync(
+        TransferRequest req, CancellationToken ct = default)
+    {
+        if (req.Amount <= 0) return Error.Validation("Сума має бути більшою за нуль.");
+        if (req.FromEnvelopeId == req.ToEnvelopeId)
+            return Error.Validation("Це та сама банка — перекидати нема куди.");
+
+        var jars = await db.Envelopes
+            .Where(e => (e.Id == req.FromEnvelopeId || e.Id == req.ToEnvelopeId) && e.ArchivedAt == null)
+            .ToListAsync(ct);
+        var from = jars.FirstOrDefault(e => e.Id == req.FromEnvelopeId);
+        var to = jars.FirstOrDefault(e => e.Id == req.ToEnvelopeId);
+        if (from is null) return Error.NotFound($"Банку {req.FromEnvelopeId} не знайдено.");
+        if (to is null) return Error.NotFound($"Банку {req.ToEnvelopeId} не знайдено.");
+
+        var date = req.Date ?? DateOnly.FromDateTime(DateTime.Now);
+        var currency = string.IsNullOrWhiteSpace(req.Currency)
+            ? Money.BaseCurrency
+            : req.Currency.ToUpperInvariant();
+
+        var conv = await fx.ConvertToBaseAsync(req.Amount, currency, date, ct);
+        if (!conv.IsSuccess) return conv.Error;
+
+        var available = await BalanceAsync(from.Id, ct);
+        if (conv.Value!.AmountBase > available)
+            return Error.Validation($"У банці «{from.Name}» лише {available:0.00}. Стільки перекинути не вийде.");
+
+        // One key on both halves: they are one act, and DeleteEntryAsync undoes them together.
+        var key = Guid.NewGuid().ToString();
+        var note = string.IsNullOrWhiteSpace(req.Note) ? null : req.Note.Trim();
+
+        db.SavingsEntries.Add(Half(from.Id, SavingsEntryKind.Withdrawal, note ?? $"У «{to.Name}»"));
+        db.SavingsEntries.Add(Half(to.Id, SavingsEntryKind.Deposit, note ?? $"З «{from.Name}»"));
+
+        await db.SaveChangesAsync(ct);
+        log.LogInformation(
+            "Savings: moved {Amount} from «{From}» to «{To}»", conv.Value.AmountBase, from.Name, to.Name);
+        return Result<SavingsResponse>.Ok(await BuildAsync(await MonthAsync(ct), ct));
+
+        SavingsEntry Half(int envelopeId, SavingsEntryKind kind, string note) => new()
+        {
+            EnvelopeId = envelopeId,
+            Date = date,
+            Kind = kind,
+            AmountOriginal = req.Amount,
+            CurrencyOriginal = currency,
+            AmountBase = conv.Value!.AmountBase,
+            FxRate = conv.Value.Rate,
+            FxDate = conv.Value.RateDate,
+            TransferKey = key,
+            Note = note,
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+    }
+
     public async Task<Result<SavingsResponse>> DeleteEntryAsync(int id, CancellationToken ct = default)
     {
         var entry = await db.SavingsEntries.FirstOrDefaultAsync(x => x.Id == id, ct);
@@ -147,6 +212,16 @@ public sealed class SavingsService(
         {
             log.LogWarning("Savings: entry {Id} was deleted but no longer exists", id);
             return Error.NotFound($"Операцію {id} не знайдено.");
+        }
+
+        // A transfer goes as a whole. Removing one half would leave money that left a jar and
+        // arrived nowhere — or arrived from nowhere — and «Відкладено всього» would say so.
+        if (entry.TransferKey is { } key)
+        {
+            var both = await db.SavingsEntries.Where(x => x.TransferKey == key).ToListAsync(ct);
+            db.SavingsEntries.RemoveRange(both);
+            await db.SaveChangesAsync(ct);
+            return Result<SavingsResponse>.Ok(await BuildAsync(await MonthAsync(ct), ct));
         }
 
         db.SavingsEntries.Remove(entry);
@@ -188,7 +263,7 @@ public sealed class SavingsService(
             entries.Add(new SavingsEntryResponse(
                 x.Id, x.Date, x.Kind.ToString(), await view.FromBaseAsync(x.AmountBase, x.Date, ct),
                 x.AmountOriginal, x.CurrencyOriginal, x.Note,
-                x.EnvelopeId, x.Envelope?.Name ?? "", x.IsAuto));
+                x.EnvelopeId, x.Envelope?.Name ?? "", x.IsAuto, x.TransferKey is not null));
 
         var summaries = new List<EnvelopeSummary>(all.Count);
         foreach (var e in all)

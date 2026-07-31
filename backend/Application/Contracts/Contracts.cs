@@ -172,6 +172,15 @@ public record EnvelopeTargetResponse(
     bool Reached,
     bool Overdue);
 
+/// Moving money between jars: one act, written as two movements that carry the same key.
+public record TransferRequest(
+    int FromEnvelopeId,
+    int ToEnvelopeId,
+    decimal Amount,
+    string? Currency = null,
+    DateOnly? Date = null,
+    string? Note = null);
+
 /// A target, or the end of one: a null amount takes it off. Currency is optional and means the
 /// one the user is reading in.
 public record SetEnvelopeTargetRequest(decimal? Amount, string? Currency = null, DateOnly? Date = null);
@@ -212,7 +221,10 @@ public record SavingsEntryResponse(
     string EnvelopeName = "",
     /// Written by the app carrying out the scheme, not by hand. Editing or deleting one is
     /// undone by the next page load, so the UI must not offer either.
-    bool IsAuto = false);
+    bool IsAuto = false,
+    /// One half of a move between jars. Editable only as a whole — deleting it takes the other
+    /// half with it, because money that left one jar and arrived in no other is not a fact.
+    bool IsTransfer = false);
 
 public record SavingsResponse(
     string Mode,

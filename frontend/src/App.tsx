@@ -11,7 +11,7 @@ import {
   useUpdateRecurring, useTaxProfile, useTaxDefaults, useSaveTaxProfile,
   useAllocations, useSaveAllocation, useSettings, useSetDisplayCurrency, useSetPeriodStartDay,
   useSavings, useSaveSavingsPlan, useAddSavingsEntry, useUpdateSavingsEntry, useDeleteSavingsEntry,
-  useCreateEnvelope, useUpdateEnvelope, useDeleteEnvelope, useSetEnvelopeTarget,
+  useCreateEnvelope, useUpdateEnvelope, useDeleteEnvelope, useSetEnvelopeTarget, useTransferBetweenEnvelopes,
   useStats, useAuthStatus, useLogin, useLogout, queryKeys,
   useChangePassword, useChangeEmail, useSignOutEverywhere,
   useOpeningBalance, useSetOpeningBalance, useClearOpeningBalance,
@@ -46,6 +46,11 @@ function App() {
   const [incomeFirst, setIncomeFirst] = useState(false)
   // null = whichever month the server considers current; set once the user taps a bar.
   const [statsMonth, setStatsMonth] = useState<string | null>(null)
+  // Те саме, що й із онбордингом: питання про день зарплати, на яке вже відповіли —
+  // хоч «так і є» — більше не ставиться.
+  const [paydayAsked, setPaydayAsked] = useState(() => localStorage.getItem('paydayAsked') === '1')
+  const dismissPayday = () => { localStorage.setItem('paydayAsked', '1'); setPaydayAsked(true) }
+
   // Survives a reload: "я сам розберусь" must not be asked again on every refresh.
   const [skippedOnboarding, setSkipped] = useState(() => localStorage.getItem('onboarded') === '1')
   const skipOnboarding = () => { localStorage.setItem('onboarded', '1'); setSkipped(true) }
@@ -82,6 +87,7 @@ function App() {
   const updateEnvelope = useUpdateEnvelope()
   const deleteEnvelope = useDeleteEnvelope()
   const setEnvelopeTarget = useSetEnvelopeTarget()
+  const transferBetweenEnvelopes = useTransferBetweenEnvelopes()
   const stats = useStats(MONTHS_BACK, statsMonth, view === 'stats')
   const settings = useSettings()
   const setDisplayCurrency = useSetDisplayCurrency()
@@ -218,6 +224,13 @@ function App() {
             onGoBalance={() => go('balance')}
             onQuickCategory={(categoryId) => { setPresetCategoryId(categoryId); go('add') }}
             onEdit={startEdit}
+            // Онбординг показується лише порожньому застосунку, тож той, хто вже мав дані,
+            // ніколи не бачив питання про день зарплати — і живе з періодом із 1 числа.
+            paydayNudge={
+              !paydayAsked && settings.data?.periodStartDay === 1 && (transactions.data ?? []).length > 0
+                ? { onGo: () => { dismissPayday(); go('settings') }, onDismiss: dismissPayday }
+                : null
+            }
           />
         )}
         {view === 'add' && (
@@ -290,6 +303,7 @@ function App() {
             // лише порожню банку, а повертається вона тим самим ім'ям.
             onArchiveEnvelope={(id) => deleteEnvelope.mutateAsync(id).then(() => {})}
             onSetTarget={(id, t) => setEnvelopeTarget.mutateAsync({ id, data: t }).then(() => {})}
+            onTransfer={(t) => transferBetweenEnvelopes.mutateAsync(t).then(() => {})}
             // Відкрита банка — теж адреса (`/savings/3`), інакше «назад» із неї виходило б
             // зі списку банок замість повернення до нього.
             openId={param ? Number(param) : null}

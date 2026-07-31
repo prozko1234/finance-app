@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api'
 import type {
-  Credentials, SaveAllocation, SaveCategory, SaveEnvelope, SaveEnvelopeTarget, SaveIncome, SaveOpeningBalance, SaveRecurring, SaveSavingsEntry, SaveSavingsPlan, SaveTaxProfile, SaveTransaction,
+  Credentials, SaveAllocation, SaveCategory, SaveEnvelope, SaveEnvelopeTarget, SaveIncome, SaveOpeningBalance, SaveRecurring, SaveSavingsEntry, SaveSavingsPlan, SaveTaxProfile, SaveTransaction, SaveTransfer,
 } from './types'
 
 export const queryKeys = {
@@ -350,6 +350,10 @@ export function useAddSavingsEntry() {
 export function useUpdateSavingsEntry() {
   return useSavingsMutation(({ id, data }: { id: number; data: SaveSavingsEntry }) =>
     api.updateSavingsEntry(id, data))
+}
+
+export function useTransferBetweenEnvelopes() {
+  return useSavingsMutation((t: SaveTransfer) => api.transferBetweenEnvelopes(t))
 }
 
 export function useDeleteSavingsEntry() {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { BucketKind, EnvelopePeriod as EnvelopePeriodType, EnvelopeSummary, SaveEnvelope, SaveEnvelopeTarget, Savings as SavingsData, SaveSavingsEntry, SavingsEntry, SaveSavingsPlan } from '../types'
+import type { BucketKind, EnvelopePeriod as EnvelopePeriodType, EnvelopeSummary, SaveEnvelope, SaveEnvelopeTarget, SaveTransfer, Savings as SavingsData, SaveSavingsEntry, SavingsEntry, SaveSavingsPlan } from '../types'
 import { BASE_CURRENCY, CURRENCIES, todayIso } from '../types'
 import { dayMonth, money } from '../format'
 import { useEnvelopeHistory } from '../hooks'
@@ -16,6 +16,7 @@ interface Props {
   onUpdateEnvelope: (id: number, e: SaveEnvelope) => Promise<void>
   onArchiveEnvelope: (id: number) => Promise<void>
   onSetTarget: (id: number, t: SaveEnvelopeTarget) => Promise<void>
+  onTransfer: (t: SaveTransfer) => Promise<void>
   /// Яка банка відкрита — приходить з адреси, а не зі стану екрана.
   openId: number | null
   onOpen: (id: number | null) => void
@@ -41,7 +42,8 @@ const KINDS: { kind: BucketKind; label: string }[] = [
 /// «Банка», не «конверт»: метафора з монобанку, яку не треба вчити.
 export function Savings({
   data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteEntry,
-  onCreateEnvelope, onUpdateEnvelope, onArchiveEnvelope, onSetTarget, openId, onOpen, onBack,
+  onCreateEnvelope, onUpdateEnvelope, onArchiveEnvelope, onSetTarget, onTransfer,
+  openId, onOpen, onBack,
 }: Props) {
 
   // The header stays while loading — the way back must not depend on the data arriving.
@@ -66,6 +68,7 @@ export function Savings({
         onDeleteEntry={onDeleteEntry}
         onRename={onUpdateEnvelope}
         onSetTarget={onSetTarget}
+        onTransfer={onTransfer}
         // Порожня банка зникає — і екран разом із нею, бо дивитись уже нема на що.
         onArchive={async (id) => { await onArchiveEnvelope(id); onOpen(null) }}
         onBack={() => onOpen(null)}
@@ -466,7 +469,7 @@ function EnvelopeSettings({ envelope, currency, onRename, onArchive }: {
 }
 
 /// Одна банка: баланс, історія по періодах і все, що з нею можна зробити.
-function EnvelopeDetail({ envelope, data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteEntry, onRename, onSetTarget, onArchive, onBack }: {
+function EnvelopeDetail({ envelope, data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteEntry, onRename, onSetTarget, onTransfer, onArchive, onBack }: {
   envelope: EnvelopeSummary
   data: SavingsData
   onSavePlan: (p: SaveSavingsPlan) => Promise<void>
@@ -475,6 +478,7 @@ function EnvelopeDetail({ envelope, data, onSavePlan, onAddEntry, onUpdateEntry,
   onDeleteEntry: (id: number) => Promise<void>
   onRename: (id: number, e: SaveEnvelope) => Promise<void>
   onSetTarget: (id: number, t: SaveEnvelopeTarget) => Promise<void>
+  onTransfer: (t: SaveTransfer) => Promise<void>
   onArchive: (id: number) => Promise<void>
   onBack: () => void
 }) {
@@ -505,6 +509,13 @@ function EnvelopeDetail({ envelope, data, onSavePlan, onAddEntry, onUpdateEntry,
         envelopeId={envelope.id}
         kind={envelope.kind}
         onAdd={onAddEntry}
+      />
+
+      <MoveToAnotherJar
+        from={envelope}
+        jars={data.envelopes}
+        currency={data.currency}
+        onTransfer={onTransfer}
       />
 
       {/* Тільки для банки за замовчуванням: решті ціль диктує схема, і форма плану
@@ -551,6 +562,101 @@ function PeriodHistory({ periods, currency }: { periods: EnvelopePeriodType[]; c
           </div>
         ))}
       </dl>
+    </Card>
+  )
+}
+
+/// Перекинути в іншу банку. Руками це були два рухи — зняти тут, покласти там, — і між ними
+/// гроші не існували ніде; а якщо другий рух забували, вони там і лишались. Тепер це одна дія,
+/// і скасовується вона теж як одна.
+function MoveToAnotherJar({ from, jars, currency, onTransfer }: {
+  from: EnvelopeSummary
+  jars: EnvelopeSummary[]
+  currency: string
+  onTransfer: (t: SaveTransfer) => Promise<void>
+}) {
+  const others = jars.filter((e) => e.id !== from.id)
+  const [open, setOpen] = useState(false)
+  const [toId, setToId] = useState<number | null>(others[0]?.id ?? null)
+  const [amount, setAmount] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Ні порожня банка, ні єдина банка нікуди нічого не перекинуть — не пропонуємо дію,
+  // яка одразу впреться у відмову.
+  if (others.length === 0 || from.balance <= 0) return null
+
+  const value = Number(amount.replace(',', '.'))
+  const valid = value > 0 && value <= from.balance && toId !== null
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="w-full rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700 px-4 py-3 text-sm text-neutral-500"
+      >
+        Перекинути в іншу банку
+      </button>
+    )
+  }
+
+  async function move() {
+    if (!valid || busy || toId === null) return
+    setBusy(true)
+    setError(null)
+    try {
+      await onTransfer({ fromEnvelopeId: from.id, toEnvelopeId: toId, amount: value, currency })
+      setAmount('')
+      setOpen(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не вдалося перекинути')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card>
+      <SectionTitle>Перекинути в іншу банку</SectionTitle>
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          inputMode="decimal"
+          autoFocus
+          placeholder="0"
+          aria-label="Скільки перекинути"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          className="flex-1 text-2xl font-bold tabular-nums bg-transparent outline-none"
+        />
+        <span className="text-neutral-400 font-medium">{currency}</span>
+      </div>
+      <label className="flex items-center justify-between gap-3 text-sm text-neutral-500">
+        Куди
+        <select
+          value={toId ?? ''}
+          onChange={(e) => setToId(Number(e.target.value))}
+          className="flex-1 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-sm outline-none"
+        >
+          {others.map((e) => (
+            <option key={e.id} value={e.id}>{e.name}</option>
+          ))}
+        </select>
+      </label>
+      <FormError>{error}</FormError>
+      <div className="flex gap-2">
+        <PrimaryButton onClick={move} disabled={!valid || busy}>Перекинути</PrimaryButton>
+        <button
+          onClick={() => { setOpen(false); setError(null) }}
+          className="rounded-xl bg-neutral-100 dark:bg-neutral-800 px-4 py-2.5 text-sm"
+        >
+          Скасувати
+        </button>
+      </div>
+      <p className="text-xs text-neutral-400">
+        Максимум: {money(from.balance, currency)}. «Відкладено всього» від цього не зміниться —
+        гроші просто перекладаються з однієї банки в іншу.
+      </p>
     </Card>
   )
 }
@@ -760,7 +866,7 @@ function History({ data, envelopeId, kind, editing, onEdit, onSave, onDelete }: 
                     сама. Хочеш іншу суму — міняй схему або план. */}
                 <button
                   onClick={() => onEdit(e)}
-                  disabled={e.isAuto}
+                  disabled={e.isAuto || e.isTransfer}
                   className="flex-1 min-w-0 text-left disabled:cursor-default"
                 >
                   <p className="font-medium truncate">{label(e, kind)}</p>
@@ -795,6 +901,9 @@ function History({ data, envelopeId, kind, editing, onEdit, onSave, onDelete }: 
 /// інвестиції. Раніше кожен внесок у будь-яку банку звався «У заощадження», і в банці «Борг»
 /// це читалось як помилка додатка.
 function label(entry: SavingsEntry, kind: BucketKind): string {
+  // Перекидання називається переміщенням, а не внеском: інакше на двох екранах те саме
+  // перекладання виглядало б як дві незалежні події — тут «внесок», а там «знято».
+  if (entry.isTransfer) return entry.kind === 'Deposit' ? 'Перекинуто сюди' : 'Перекинуто звідси'
   return entry.kind === 'Deposit' ? envelopeWords(kind).deposit : WITHDRAWAL_LABEL
 }
 

@@ -27,6 +27,13 @@ public static class SavingsEndpoints
             return r.IsSuccess ? Results.Ok(r.Value) : r.Error.ToProblem();
         });
 
+        // Перекидання між банками: одна дія, а не «зняти тут і не забути покласти там».
+        g.MapPost("/transfer", async (TransferRequest req, ISavingsService svc, CancellationToken ct) =>
+        {
+            var r = await svc.TransferAsync(req, ct);
+            return r.IsSuccess ? Results.Ok(r.Value) : r.Error.ToProblem();
+        });
+
         // Correcting a movement instead of deleting and retyping it.
         g.MapPut("/entries/{id:int}", async (int id, SaveSavingsEntryRequest req, ISavingsService svc, CancellationToken ct) =>
         {

@@ -20,7 +20,7 @@ function summary(over: Partial<SafeToSpend> = {}): SafeToSpend {
 }
 
 const props = {
-  transactions: [], canLoadMore: false, onLoadMore: vi.fn(),
+  transactions: [], canLoadMore: false, onLoadMore: vi.fn(), paydayNudge: null,
   onDelete: vi.fn(), onAddIncome: vi.fn(), onQuickCategory: vi.fn(), onEdit: vi.fn(),
   onGoSavings: vi.fn(), onGoAllocation: vi.fn(), onGoBalance: vi.fn(),
 }
@@ -278,5 +278,25 @@ describe('Home — the recent list', () => {
       <Home {...props} summary={summary()} transactions={[tx()]} canLoadMore onLoadMore={onLoadMore} />)
     screen.getByText('Показати ще').click()
     expect(onLoadMore).toHaveBeenCalled()
+  })
+})
+
+describe('Home — the payday question', () => {
+  /// Онбординг показується лише порожньому застосунку, тож той, хто вже мав дані, ніколи не
+  /// бачив цього питання — і жив із періодом із 1 числа.
+  it('asks once and goes away for good', async () => {
+    const onGo = vi.fn()
+    const onDismiss = vi.fn()
+    const user = userEvent.setup()
+    render(<Home {...props} summary={summary()} paydayNudge={{ onGo, onDismiss }} />)
+
+    expect(screen.getByText('Коли до тебе приходять гроші?')).toBeInTheDocument()
+    await user.click(screen.getByText('Гроші приходять 1-го'))
+    expect(onDismiss).toHaveBeenCalled()
+  })
+
+  it('says nothing when there is nothing to ask about', () => {
+    render(<Home {...props} summary={summary()} />)
+    expect(screen.queryByText('Коли до тебе приходять гроші?')).not.toBeInTheDocument()
   })
 })

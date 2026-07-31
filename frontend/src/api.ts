@@ -1,6 +1,6 @@
 import type {
   AuthStatus, AppSettings, Category, Credentials, Envelope, EnvelopePeriod, SaveEnvelope, SaveEnvelopeTarget, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
-  Allocation, SaveAllocation, IncomePreview, OpeningBalance, SaveOpeningBalance, SaveSavingsEntry, SaveSavingsPlan, Savings, Stats, TaxDefaults, TaxProfile, Transaction,
+  Allocation, SaveAllocation, IncomePreview, OpeningBalance, SaveOpeningBalance, SaveSavingsEntry, SaveSavingsPlan, Savings, SaveTransfer, Stats, TaxDefaults, TaxProfile, Transaction,
 } from './types'
 
 /// Called whenever the server says "not you" — a cookie can expire mid-session, and the
@@ -118,6 +118,8 @@ export const api = {
   getSavings: () => http<Savings>('/api/savings'),
   saveSavingsPlan: (p: SaveSavingsPlan) =>
     http<Savings>('/api/savings/plan', { method: 'PUT', body: JSON.stringify(p) }),
+  transferBetweenEnvelopes: (t: SaveTransfer) =>
+    http<Savings>('/api/savings/transfer', { method: 'POST', body: JSON.stringify(t) }),
   addSavingsEntry: (e: SaveSavingsEntry) =>
     http<Savings>('/api/savings/entries', { method: 'POST', body: JSON.stringify(e) }),
   deleteSavingsEntry: (id: number) =>

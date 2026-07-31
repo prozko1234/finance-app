@@ -4,7 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Savings } from './Savings'
-import type { EnvelopeSummary, SaveEnvelope, SaveEnvelopeTarget, Savings as SavingsData } from '../types'
+import type { EnvelopeSummary, SaveEnvelope, SaveEnvelopeTarget, SaveTransfer, Savings as SavingsData } from '../types'
 
 vi.mock('../hooks', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../hooks')>()),
@@ -43,6 +43,7 @@ function renderScreen(
     onUpdateEnvelope: (id: number, e: SaveEnvelope) => Promise<void>
     onArchiveEnvelope: (id: number) => Promise<void>
     onSetTarget: (id: number, t: SaveEnvelopeTarget) => Promise<void>
+    onTransfer: (t: SaveTransfer) => Promise<void>
   }> = {},
 ) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -62,6 +63,7 @@ function renderScreen(
         onUpdateEnvelope={vi.fn()}
         onArchiveEnvelope={vi.fn()}
         onSetTarget={vi.fn()}
+        onTransfer={vi.fn()}
         {...envelopeHandlers}
         openId={openId}
         onOpen={setOpenId}
@@ -122,12 +124,12 @@ describe('Savings', () => {
         {
           id: 10, date: '2026-07-30', kind: 'Deposit', amount: 1200, amountOriginal: 1200,
           currencyOriginal: 'PLN', note: 'За схемою «70/20/10»', envelopeId: 1, envelopeName: 'Заощадження',
-          isAuto: true,
+          isAuto: true, isTransfer: false,
         },
         {
           id: 11, date: '2026-07-30', kind: 'Deposit', amount: 200, amountOriginal: 200,
           currencyOriginal: 'PLN', note: 'понад план', envelopeId: 1, envelopeName: 'Заощадження',
-          isAuto: false,
+          isAuto: false, isTransfer: false,
         },
       ],
     }), onDeleteEntry)
@@ -271,7 +273,7 @@ describe('Savings', () => {
         {
           id: 12, date: '2026-07-30', kind: 'Deposit', amount: 800, amountOriginal: 800,
           currencyOriginal: 'PLN', note: null, envelopeId: 4, envelopeName: 'Зобовʼязання',
-          isAuto: false,
+          isAuto: false, isTransfer: false,
         },
       ],
     }))
@@ -282,5 +284,57 @@ describe('Savings', () => {
     expect(screen.getByText('+ Погасити')).toBeInTheDocument()
     expect(screen.getByText('Погашення')).toBeInTheDocument()
     expect(screen.queryByText('Внесок')).not.toBeInTheDocument()
+  })
+  /// Руками це були два рухи, і між ними гроші не існували ніде.
+  it('moves money to another jar in one act', async () => {
+    const onTransfer = vi.fn()
+    renderScreen(data([
+      envelope({ id: 1, name: 'Заощадження', balance: 1000 }),
+      envelope({ id: 3, name: 'Відпустка', isDefault: false, balance: 0 }),
+    ]), vi.fn(), { onTransfer })
+    const user = userEvent.setup()
+
+    await user.click(screen.getByText('Заощадження'))
+    await user.click(screen.getByText('Перекинути в іншу банку'))
+    await user.type(screen.getByLabelText('Скільки перекинути'), '400')
+    await user.click(screen.getByText('Перекинути'))
+
+    await waitFor(() => expect(onTransfer).toHaveBeenCalledWith({
+      fromEnvelopeId: 1, toEnvelopeId: 3, amount: 400, currency: 'PLN',
+    }))
+  })
+
+  /// Порожній банці нема що перекидати, а єдиній — нікуди.
+  it('does not offer a move from an empty jar', async () => {
+    renderScreen(data([
+      envelope({ id: 1, name: 'Заощадження', balance: 0 }),
+      envelope({ id: 3, name: 'Відпустка', isDefault: false, balance: 0 }),
+    ]))
+    const user = userEvent.setup()
+
+    await user.click(screen.getByText('Заощадження'))
+
+    expect(screen.queryByText('Перекинути в іншу банку')).not.toBeInTheDocument()
+  })
+
+  /// Половина перекидання — не рух сам по собі: правити її окремо означало б розсинхронити
+  /// дві сторони однієї дії.
+  it('shows a transfer as a transfer and does not open it for editing', async () => {
+    renderScreen(data([envelope({ id: 1, name: 'Заощадження', balance: 600 })], {
+      recent: [
+        {
+          id: 20, date: '2026-07-30', kind: 'Withdrawal', amount: 400, amountOriginal: 400,
+          currencyOriginal: 'PLN', note: 'У «Відпустка»', envelopeId: 1, envelopeName: 'Заощадження',
+          isAuto: false, isTransfer: true,
+        },
+      ],
+    }))
+    const user = userEvent.setup()
+
+    await user.click(screen.getByText('Заощадження'))
+
+    const row = screen.getByText('Перекинуто звідси')
+    expect(row).toBeInTheDocument()
+    expect(row.closest('button')).toBeDisabled()
   })
 })
