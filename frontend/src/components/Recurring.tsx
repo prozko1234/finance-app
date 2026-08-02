@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Category, Recurring as RecurringType, SaveRecurring } from '../types'
-import { CURRENCIES } from '../types'
+import { CURRENCIES, todayIso } from '../types'
+import { CADENCES, DEFAULT_CADENCE, sameCadence, scheduleSummary, type Cadence } from '../cadence'
 import { daysUntil, dayMonth, money } from '../format'
 import { Screen } from './Screen'
 
@@ -29,7 +30,10 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
   const [amount, setAmount] = useState('')
   const [currency, setCurrency] = useState('PLN')
   const [categoryId, setCategoryId] = useState<number | null>(categories[0]?.id ?? null)
-  const [day, setDay] = useState('1')
+  const [cadence, setCadence] = useState<Cadence>(DEFAULT_CADENCE)
+  // Дата першого списання, а не «число місяця»: для щотижневої підписки числа не існує,
+  // а день тижня береться саме звідси.
+  const [startsOn, setStartsOn] = useState(todayIso)
   const [note, setNote] = useState('')
   const [drafts, setDrafts] = useState<Draft[]>([])
   const [saving, setSaving] = useState(false)
@@ -43,7 +47,8 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
     setAmount(String(r.amountOriginal))
     setCurrency(r.currencyOriginal)
     setCategoryId(r.categoryId)
-    setDay(String(r.dayOfMonth))
+    setCadence(CADENCES.find((c) => sameCadence(r, c)) ?? { unit: r.unit, interval: r.interval, label: '' })
+    setStartsOn(r.startsOn)
     setNote(r.note ?? '')
     setDrafts([])
     setError(null)
@@ -67,7 +72,9 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
         amount: amountNum,
         currency,
         categoryId,
-        dayOfMonth: dayNum,
+        startsOn,
+        unit: cadence.unit,
+        interval: cadence.interval,
         note: note.trim() || null,
         // Пауза й вид (дохід чи витрата) не в цій формі — вони лишаються, якими були.
         active: editing.active,
@@ -83,8 +90,7 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
   }
 
   const amountNum = Number(amount.replace(',', '.'))
-  const dayNum = Number(day)
-  const valid = amountNum > 0 && categoryId !== null && dayNum >= 1 && dayNum <= 31
+  const valid = amountNum > 0 && categoryId !== null && startsOn !== ''
   const pending = drafts.length + (valid ? 1 : 0)
 
   /// Currency, category and day usually repeat across a batch; the amount and the
@@ -97,7 +103,9 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
       currency,
       categoryId,
       categoryName: categories.find((c) => c.id === categoryId)?.name ?? '',
-      dayOfMonth: dayNum,
+      startsOn,
+      unit: cadence.unit,
+      interval: cadence.interval,
       note: note.trim() || null,
       active: true,
     }
@@ -137,7 +145,7 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
     <Screen
       title="Регулярні: підписки й дохід"
       onBack={onBack}
-      footnote="Те, що списується щомісяця, застосунок додає сам — і тримає з бюджету наперед, щоб денна норма не обіцяла грошей, які вже обіцяні."
+      footnote="Те, що списується регулярно, застосунок додає сам — і тримає з бюджету наперед, щоб денна норма не обіцяла грошей, які вже обіцяні."
     >
 
       <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm space-y-3">
@@ -175,14 +183,32 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
           ))}
         </div>
 
-        <div className="flex items-center gap-2 text-sm">
-          <span className="text-neutral-500">кожного</span>
-          <input
-            inputMode="numeric" value={day} onChange={(e) => setDay(e.target.value)}
-            className="w-14 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-2 py-1 text-center"
-          />
-          <span className="text-neutral-500">числа</span>
+        <div className="flex gap-2 flex-wrap">
+          {CADENCES.map((c) => (
+            <button
+              key={`${c.unit}-${c.interval}`} onClick={() => setCadence(c)}
+              className={`rounded-xl px-3 py-1.5 text-sm ${
+                sameCadence(cadence, c)
+                  ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+                  : 'bg-neutral-100 dark:bg-neutral-800'
+              }`}
+            >
+              {c.label}
+            </button>
+          ))}
         </div>
+
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-neutral-500 shrink-0">Перше списання</span>
+          <input
+            type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)}
+            className="flex-1 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-1.5"
+          />
+        </div>
+        {/* Розклад словами: «13 серпня» саме по собі не каже, чи це вівторок і чи це щотижня. */}
+        <p className="text-xs text-neutral-400">
+          Списуватиметься {scheduleSummary(cadence.unit, cadence.interval, startsOn)}.
+        </p>
 
         <input
           placeholder="Назва (Netflix, оренда…)" value={note}
@@ -195,7 +221,9 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
             {drafts.map((d) => (
               <li key={d.key} className="flex items-center gap-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-sm">
                 <span className="flex-1 min-w-0 truncate">{d.note || d.categoryName}</span>
-                <span className="text-xs text-neutral-400">{d.dayOfMonth}-го</span>
+                <span className="text-xs text-neutral-400">
+                  {scheduleSummary(d.unit ?? 'Month', d.interval ?? 1, d.startsOn)}
+                </span>
                 <span className="font-medium tabular-nums">{money(d.amount, d.currency)}</span>
                 <button
                   onClick={() => setDrafts(drafts.filter((x) => x.key !== d.key))}
@@ -296,7 +324,7 @@ function whenNext(r: RecurringType): string {
 
   const when = r.nextChargeOn
     ? `${dayMonth(r.nextChargeOn)}${untilWords(r.nextChargeOn)}`
-    : `кожного ${r.dayOfMonth}-го`
+    : scheduleSummary(r.unit, r.interval, r.startsOn)
 
   return r.chargedThisPeriod ? `цього періоду вже пішло · далі ${when}` : when
 }

@@ -12,7 +12,8 @@ const categories: Category[] = [
 function item(over: Partial<RecurringType> = {}): RecurringType {
   return {
     id: 1, amountOriginal: 50, currencyOriginal: 'PLN', categoryId: 1, categoryName: 'Підписки',
-    dayOfMonth: 5, active: true, note: 'Netflix', kind: 'Expense', amountIncludesVat: true,
+    startsOn: '2026-08-05', unit: 'Month', interval: 1,
+    active: true, note: 'Netflix', kind: 'Expense', amountIncludesVat: true,
     nextChargeOn: null, chargedThisPeriod: false,
     ...over,
   }
@@ -120,7 +121,7 @@ describe('Recurring — editing', () => {
     await user.click(screen.getByText('Зберегти зміни'))
 
     await waitFor(() => expect(onUpdate).toHaveBeenCalledWith(9, expect.objectContaining({
-      amount: 65, dayOfMonth: 5, note: 'Netflix', categoryId: 1,
+      amount: 65, startsOn: '2026-08-05', unit: 'Month', interval: 1, note: 'Netflix', categoryId: 1,
     })))
   })
 

@@ -28,5 +28,5 @@ public static class DomainMapping
 
     public static RecurringResponse ToResponse(this RecurringExpense r) => new(
         r.Id, r.AmountOriginal, r.CurrencyOriginal, r.CategoryId, r.Category?.Name ?? "",
-        r.DayOfMonth, r.Active, r.Note, r.Kind.ToString(), r.AmountIncludesVat);
+        r.StartsOn, r.Unit.ToString(), r.Interval, r.Active, r.Note, r.Kind.ToString(), r.AmountIncludesVat);
 }

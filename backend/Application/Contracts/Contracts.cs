@@ -251,12 +251,18 @@ public record SaveRecurringRequest(
     decimal Amount,
     string Currency,
     int CategoryId,
-    int DayOfMonth,
+    /// The first charge. For a monthly or yearly rule its day is the day it lands on;
+    /// for a weekly one its weekday is the weekday.
+    DateOnly StartsOn,
     string? Note,
     bool Active,
     // "Expense" (default) or "Income" — a stable monthly salary is recurring too.
     string? Kind = null,
-    bool AmountIncludesVat = true);
+    bool AmountIncludesVat = true,
+    /// "Week", "Month" (default) or "Year".
+    string? Unit = null,
+    /// Every N units: 2 + Week is a fortnight, 3 + Month is a quarter.
+    int Interval = 1);
 
 public record TaxProfileResponse(
     string Regime,
@@ -324,7 +330,9 @@ public record RecurringResponse(
     string CurrencyOriginal,
     int CategoryId,
     string CategoryName,
-    int DayOfMonth,
+    DateOnly StartsOn,
+    string Unit,
+    int Interval,
     bool Active,
     string? Note,
     string Kind,

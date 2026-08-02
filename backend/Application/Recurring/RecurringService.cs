@@ -21,10 +21,14 @@ public sealed class RecurringService(IAppDbContext db, IBudgetPeriods periods) :
 {
     public async Task<IReadOnlyList<RecurringResponse>> GetAllAsync(CancellationToken ct = default)
     {
-        var items = await db.RecurringExpenses
-            .Include(r => r.Category)
-            .OrderByDescending(r => r.Active).ThenBy(r => r.DayOfMonth)
-            .ToListAsync(ct);
+        // Ordered after loading, not in SQL: SQLite sorts a DateOnly as text, and relying on
+        // that is the same trap that a DateTimeOffset ORDER BY already sprang once.
+        var items = (await db.RecurringExpenses
+                .Include(r => r.Category)
+                .ToListAsync(ct))
+            .OrderByDescending(r => r.Active)
+            .ThenBy(r => r.StartsOn)
+            .ToList();
 
         // Which of these have already been taken out of the period being lived in. Asked once
         // for the whole list rather than per row: the answer is a set of ids, not a query each.
@@ -53,6 +57,9 @@ public sealed class RecurringService(IAppDbContext db, IBudgetPeriods periods) :
         if (!TryParseKind(req.Kind, out var kind))
             return Error.Validation($"Невідомий тип: {req.Kind}.");
 
+        if (!TryParseUnit(req.Unit, out var unit))
+            return Error.Validation($"Невідома періодичність: {req.Unit}.");
+
         var r = new RecurringExpense
         {
             Kind = kind,
@@ -60,7 +67,9 @@ public sealed class RecurringService(IAppDbContext db, IBudgetPeriods periods) :
             AmountOriginal = req.Amount,
             CurrencyOriginal = req.Currency.ToUpperInvariant(),
             CategoryId = req.CategoryId,
-            DayOfMonth = req.DayOfMonth,
+            StartsOn = req.StartsOn,
+            Unit = unit,
+            Interval = req.Interval,
             Active = req.Active,
             Note = req.Note,
             CreatedAt = DateTimeOffset.UtcNow,
@@ -91,8 +100,13 @@ public sealed class RecurringService(IAppDbContext db, IBudgetPeriods periods) :
         r.AmountIncludesVat = req.AmountIncludesVat;
         r.AmountOriginal = req.Amount;
         r.CurrencyOriginal = req.Currency.ToUpperInvariant();
+        if (!TryParseUnit(req.Unit, out var unit))
+            return Error.Validation($"Невідома періодичність: {req.Unit}.");
+
         r.CategoryId = req.CategoryId;
-        r.DayOfMonth = req.DayOfMonth;
+        r.StartsOn = req.StartsOn;
+        r.Unit = unit;
+        r.Interval = req.Interval;
         r.Active = req.Active;
         r.Note = req.Note;
         await db.SaveChangesAsync(ct);
@@ -123,19 +137,24 @@ public sealed class RecurringService(IAppDbContext db, IBudgetPeriods periods) :
         return Enum.TryParse(kind, ignoreCase: true, out parsed);
     }
 
+    /// Missing periodicity means monthly — which is what every row created before weekly and
+    /// yearly schedules existed is.
+    private static bool TryParseUnit(string? unit, out RecurrenceUnit parsed)
+    {
+        if (string.IsNullOrWhiteSpace(unit))
+        {
+            parsed = RecurrenceUnit.Month;
+            return true;
+        }
+        return Enum.TryParse(unit, ignoreCase: true, out parsed);
+    }
+
     /// The next day this falls due. A charge due today has already been written by the time
     /// anything is read (materialization runs on read), so today counts as gone.
-    private static DateOnly? NextChargeOn(RecurringExpense r)
-    {
-        if (!r.Active) return null;
-
-        var today = DateOnly.FromDateTime(DateTime.Now);
-        var thisMonth = RecurringSchedule.OccurrenceDate(today.Year, today.Month, r.DayOfMonth);
-        if (thisMonth > today) return thisMonth;
-
-        var next = new DateOnly(today.Year, today.Month, 1).AddMonths(1);
-        return RecurringSchedule.OccurrenceDate(next.Year, next.Month, r.DayOfMonth);
-    }
+    private static DateOnly? NextChargeOn(RecurringExpense r) =>
+        r.Active
+            ? RecurringSchedule.NextAfter(r.StartsOn, r.Unit, r.Interval, DateOnly.FromDateTime(DateTime.Now))
+            : null;
 
     private async Task LoadCategoryAsync(RecurringExpense r, CancellationToken ct) =>
         r.Category = await db.Categories.FirstOrDefaultAsync(c => c.Id == r.CategoryId, ct);

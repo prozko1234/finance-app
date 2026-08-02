@@ -19,7 +19,7 @@ public class RecurringMaterializerTests
             AmountOriginal = 50m,
             CurrencyOriginal = "PLN",
             CategoryId = 1,
-            DayOfMonth = today.Day, // due today
+            StartsOn = today, // due today
             Active = true,
             CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-1),
         });
@@ -50,7 +50,7 @@ public class RecurringMaterializerTests
             AmountOriginal = 50m,
             CurrencyOriginal = "PLN",
             CategoryId = 1,
-            DayOfMonth = today.Day + 2, // still in the future this month
+            StartsOn = today.AddDays(2), // still in the future
             Active = true,
             CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-1),
         });
@@ -84,7 +84,7 @@ public class RecurringMaterializerTests
             AmountOriginal = 24_600m,
             CurrencyOriginal = "PLN",
             CategoryId = 1,
-            DayOfMonth = today.Day,
+            StartsOn = today,
             Active = true,
             CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-1),
         });
@@ -99,31 +99,33 @@ public class RecurringMaterializerTests
         Assert.Equal(4_600m, tx.VatAmount);
     }
 
-    /// A row whose CreatedAt was never set sits at year 1. Walking month by month from there
-    /// wrote ~24 000 phantom charges and made the app unusable — the catch-up must be bounded
-    /// by what the subscription could plausibly have been charged, not by what a date says.
+    /// A row whose start date was never set sits at year 1. Walking period by period from
+    /// there wrote ~24 000 phantom charges and made the app unusable — the catch-up must be
+    /// bounded by how far back it is worth looking, not by what a date field happens to say.
+    /// Weekly makes it worse than the monthly case that first caused it: four times worse.
     [Fact]
-    public async Task A_recurring_without_a_creation_date_does_not_backfill_two_millennia()
+    public async Task A_recurring_without_a_start_date_does_not_backfill_two_millennia()
     {
         using var mem = new SqliteInMemory();
-        var today = DateOnly.FromDateTime(DateTime.Now);
 
         mem.Db.RecurringExpenses.Add(new RecurringExpense
         {
             AmountOriginal = 49.99m,
             CurrencyOriginal = "PLN",
             CategoryId = 1,
-            DayOfMonth = today.Day,
+            Unit = RecurrenceUnit.Week,
+            Interval = 1,
             Active = true,
-            // CreatedAt deliberately left unset — default(DateTimeOffset) is 0001-01-01.
+            // StartsOn deliberately left unset — default(DateOnly) is 0001-01-01.
+            CreatedAt = DateTimeOffset.UtcNow,
         });
         await mem.Db.SaveChangesAsync();
 
         await new RecurringMaterializer(mem.Db, new FakeFxConverter()).MaterializeDueAsync();
 
+        // Two years of weeks, and not one charge more.
         var rows = await mem.Db.Transactions.CountAsync();
-        Assert.Equal(1, rows);
-        Assert.True(await mem.Db.Transactions.AllAsync(t => t.Date == today));
+        Assert.InRange(rows, 100, 106);
     }
 
     [Fact]
@@ -137,7 +139,7 @@ public class RecurringMaterializerTests
             AmountOriginal = 10m,
             CurrencyOriginal = "PLN",
             CategoryId = 1,
-            DayOfMonth = 1,
+            StartsOn = new DateOnly(today.Year, today.Month, 1).AddYears(-10),
             Active = true,
             CreatedAt = DateTimeOffset.UtcNow.AddYears(-10),
         });

@@ -123,7 +123,8 @@ public sealed class SummaryService(
 
         foreach (var r in recurring)
         {
-            foreach (var occ in OccurrencesIn(period, r.DayOfMonth))
+            foreach (var occ in RecurringSchedule.Occurrences(
+                         r.StartsOn, r.Unit, r.Interval, period.Start, period.End))
             {
                 if (occ <= today) continue; // already charged (materialized into spent)
 
@@ -135,19 +136,4 @@ public sealed class SummaryService(
         return reserved;
     }
 
-    /// When the period does not start on the 1st it straddles two calendar months, and a
-    /// charge on the 5th belongs to whichever of them holds it. Looking only in today's
-    /// month would miss the subscription that falls after the month turns but before the
-    /// next payday — the app would promise money it has already committed.
-    private static IEnumerable<DateOnly> OccurrencesIn(BudgetPeriod period, int dayOfMonth)
-    {
-        var first = RecurringSchedule.OccurrenceDate(period.Start.Year, period.Start.Month, dayOfMonth);
-        if (period.Contains(first)) yield return first;
-
-        // Same month at both ends means a calendar-month period: one candidate, not two.
-        if (period.End.Year == period.Start.Year && period.End.Month == period.Start.Month) yield break;
-
-        var second = RecurringSchedule.OccurrenceDate(period.End.Year, period.End.Month, dayOfMonth);
-        if (period.Contains(second)) yield return second;
-    }
 }

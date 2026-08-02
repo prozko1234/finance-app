@@ -22,7 +22,7 @@ public class RecurringEditTests
             AmountOriginal = 20_000m,
             CurrencyOriginal = "PLN",
             CategoryId = category.Id,
-            DayOfMonth = 10,
+            StartsOn = new DateOnly(2026, 1, 10),
             Active = true,
             Note = "Зарплата",
             AmountIncludesVat = true,
@@ -42,7 +42,7 @@ public class RecurringEditTests
         var salary = await SalaryAsync(mem);
 
         var paused = await Sut(mem).UpdateAsync(salary.Id, new SaveRecurringRequest(
-            salary.AmountOriginal, "PLN", salary.CategoryId, salary.DayOfMonth, salary.Note, Active: false));
+            salary.AmountOriginal, "PLN", salary.CategoryId, salary.StartsOn, salary.Note, Active: false));
 
         Assert.True(paused.IsSuccess);
         var row = await mem.Db.RecurringExpenses.FindAsync(salary.Id);
@@ -57,12 +57,12 @@ public class RecurringEditTests
         var salary = await SalaryAsync(mem);
 
         await Sut(mem).UpdateAsync(salary.Id, new SaveRecurringRequest(
-            21_000m, "PLN", salary.CategoryId, 12, "Зарплата (нова ставка)", Active: true,
+            21_000m, "PLN", salary.CategoryId, new DateOnly(2026, 1, 12), "Зарплата (нова ставка)", Active: true,
             Kind: "Income", AmountIncludesVat: true));
 
         var row = await mem.Db.RecurringExpenses.FindAsync(salary.Id);
         Assert.Equal(21_000m, row!.AmountOriginal);
-        Assert.Equal(12, row.DayOfMonth);
+        Assert.Equal(new DateOnly(2026, 1, 12), row.StartsOn);
         Assert.Equal("Зарплата (нова ставка)", row.Note);
         Assert.Equal(TransactionKind.Income, row.Kind);
     }

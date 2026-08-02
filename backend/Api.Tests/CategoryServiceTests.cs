@@ -65,7 +65,7 @@ public class CategoryServiceTests
         mem.Db.RecurringExpenses.Add(new RecurringExpense
         {
             AmountOriginal = 40m, CurrencyOriginal = "PLN", CategoryId = 5,
-            DayOfMonth = 10, Active = true, CreatedAt = DateTimeOffset.UtcNow,
+            StartsOn = new DateOnly(2026, 1, 10), Active = true, CreatedAt = DateTimeOffset.UtcNow,
         });
         await mem.Db.SaveChangesAsync();
 

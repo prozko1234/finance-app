@@ -6,6 +6,7 @@ import { BASE_CURRENCY, CURRENCIES, shiftIso, todayIso } from '../types'
 import { money } from '../format'
 import { useIncomePreview, useSaveSavingsPlan, useSettings, useTaxProfile } from '../hooks'
 import { readIncomeSources, readLastUsed, rememberIncomeSource, writeLastUsed } from '../lastUsed'
+import { CADENCES, DEFAULT_CADENCE, sameCadence, scheduleSummary, type Cadence } from '../cadence'
 import { EmojiPicker } from './EmojiPicker'
 
 interface Props {
@@ -62,7 +63,7 @@ export function AddTransaction({
       ?? null,
   )
   const [date, setDate] = useState(editing?.date ?? todayIso())
-  const [dayOfMonth, setDayOfMonth] = useState('1')
+  const [cadence, setCadence] = useState<Cadence>(DEFAULT_CADENCE)
   const [incomeRepeats, setIncomeRepeats] = useState(false)
   const [envelopeId, setEnvelopeId] = useState<number | null>(editing?.envelopeId ?? null)
   // Форма відкривається на тому ж перемикачі, з яким рахунок написали: сервер відновлює це
@@ -78,12 +79,11 @@ export function AddTransaction({
   const [error, setError] = useState<string | null>(null)
 
   const amountNum = Number(amount.replace(',', '.'))
-  const dayNum = Number(dayOfMonth)
   const repeats = isSubscription || (isIncome && incomeRepeats)
   const valid = amountNum > 0
     && (isIncome || categoryId !== null)
     && (!isSubscription || categoryId !== null)
-    && (!repeats || (dayNum >= 1 && dayNum <= 31))
+    && (!repeats || date !== '')
 
   async function submit() {
     if (!valid) return
@@ -97,7 +97,11 @@ export function AddTransaction({
           // Income rows still need a category to hang off; the first one is the income
           // category the manual income flow already uses.
           categoryId: categoryId ?? categories[0].id,
-          dayOfMonth: dayNum,
+          // The date field doubles as "first charge" for a repeating row — one date on
+          // screen, not two, and it already defaults to today.
+          startsOn: date,
+          unit: cadence.unit,
+          interval: cadence.interval,
           note: note.trim() || null,
           active: true,
           kind: isIncome ? 'Income' : 'Expense',
@@ -319,15 +323,33 @@ export function AddTransaction({
         )}
 
         {repeats && (
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-neutral-500">кожного</span>
-            <input
-              inputMode="numeric"
-              value={dayOfMonth}
-              onChange={(e) => setDayOfMonth(e.target.value)}
-              className="w-14 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-2 py-1 text-center"
-            />
-            <span className="text-neutral-500">числа</span>
+          <div className="space-y-2">
+            <label className="text-xs text-neutral-400">Як часто</label>
+            <div className="flex gap-2 flex-wrap">
+              {CADENCES.map((c) => (
+                <button
+                  key={`${c.unit}-${c.interval}`}
+                  onClick={() => setCadence(c)}
+                  className={`rounded-xl px-3 py-1.5 text-sm ${
+                    sameCadence(cadence, c)
+                      ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+                      : 'bg-neutral-100 dark:bg-neutral-800'
+                  }`}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-neutral-500 shrink-0">Перше списання</span>
+              <input
+                type="date" value={date} onChange={(e) => setDate(e.target.value)}
+                className="flex-1 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-1.5"
+              />
+            </div>
+            <p className="text-xs text-neutral-400">
+              Списуватиметься {scheduleSummary(cadence.unit, cadence.interval, date)}.
+            </p>
           </div>
         )}
 

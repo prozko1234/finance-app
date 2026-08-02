@@ -331,13 +331,19 @@ export interface SaveOpeningBalance {
   date?: string
 }
 
+/// Одиниця повторення. Кварталу немає свідомо — це 3 × Month, як і пів року це 6 × Month.
+export type RecurrenceUnit = 'Week' | 'Month' | 'Year'
+
 export interface Recurring {
   id: number
   amountOriginal: number
   currencyOriginal: string
   categoryId: number
   categoryName: string
-  dayOfMonth: number
+  /// Дата першого списання — від неї рахується весь розклад.
+  startsOn: string
+  unit: RecurrenceUnit
+  interval: number
   active: boolean
   note?: string | null
   kind: 'Expense' | 'Income'
@@ -352,12 +358,16 @@ export interface SaveRecurring {
   amount: number
   currency: string
   categoryId: number
-  dayOfMonth: number
+  startsOn: string
   note?: string | null
   active: boolean
   /// Omitted = 'Expense'. 'Income' is a stable monthly salary or contract.
   kind?: 'Expense' | 'Income'
   amountIncludesVat?: boolean
+  /// Omitted = 'Month'.
+  unit?: RecurrenceUnit
+  /// Кожні N одиниць: 2 + Week — раз на два тижні, 3 + Month — раз на квартал.
+  interval?: number
 }
 
 export interface AppSettings {

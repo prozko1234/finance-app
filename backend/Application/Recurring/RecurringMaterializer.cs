@@ -15,6 +15,9 @@ public interface IRecurringMaterializer
 /// Lazy generation: called when data is read (home load). No background job.
 /// Idempotent — one transaction per recurring per due date, guarded by a unique index
 /// and serialized by a process-wide gate (single local instance).
+///
+/// Which dates are due is not decided here: <see cref="RecurringSchedule"/> owns that, so
+/// weekly, fortnightly, quarterly and yearly rules all arrive as a plain list of dates.
 public sealed class RecurringMaterializer(IAppDbContext db, IFxConverter fx) : IRecurringMaterializer
 {
     private static readonly SemaphoreSlim Gate = new(1, 1);
@@ -31,31 +34,18 @@ public sealed class RecurringMaterializer(IAppDbContext db, IFxConverter fx) : I
             var today = DateOnly.FromDateTime(DateTime.Now);
             var recurring = await db.RecurringExpenses.Where(r => r.Active).ToListAsync(ct);
 
+            // Backstop against a bad date: lazy materialization is meant to catch up days or
+            // weeks of missed loads, never centuries. A row whose StartsOn was never set
+            // (default = year 1) would otherwise write a charge for every week since
+            // antiquity — which is exactly what a dev seed missing the field once did.
+            var earliest = today.AddMonths(-MaxCatchUpMonths);
+
             foreach (var r in recurring)
             {
-                // A row with no CreatedAt (default = year 1) would make the walk below write a
-                // charge for every month since antiquity — ~24 000 phantom transactions, which
-                // is exactly what a dev seed missing the field once did. A subscription cannot
-                // have been charged before it existed, so an unset date means "starts now".
-                var createdDate = r.CreatedAt == default
-                    ? today
-                    : DateOnly.FromDateTime(r.CreatedAt.ToLocalTime().DateTime);
+                var from = r.StartsOn < earliest ? earliest : r.StartsOn;
 
-                var currentMonth = new DateOnly(today.Year, today.Month, 1);
-                var month = new DateOnly(createdDate.Year, createdDate.Month, 1);
-
-                // Backstop for any other way a bad date could get in: lazy materialization is
-                // meant to catch up days or weeks of missed loads, never centuries.
-                var earliest = currentMonth.AddMonths(-MaxCatchUpMonths);
-                if (month < earliest) month = earliest;
-
-                while (month <= currentMonth)
-                {
-                    var occ = RecurringSchedule.OccurrenceDate(month.Year, month.Month, r.DayOfMonth);
-                    if (occ <= today && occ >= createdDate)
-                        await MaterializeOneAsync(r, occ, ct);
-                    month = month.AddMonths(1);
-                }
+                foreach (var occ in RecurringSchedule.Occurrences(r.StartsOn, r.Unit, r.Interval, from, today))
+                    await MaterializeOneAsync(r, occ, ct);
             }
         }
         finally

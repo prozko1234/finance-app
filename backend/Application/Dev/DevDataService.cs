@@ -71,14 +71,34 @@ public sealed class DevDataService(IAppDbContext db) : IDevDataService
         db.RecurringExpenses.Add(new RecurringExpense
         {
             AmountOriginal = 49.99m, CurrencyOriginal = "PLN",
-            CategoryId = CategoryId("Розваги"), DayOfMonth = 10, Active = true, Note = "Netflix",
-            // Without this the row lands on year 1 and materialization walks every month since.
+            CategoryId = CategoryId("Розваги"), Active = true, Note = "Netflix",
+            // Without this the row lands on year 1 and materialization walks every period since.
+            StartsOn = new DateOnly(today.Year, today.Month, 10),
+            Unit = RecurrenceUnit.Month, Interval = 1,
             CreatedAt = DateTimeOffset.UtcNow,
         });
         db.RecurringExpenses.Add(new RecurringExpense
         {
             AmountOriginal = 9.99m, CurrencyOriginal = "USD",
-            CategoryId = CategoryId("Інше"), DayOfMonth = 20, Active = true, Note = "iCloud",
+            CategoryId = CategoryId("Інше"), Active = true, Note = "iCloud",
+            StartsOn = new DateOnly(today.Year, today.Month, 20),
+            Unit = RecurrenceUnit.Month, Interval = 1,
+            CreatedAt = DateTimeOffset.UtcNow,
+        });
+        // One of each shape, so the seeded app shows what the screen has to cope with:
+        // a weekly charge repeats inside a single period, a yearly one almost never does.
+        db.RecurringExpenses.Add(new RecurringExpense
+        {
+            AmountOriginal = 60m, CurrencyOriginal = "PLN",
+            CategoryId = CategoryId("Їжа"), Active = true, Note = "Продукти на тиждень",
+            StartsOn = today, Unit = RecurrenceUnit.Week, Interval = 1,
+            CreatedAt = DateTimeOffset.UtcNow,
+        });
+        db.RecurringExpenses.Add(new RecurringExpense
+        {
+            AmountOriginal = 1200m, CurrencyOriginal = "PLN",
+            CategoryId = CategoryId("Інше"), Active = true, Note = "Страховка авто",
+            StartsOn = today.AddMonths(2), Unit = RecurrenceUnit.Year, Interval = 1,
             CreatedAt = DateTimeOffset.UtcNow,
         });
 
