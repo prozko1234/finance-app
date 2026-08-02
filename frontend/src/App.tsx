@@ -368,7 +368,11 @@ function App() {
       {view === 'home' && (
         <button
           onClick={() => { setEditingTx(null); go('add') }}
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 h-14 w-14 rounded-full bg-emerald-600 text-white text-3xl shadow-lg flex items-center justify-center"
+          // Fixed elements sit against the viewport, not the body, so the safe-area padding
+          // on <body> does not reach them — on a home-indicator iPhone this button would end
+          // up half under the bar that swipes the app away.
+          style={{ bottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
+          className="fixed left-1/2 -translate-x-1/2 h-14 w-14 rounded-full bg-emerald-600 text-white text-3xl shadow-lg flex items-center justify-center"
           aria-label="Додати транзакцію"
         >
           +

@@ -3,7 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover lets the page reach under the notch and the home indicator, which
+         is what makes env(safe-area-inset-*) report anything but zero. maximum-scale stops
+         iOS from zooming the whole layout when a text field is focused. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover"
+    />
     <meta name="theme-color" content="#059669" />
     <title>finance</title>
   </head>

@@ -94,7 +94,10 @@ export function UndoBar({ label, onUndo }: { label: string; onUndo: () => void }
   return (
     <div
       role="status"
-      className="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 flex items-center gap-4 rounded-2xl bg-neutral-900 dark:bg-white px-4 py-2.5 shadow-lg"
+      // Clears the home indicator for the same reason the add button does — and stays the
+      // same distance above that button, which is what it is anchored to visually.
+      style={{ bottom: 'calc(6rem + env(safe-area-inset-bottom))' }}
+      className="fixed left-1/2 -translate-x-1/2 z-30 flex items-center gap-4 rounded-2xl bg-neutral-900 dark:bg-white px-4 py-2.5 shadow-lg"
     >
       <span className="text-sm text-white dark:text-neutral-900">{label}</span>
       <button onClick={onUndo} className="text-sm font-semibold text-white dark:text-neutral-900 underline">

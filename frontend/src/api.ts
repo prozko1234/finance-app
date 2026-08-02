@@ -2,6 +2,20 @@ import type {
   AuthStatus, AppSettings, Category, Credentials, Envelope, EnvelopePeriod, SaveEnvelope, SaveEnvelopeTarget, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
   Allocation, SaveAllocation, IncomePreview, OpeningBalance, SaveOpeningBalance, SaveSavingsEntry, SaveSavingsPlan, Savings, SaveTransfer, Stats, TaxDefaults, TaxProfile, Transaction,
 } from './types'
+import {
+  apiBase, deviceName, forgetDeviceToken, isNative, readDeviceToken, readDeviceTokenId, saveDeviceToken,
+} from './native'
+
+/// The secret exists in this shape exactly once — on the way from the server into storage.
+interface IssuedDeviceToken { id: number; name: string; token: string }
+
+/// A device in the owner's list. No secret here: it cannot be read back, by anyone.
+export interface Device {
+  id: number
+  name: string
+  createdAt: string
+  lastUsedAt: string | null
+}
 
 /// Called whenever the server says "not you" — a cookie can expire mid-session, and the
 /// screen must fall back to the login form instead of showing a broken dashboard.
@@ -11,9 +25,16 @@ export function setOnUnauthorized(handler: () => void) {
 }
 
 async function http<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
+  // In the browser this is a no-op on both counts: the base is empty and there is no token,
+  // so the request goes out exactly as it always did, carrying the cookie.
+  const token = await readDeviceToken()
+  const res = await fetch(apiBase() + url, {
     ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options?.headers,
+    },
   })
   if (res.status === 401 && !url.startsWith('/api/auth')) onUnauthorized()
   if (!res.ok) {
@@ -40,9 +61,42 @@ async function http<T>(url: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   getAuthStatus: () => http<AuthStatus>('/api/auth/me'),
-  login: (c: Credentials) =>
-    http<void>('/api/auth/login', { method: 'POST', body: JSON.stringify(c) }),
-  logout: () => http<void>('/api/auth/logout', { method: 'POST' }),
+  /// Same screen, two different doors behind it. The browser gets a session cookie; the
+  /// native shell trades the password for a device token once and never asks again — which
+  /// is also the credential the home-screen widget will read.
+  login: async (c: Credentials) => {
+    if (!isNative()) {
+      await http<void>('/api/auth/login', { method: 'POST', body: JSON.stringify(c) })
+      return
+    }
+
+    const issued = await http<IssuedDeviceToken>('/api/auth/device-tokens', {
+      method: 'POST',
+      body: JSON.stringify({ ...c, name: deviceName() }),
+    })
+    await saveDeviceToken(issued.id, issued.token)
+  },
+
+  logout: async () => {
+    if (!isNative()) {
+      await http<void>('/api/auth/logout', { method: 'POST' })
+      return
+    }
+
+    // Cut the token off on the server as well, so signing out of a phone that is then lost
+    // means something. Local state is cleared either way: being unable to reach the server
+    // must not leave the app signed in.
+    const id = await readDeviceTokenId()
+    try {
+      if (id) await http<void>(`/api/auth/device-tokens/${id}`, { method: 'DELETE' })
+    } finally {
+      await forgetDeviceToken()
+    }
+  },
+
+  getDevices: () => http<Device[]>('/api/auth/device-tokens'),
+  revokeDevice: (id: number) =>
+    http<void>(`/api/auth/device-tokens/${id}`, { method: 'DELETE' }),
   changePassword: (currentPassword: string, newPassword: string) =>
     http<void>('/api/auth/password', {
       method: 'POST', body: JSON.stringify({ currentPassword, newPassword }),
