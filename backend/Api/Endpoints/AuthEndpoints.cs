@@ -56,8 +56,59 @@ public static class AuthEndpoints
             return Results.NoContent();
         });
 
+        // Anonymous on purpose: this is how a freshly installed app gets in, when there is
+        // no session yet to prove anything with. Rate-limited like the login it really is.
+        group.MapPost("/device-tokens", async (
+            IssueDeviceTokenRequest req, IDeviceTokenService tokens, CancellationToken ct) =>
+        {
+            if (!required)
+            {
+                // Development has no door, so there is no credential to hand out — and
+                // pretending otherwise would give the phone a token that means nothing.
+                return Results.Problem(
+                    title: "Застосунок без пароля не видає токенів пристроїв",
+                    statusCode: StatusCodes.Status409Conflict);
+            }
+
+            // Shape first, so that anything the service rejects afterwards can only be the
+            // credentials — and gets the 401 that a failed sign-in deserves, rather than the
+            // 400 that a validation error would map to. The client tells the two apart.
+            var name = req.Name?.Trim() ?? "";
+            if (name.Length == 0 || name.Length > DeviceToken.MaxNameLength)
+            {
+                return Error.Validation(
+                    $"Назва пристрою обов'язкова і не довша за {DeviceToken.MaxNameLength} символів").ToProblem();
+            }
+
+            var result = await tokens.IssueAsync(req.Email, req.Password, name, ct);
+            if (!result.IsSuccess)
+            {
+                return Results.Problem(
+                    title: result.Error.Message, statusCode: StatusCodes.Status401Unauthorized);
+            }
+
+            return Results.Ok(result.Value);
+        }).RequireRateLimiting(LoginRateLimit);
+
         // The rest need an open session: they change the account they are signed into.
         var account = app.MapGroup("/api/auth").WithTags("Auth").RequireAuthorization();
+
+        account.MapGet("/device-tokens", async (
+            HttpContext ctx, IDeviceTokenService tokens, CancellationToken ct) =>
+        {
+            if (CurrentUserId(ctx) is not { } userId) return Results.Unauthorized();
+
+            return Results.Ok(await tokens.ListAsync(userId, ct));
+        });
+
+        account.MapDelete("/device-tokens/{id:int}", async (
+            int id, HttpContext ctx, IDeviceTokenService tokens, CancellationToken ct) =>
+        {
+            if (CurrentUserId(ctx) is not { } userId) return Results.Unauthorized();
+
+            var result = await tokens.RevokeAsync(userId, id, ct);
+            return result.IsSuccess ? Results.NoContent() : result.Error.ToProblem();
+        });
 
         account.MapPost("/password", async (
             ChangePasswordRequest req, HttpContext ctx, IAccountService accounts, CancellationToken ct) =>
@@ -134,6 +185,10 @@ public record LoginRequest(string Email, string Password);
 public record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 
 public record ChangeEmailRequest(string Password, string Email);
+
+/// <paramref name="Name"/> is what the device will be called in the list — "iPhone", not a
+/// serial number. The client picks it; the owner can read it later and decide what to cut off.
+public record IssueDeviceTokenRequest(string Email, string Password, string Name);
 
 /// <paramref name="Required"/> is false in local development, where no account is set up —
 /// then the UI must not show a login screen that cannot be passed.

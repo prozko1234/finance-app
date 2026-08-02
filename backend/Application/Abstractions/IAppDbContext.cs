@@ -24,6 +24,7 @@ public interface IAppDbContext
     DbSet<AllocationBucket> AllocationBuckets { get; }
     DbSet<AppSettings> AppSettings { get; }
     DbSet<User> Users { get; }
+    DbSet<DeviceToken> DeviceTokens { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

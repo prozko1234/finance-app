@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
+using FinanceApp.Api.Auth;
 using FinanceApp.Api.Common;
 using FinanceApp.Api.Endpoints;
 using FinanceApp.Application;
@@ -58,7 +59,24 @@ builder.Services.AddCors(o => o.AddPolicy(DevCors, p => p
 // the browser would refuse to store the cookie at all.
 var secureCookies = builder.Configuration.GetValue("Auth:SecureCookies", false);
 
-builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+// Which door a request came through is decided by the request itself: a bearer token means
+// the phone or the widget, anything else means the browser and its cookie. Doing this as a
+// policy scheme rather than a multi-scheme authorization policy is what makes `ctx.User`
+// correct everywhere — including anonymous endpoints like /api/auth/me, which a policy
+// could not reach because nothing authorizes them.
+const string smartScheme = "smart";
+
+builder.Services.AddAuthentication(smartScheme)
+    .AddPolicyScheme(smartScheme, "Cookie or device token", o =>
+    {
+        o.ForwardDefaultSelector = ctx =>
+            ctx.Request.Headers.Authorization.ToString()
+                .StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+                ? DeviceTokenAuthenticationHandler.Scheme
+                : CookieAuthenticationDefaults.AuthenticationScheme;
+    })
+    .AddScheme<AuthenticationSchemeOptions, DeviceTokenAuthenticationHandler>(
+        DeviceTokenAuthenticationHandler.Scheme, _ => { })
     .AddCookie(o =>
     {
         o.Cookie.Name = "finance_auth";
@@ -126,6 +144,7 @@ builder.Services.AddAuthorization(o =>
     // Closed by default: an endpoint added later is protected unless it says otherwise, so
     // forgetting a line can never quietly publish data. Without a password (development)
     // there is nothing to check and the fallback would lock the app out of itself.
+    // Which credential is accepted is the policy scheme's business, not this one's.
     if (authRequired)
         o.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
 });

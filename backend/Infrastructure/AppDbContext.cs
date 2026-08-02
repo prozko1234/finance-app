@@ -22,6 +22,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AllocationBucket> AllocationBuckets => Set<AllocationBucket>();
     public DbSet<AppSettings> AppSettings => Set<AppSettings>();
     public DbSet<User> Users => Set<User>();
+    public DbSet<DeviceToken> DeviceTokens => Set<DeviceToken>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -146,6 +147,17 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.SecurityStamp).HasMaxLength(64).IsRequired();
             // Emails are stored normalized, so this index is what makes one address one account.
             e.HasIndex(x => x.Email).IsUnique();
+        });
+
+        b.Entity<DeviceToken>(e =>
+        {
+            e.Property(x => x.TokenHash).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(DeviceToken.MaxNameLength).IsRequired();
+            e.Property(x => x.IssuedStamp).HasMaxLength(64).IsRequired();
+            // Every authenticated request from a device is a lookup by this column, so it
+            // has to be an index rather than a scan. Unique because two rows for one secret
+            // could only ever be a bug.
+            e.HasIndex(x => x.TokenHash).IsUnique();
         });
 
         b.Entity<OpeningBalance>(e =>

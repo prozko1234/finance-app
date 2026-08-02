@@ -24,6 +24,7 @@ public static class DependencyInjection
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
         services.AddScoped<IAccountService, AccountService>();
+        services.AddScoped<IDeviceTokenService, DeviceTokenService>();
         services.AddScoped<IBudgetPeriods, BudgetPeriodResolver>();
         services.AddScoped<ITransactionService, TransactionService>();
         services.AddScoped<IOpeningBalanceService, OpeningBalanceService>();
