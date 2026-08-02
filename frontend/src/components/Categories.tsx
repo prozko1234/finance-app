@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Category, SaveCategory } from '../types'
 import { Card, FormError, Screen, SectionTitle } from './Screen'
+import { EmojiPicker } from './EmojiPicker'
 
 interface Props {
   categories: Category[]
@@ -37,10 +38,7 @@ export function Categories({ categories, onCreate, onUpdate, onDelete, onBack }:
       <Card>
         <SectionTitle>Нова категорія</SectionTitle>
         <div className="flex gap-2">
-        <input
-          placeholder="🍕" value={icon} onChange={(e) => setIcon(e.target.value)}
-          className="w-14 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-2 py-2 text-center text-sm outline-none"
-        />
+        <EmojiPicker value={icon} onChange={setIcon} />
         <input
           placeholder="Назва" value={name} onChange={(e) => setName(e.target.value)}
           className="flex-1 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-sm outline-none"
@@ -66,10 +64,7 @@ export function Categories({ categories, onCreate, onUpdate, onDelete, onBack }:
           <li key={c.id} className="rounded-xl bg-white dark:bg-neutral-900 px-4 py-3 shadow-sm">
             {editingId === c.id ? (
               <div className="flex gap-2">
-                <input
-                  value={editIcon} onChange={(e) => setEditIcon(e.target.value)}
-                  className="w-14 rounded-lg bg-neutral-100 dark:bg-neutral-800 px-2 py-1.5 text-center text-sm outline-none"
-                />
+                <EmojiPicker value={editIcon} onChange={setEditIcon} compact />
                 <input
                   autoFocus value={editName} onChange={(e) => setEditName(e.target.value)}
                   className="flex-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 px-3 py-1.5 text-sm outline-none"

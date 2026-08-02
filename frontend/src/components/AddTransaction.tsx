@@ -6,6 +6,7 @@ import { BASE_CURRENCY, CURRENCIES, shiftIso, todayIso } from '../types'
 import { money } from '../format'
 import { useIncomePreview, useSaveSavingsPlan, useSettings, useTaxProfile } from '../hooks'
 import { readIncomeSources, readLastUsed, rememberIncomeSource, writeLastUsed } from '../lastUsed'
+import { EmojiPicker } from './EmojiPicker'
 
 interface Props {
   categories: Category[]
@@ -254,14 +255,9 @@ export function AddTransaction({
 
               {newCatOpen && (
                 <div className="mt-2 flex gap-2">
+                  <EmojiPicker value={newCatIcon} onChange={setNewCatIcon} />
                   <input
                     autoFocus
-                    placeholder="🍕"
-                    value={newCatIcon}
-                    onChange={(e) => setNewCatIcon(e.target.value)}
-                    className="w-14 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-2 py-2 text-center text-sm outline-none"
-                  />
-                  <input
                     placeholder="Назва категорії"
                     value={newCatName}
                     onChange={(e) => setNewCatName(e.target.value)}
