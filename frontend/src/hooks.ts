@@ -19,6 +19,7 @@ export const queryKeys = {
   settings: ['settings'] as const,
   stats: ['stats'] as const,
   auth: ['auth'] as const,
+  devices: ['devices'] as const,
 }
 
 export function useAuthStatus() {
@@ -61,6 +62,20 @@ export function useSignOutEverywhere() {
   return useMutation({
     mutationFn: () => api.signOutEverywhere(),
     onSuccess: () => qc.clear(),
+  })
+}
+
+/// Пристрої, що заходять токеном — телефон і, згодом, віджет. У браузері цей список
+/// порожній: браузер живе на куці й пристроєм себе не реєструє.
+export function useDevices() {
+  return useQuery({ queryKey: queryKeys.devices, queryFn: () => api.getDevices() })
+}
+
+export function useRevokeDevice() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => api.revokeDevice(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.devices }),
   })
 }
 

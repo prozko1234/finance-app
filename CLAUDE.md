@@ -84,6 +84,9 @@ Api  →  Application
   version (same major where possible).
 
 ## Frontend (React + TS + Vite + Tailwind)
+- **Typecheck with `npm run build` (`tsc -b`), never `tsc --noEmit`.** The root
+  `tsconfig.json` is a solution file (`files: []` + project references), so
+  `tsc --noEmit` typechecks nothing and exits 0 — it once let a broken payload ship.
 - Server state via TanStack Query; typed `api` client; no `any`.
 - Tailwind utility classes; mobile-first; dark mode supported.
 - User-facing text Ukrainian; comments English.

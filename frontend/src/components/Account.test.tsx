@@ -14,6 +14,8 @@ function props(over: { onChangePassword?: Mock; onChangeEmail?: Mock; onSignOutE
       ?? vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     onLogout: vi.fn(),
     onBack: vi.fn(),
+    devices: [],
+    onRevokeDevice: vi.fn().mockResolvedValue(undefined),
   }
 }
 

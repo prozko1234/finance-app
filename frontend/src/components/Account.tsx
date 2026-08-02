@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import type { Device } from '../api'
+import { dayMonth } from '../format'
 import { Card, FormError, PrimaryButton, Screen, SectionTitle } from './Screen'
 
 /// Мінімальна довжина пароля — та сама, що на сервері (AccountService.MinPasswordLength).
@@ -11,6 +13,9 @@ interface Props {
   onChangeEmail: (password: string, email: string) => Promise<void>
   onSignOutEverywhere: () => Promise<void>
   onLogout: () => void
+  /// Пристрої, що заходять токеном. Порожньо, поки нативної апки немає.
+  devices: Device[]
+  onRevokeDevice: (id: number) => Promise<void>
   onBack: () => void
 }
 
@@ -18,7 +23,8 @@ interface Props {
 /// змінити, треба було лізти в Coolify і передеплоїти, а сесію на чужому пристрої не
 /// можна було закрити взагалі.
 export function Account({
-  email, onChangePassword, onChangeEmail, onSignOutEverywhere, onLogout, onBack,
+  email, onChangePassword, onChangeEmail, onSignOutEverywhere, onLogout,
+  devices, onRevokeDevice, onBack,
 }: Props) {
   return (
     <Screen
@@ -30,6 +36,7 @@ export function Account({
       <PasswordCard onSave={onChangePassword} />
       <EmailCard email={email} onSave={onChangeEmail} />
       <SessionsCard onSignOutEverywhere={onSignOutEverywhere} onLogout={onLogout} />
+      {devices.length > 0 && <DevicesCard devices={devices} onRevoke={onRevokeDevice} />}
     </Screen>
   )
 }
@@ -152,6 +159,46 @@ function SessionsCard({ onSignOutEverywhere, onLogout }: {
       >
         {busy ? 'Закриваю…' : 'Вийти з усіх пристроїв'}
       </button>
+    </Card>
+  )
+}
+
+/// Показується лише коли пристрої є. Порожня картка «тут нічого немає» на екрані, який
+/// відкривають раз на півроку, — це питання без відповіді: у браузера пристроїв не буває.
+function DevicesCard({ devices, onRevoke }: {
+  devices: Device[]
+  onRevoke: (id: number) => Promise<void>
+}) {
+  const [busyId, setBusyId] = useState<number | null>(null)
+
+  return (
+    <Card>
+      <SectionTitle>Пристрої</SectionTitle>
+      <p className="text-sm text-neutral-500">
+        Телефон заходить не паролем, а власним ключем. Відкликаний ключ перестає працювати
+        одразу — але тільки на тому пристрої, решта лишаються.
+      </p>
+      <ul className="space-y-2">
+        {devices.map((d) => (
+          <li key={d.id} className="flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="font-medium truncate">{d.name}</p>
+              <p className="text-xs text-neutral-400">
+                {d.lastUsedAt
+                  ? `востаннє ${dayMonth(d.lastUsedAt)}`
+                  : `додано ${dayMonth(d.createdAt)}, ще не заходив`}
+              </p>
+            </div>
+            <button
+              onClick={() => { setBusyId(d.id); void onRevoke(d.id).finally(() => setBusyId(null)) }}
+              disabled={busyId === d.id}
+              className="text-sm text-red-600 px-2 disabled:opacity-40"
+            >
+              {busyId === d.id ? '…' : 'Відкликати'}
+            </button>
+          </li>
+        ))}
+      </ul>
     </Card>
   )
 }

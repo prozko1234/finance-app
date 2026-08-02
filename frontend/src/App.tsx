@@ -13,7 +13,7 @@ import {
   useSavings, useSaveSavingsPlan, useAddSavingsEntry, useUpdateSavingsEntry, useDeleteSavingsEntry,
   useCreateEnvelope, useUpdateEnvelope, useDeleteEnvelope, useSetEnvelopeTarget, useTransferBetweenEnvelopes,
   useStats, useAuthStatus, useLogin, useLogout, queryKeys,
-  useChangePassword, useChangeEmail, useSignOutEverywhere,
+  useChangePassword, useChangeEmail, useSignOutEverywhere, useDevices, useRevokeDevice,
   useOpeningBalance, useSetOpeningBalance, useClearOpeningBalance,
 } from './hooks'
 import { Onboarding } from './components/Onboarding'
@@ -62,6 +62,8 @@ function App() {
   const changePassword = useChangePassword()
   const changeEmail = useChangeEmail()
   const signOutEverywhere = useSignOutEverywhere()
+  const devices = useDevices()
+  const revokeDevice = useRevokeDevice()
 
   // A cookie can expire while the app is open. Any 401 sends us back to asking.
   useEffect(() => setOnUnauthorized(() => { qc.invalidateQueries({ queryKey: queryKeys.auth }) }), [qc])
@@ -141,7 +143,8 @@ function App() {
       // запиті дешевше, ніж покладатись на це.
       data: {
         amount: r.amountOriginal, currency: r.currencyOriginal, categoryId: r.categoryId,
-        dayOfMonth: r.dayOfMonth, note: r.note ?? null, active: !r.active,
+        startsOn: r.startsOn, unit: r.unit, interval: r.interval,
+        note: r.note ?? null, active: !r.active,
         kind: r.kind, amountIncludesVat: r.amountIncludesVat,
       },
     })
@@ -282,6 +285,8 @@ function App() {
             // navigation needed, the auth query going false does it.
             onSignOutEverywhere={() => signOutEverywhere.mutateAsync().then(() => {})}
             onLogout={() => logout.mutate()}
+            devices={devices.data ?? []}
+            onRevokeDevice={(id) => revokeDevice.mutateAsync(id).then(() => {})}
             onBack={() => go('home')}
           />
         )}
