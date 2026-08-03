@@ -1,0 +1,3 @@
+The built SPA is copied here by the Docker image; locally the folder stays empty.
+It has to exist all the same — static file serving builds its provider at startup and
+throws on a missing root, which takes every integration test down with it.

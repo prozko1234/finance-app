@@ -9,6 +9,9 @@ COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
 RUN npm run build
+# The same build, zipped: this is what a phone downloads as a live update instead of
+# waiting for the next trip through Xcode.
+RUN apk add --no-cache zip bash && ./scripts/make-bundle.sh
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS backend
 WORKDIR /src
@@ -19,6 +22,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
 COPY --from=backend /app/publish ./
 COPY --from=frontend /src/frontend/dist ./wwwroot
+COPY --from=frontend /src/frontend/bundle ./wwwroot/app-bundle
 
 # The database lives on a mounted volume, never inside the image — a redeploy replaces the
 # image, and anything written into it would be a month of records thrown away.

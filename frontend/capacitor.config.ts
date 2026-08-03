@@ -18,6 +18,20 @@ const config: CapacitorConfig = {
     contentInset: 'always',
   },
   plugins: {
+    CapacitorUpdater: {
+      // Own server, no third-party service: the update lives beside the API that is already
+      // trusted, and nothing about this app's money goes through anyone else.
+      updateUrl: `${process.env.VITE_API_BASE ?? ''}/api/app-bundle`,
+      // Applied on the next launch, never under the user's hands: swapping the page while
+      // someone is typing an expense loses what they were typing.
+      directUpdate: false,
+      autoUpdate: true,
+      // A build that does not call notifyAppReady within this many milliseconds is treated as
+      // broken and rolled back. Long enough for a cold start on an old phone, short enough
+      // that a bad deploy is not a brick.
+      appReadyTimeout: 10000,
+      resetWhenUpdate: true,
+    },
     Preferences: {
       // Shared with the widget extension: the widget is a separate process and can only
       // read what is deliberately put in the App Group.

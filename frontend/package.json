@@ -10,12 +10,14 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "ios": "VITE_API_BASE=http://localhost:5099 npm run build && npx cap sync ios",
-    "ios:open": "npx cap open ios"
+    "ios": "export VITE_API_BASE=${VITE_API_BASE:-http://localhost:5099} && npm run build && npx cap sync ios",
+    "ios:open": "npx cap open ios",
+    "bundle": "./scripts/make-bundle.sh"
   },
   "dependencies": {
     "@capacitor/core": "^8.5.0",
     "@capacitor/preferences": "^8.0.1",
+    "@capgo/capacitor-updater": "^8.51.3",
     "@tanstack/react-query": "^5.101.4",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"

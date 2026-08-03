@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import './index.css'
 import App from './App.tsx'
+import { markRunningVersionHealthy } from './liveUpdate'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -14,6 +15,11 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+// Сказати оболонці, що ця збірка справді стартувала. Мовчання означає «поламано», і
+// оновлення відкотиться на попередню робочу версію — саме тому виклик стоїть після рендера,
+// а не перед ним.
+void markRunningVersionHealthy()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
