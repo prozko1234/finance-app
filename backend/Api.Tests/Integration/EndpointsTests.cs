@@ -15,7 +15,7 @@ public class EndpointsTests(TestApiFactory factory) : IClassFixture<TestApiFacto
         res.EnsureSuccessStatusCode();
 
         var json = await res.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(6, json.GetArrayLength());
+        Assert.Equal(10, json.GetArrayLength());
     }
 
     [Fact]

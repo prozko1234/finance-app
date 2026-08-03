@@ -48,7 +48,7 @@ public class ImportLearningTests
 
         var preview = await PreviewAsync(api.CreateClient(), KnownShops);
 
-        // 1 = Їжа, 2 = Транспорт, as the app seeds them.
+        // 1 = Продукти, 2 = Транспорт, as the app seeds them.
         Assert.Equal(1, preview.Rows.Single(r => r.MerchantKey == "ZABKA").SuggestedCategoryId);
         Assert.Equal(2, preview.Rows.Single(r => r.MerchantKey == "ORLEN").SuggestedCategoryId);
     }
@@ -82,7 +82,7 @@ public class ImportLearningTests
         const string file = "\"Data\";\"Kwota\";\"Opis\"\n\"2026-07-20\";\"-88,00\";\"ZABKA Z1234\"\n";
 
         var preview = await PreviewAsync(client, file);
-        Assert.Equal(1, preview.Rows[0].SuggestedCategoryId); // built-in: Їжа
+        Assert.Equal(1, preview.Rows[0].SuggestedCategoryId); // built-in: Продукти
 
         await CommitAsync(client, preview.Rows[0], categoryId: 5);
 

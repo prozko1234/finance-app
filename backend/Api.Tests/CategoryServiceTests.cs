@@ -16,10 +16,10 @@ public class CategoryServiceTests
         using var mem = new SqliteInMemory();
         var sut = new CategoryService(mem.Db);
 
-        var r = await sut.CreateAsync(new SaveCategoryRequest("Підписки", "📺", "#059669"));
+        var r = await sut.CreateAsync(new SaveCategoryRequest("Хобі", "🎨", "#059669"));
 
         Assert.True(r.IsSuccess);
-        Assert.Equal("Підписки", r.Value!.Name);
+        Assert.Equal("Хобі", r.Value!.Name);
         Assert.False(r.Value.IsSystem);
 
         var all = await sut.GetAllAsync();
@@ -32,7 +32,7 @@ public class CategoryServiceTests
         using var mem = new SqliteInMemory();
         var sut = new CategoryService(mem.Db);
 
-        var r = await sut.CreateAsync(new SaveCategoryRequest("Їжа", null, null));
+        var r = await sut.CreateAsync(new SaveCategoryRequest("Продукти", null, null));
 
         Assert.False(r.IsSuccess);
         Assert.Equal(ErrorType.Conflict, r.Error.Type);

@@ -69,10 +69,12 @@ public class MerchantKeyTests
     }
 
     [Theory]
-    [InlineData("BIEDRONKA 1234", BuiltInMerchants.Food)]
+    [InlineData("BIEDRONKA 1234", BuiltInMerchants.Groceries)]
     [InlineData("ORLEN STACJA 55", BuiltInMerchants.Transport)]
     [InlineData("ROSSMANN 88", BuiltInMerchants.Health)]
-    [InlineData("NETFLIX.COM", BuiltInMerchants.Fun)]
+    [InlineData("NETFLIX.COM", BuiltInMerchants.Subscriptions)]
+    [InlineData("GLOVO * ORDER", BuiltInMerchants.Delivery)]
+    [InlineData("STEAMGAMES.COM", BuiltInMerchants.Fun)]
     [InlineData("TAURON SPRZEDAZ", BuiltInMerchants.Home)]
     public void Well_known_polish_shops_are_filed_out_of_the_box(string description, string category)
     {
@@ -91,7 +93,11 @@ public class MerchantKeyTests
     {
         // The list maps to names, so a typo would produce a rule that matches nothing and
         // quietly does nothing at all.
-        string[] seeded = ["Їжа", "Транспорт", "Житло", "Здоров'я", "Розваги"];
+        string[] seeded =
+        [
+            "Продукти", "Доставка", "Кафе й бари", "Транспорт",
+            "Здоров'я", "Житло", "Підписки", "Розваги", "Перекази",
+        ];
 
         Assert.All(BuiltInMerchants.ByKey.Values, name => Assert.Contains(name, seeded));
     }

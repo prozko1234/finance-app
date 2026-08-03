@@ -236,14 +236,26 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         new() { Id = 1, SchemeId = 1, Name = "На витрати", Kind = BucketKind.Spending, Percent = 100m, SortOrder = 0 },
     ];
 
+    /// Named after where the money actually goes, from a year of real statements rather than
+    /// from a tidy-looking list. Two splits earn their place: delivery is not groceries (in
+    /// that year, 22 765 zł against 11 127 zł — one category would have hidden the bigger
+    /// half), and subscriptions are not games, which is the difference between a charge you
+    /// can cancel in one move and one you chose to make.
+    ///
+    /// Transfers to people are a category because they were 12 866 zł with nowhere to go, and
+    /// "Інше" that large answers nothing.
     private static readonly Category[] SeedCategories =
     [
-        new() { Id = 1, Name = "Їжа", Icon = "🍽", SortOrder = 1 },
+        new() { Id = 1, Name = "Продукти", Icon = "🛒", SortOrder = 1 },
         new() { Id = 2, Name = "Транспорт", Icon = "🚌", SortOrder = 2 },
         new() { Id = 3, Name = "Житло", Icon = "🏠", SortOrder = 3 },
         new() { Id = 4, Name = "Здоров'я", Icon = "💊", SortOrder = 4 },
         new() { Id = 5, Name = "Розваги", Icon = "🎮", SortOrder = 5 },
         // Fallback category: orphaned transactions land here, so it cannot be deleted.
         new() { Id = 6, Name = "Інше", Icon = "📦", SortOrder = 99, IsSystem = true },
+        new() { Id = 7, Name = "Доставка", Icon = "🛵", SortOrder = 6 },
+        new() { Id = 8, Name = "Кафе й бари", Icon = "☕", SortOrder = 7 },
+        new() { Id = 9, Name = "Підписки", Icon = "🔁", SortOrder = 8 },
+        new() { Id = 10, Name = "Перекази", Icon = "👤", SortOrder = 9 },
     ];
 }

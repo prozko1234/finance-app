@@ -34,13 +34,15 @@ public class RecurringCadenceMigrationTests : IDisposable
             await old.GetInfrastructure().GetRequiredService<IMigrator>().MigrateAsync(Before);
 
             await old.Database.ExecuteSqlRawAsync(
-                "INSERT INTO Categories (Name, SortOrder, IsSystem) VALUES ('Тест', 0, 0);");
+                // Explicit high id: later migrations seed categories of their own, and letting
+                // SQLite pick the next free one made this row collide with them.
+                "INSERT INTO Categories (Id, Name, SortOrder, IsSystem) VALUES (900, 'Тест', 0, 0);");
             await old.Database.ExecuteSqlRawAsync(
                 """
                 INSERT INTO RecurringExpenses
                   (Kind, AmountIncludesVat, AmountOriginal, CurrencyOriginal, CategoryId,
                    DayOfMonth, Active, CreatedAt)
-                VALUES ('Expense', 1, '49.99', 'PLN', 1, {0}, 1, {1});
+                VALUES ('Expense', 1, '49.99', 'PLN', 900, {0}, 1, {1});
                 """,
                 dayOfMonth, createdAt);
         }
