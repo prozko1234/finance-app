@@ -465,3 +465,54 @@ export interface EnvelopePeriod {
   moved: number
   balanceAfter: number
 }
+
+/// Один рядок виписки, як його зрозумів сервер. `amount` зі знаком: від'ємне — витрата.
+export interface ImportRow {
+  line: number
+  date: string
+  amount: number
+  currency: string
+  /// Рівно те, що написав банк — щоб рядок завжди можна було звірити з файлом.
+  description: string
+  /// Крамниця, прибрана для читання: без номера точки й банківських слів.
+  merchant: string
+  /// За чим групуються рядки однієї крамниці й на чому вчиться правило.
+  merchantKey: string
+  kind: 'Expense' | 'Income'
+  /// Схожа транзакція, що вже є в застосунку — внесена руками чи імпортована раніше.
+  duplicateOfId: number | null
+  /// Куди цю крамницю клали минулого разу, або що каже вбудований словник. null — ніхто
+  /// не знає, і тоді екран питає, а не вгадує.
+  suggestedCategoryId: number | null
+}
+
+export interface ImportProblem {
+  line: number
+  reason: string
+  raw: string
+}
+
+export interface ImportPreview {
+  rows: ImportRow[]
+  problems: ImportProblem[]
+  /// Що саме сервер розпізнав — щоб, коли імпорт виглядає дивно, було видно чому.
+  delimiter: string
+  headerFound: boolean
+  encoding: string
+  columns: string[]
+}
+
+export interface ImportRowToSave {
+  line: number
+  date: string
+  amount: number
+  currency: string
+  categoryId: number
+  note?: string | null
+}
+
+export interface ImportResult {
+  created: number
+  failed: number
+  problems: ImportProblem[]
+}

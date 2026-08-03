@@ -22,6 +22,7 @@ const PATHS: Record<View, string> = {
   tax: '/tax',
   settings: '/settings',
   account: '/account',
+  import: '/import',
   dev: '/dev',
 }
 

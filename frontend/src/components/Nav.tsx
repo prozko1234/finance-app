@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-export type View = 'home' | 'add' | 'balance' | 'settings' | 'recurring' | 'tax' | 'categories' | 'savings' | 'allocation' | 'stats' | 'account' | 'dev'
+export type View = 'home' | 'add' | 'balance' | 'settings' | 'recurring' | 'tax' | 'categories' | 'savings' | 'allocation' | 'stats' | 'account' | 'import' | 'dev'
 
 interface Props {
   current: View
@@ -32,6 +32,7 @@ const MONEY: Item[] = [
 ]
 
 const SETUP: Item[] = [
+  { view: 'import', label: 'Імпорт із банку', icon: '📄' },
   { view: 'categories', label: 'Категорії', icon: '🏷' },
   { view: 'tax', label: 'Податковий профіль', icon: '%' },
   { view: 'settings', label: 'Налаштування', icon: '⚙' },

@@ -14,6 +14,7 @@ import {
   useCreateEnvelope, useUpdateEnvelope, useDeleteEnvelope, useSetEnvelopeTarget, useTransferBetweenEnvelopes,
   useStats, useAuthStatus, useLogin, useLogout, queryKeys,
   useChangePassword, useChangeEmail, useSignOutEverywhere, useDevices, useRevokeDevice,
+  useImportPreview, useCommitImport,
   useOpeningBalance, useSetOpeningBalance, useClearOpeningBalance,
 } from './hooks'
 import { Onboarding } from './components/Onboarding'
@@ -25,6 +26,7 @@ import { Account } from './components/Account'
 import { Recurring } from './components/Recurring'
 import { TaxProfile } from './components/TaxProfile'
 import { Categories } from './components/Categories'
+import { Import } from './components/Import'
 import { Savings } from './components/Savings'
 import { Allocation } from './components/Allocation'
 import { Stats, MONTHS_BACK } from './components/Stats'
@@ -64,6 +66,8 @@ function App() {
   const signOutEverywhere = useSignOutEverywhere()
   const devices = useDevices()
   const revokeDevice = useRevokeDevice()
+  const importPreview = useImportPreview()
+  const commitImport = useCommitImport()
 
   // A cookie can expire while the app is open. Any 401 sends us back to asking.
   useEffect(() => setOnUnauthorized(() => { qc.invalidateQueries({ queryKey: queryKeys.auth }) }), [qc])
@@ -288,6 +292,15 @@ function App() {
             onLogout={() => logout.mutate()}
             devices={devices.data ?? []}
             onRevokeDevice={(id) => revokeDevice.mutateAsync(id).then(() => {})}
+            onBack={() => go('home')}
+          />
+        )}
+        {view === 'import' && (
+          <Import
+            categories={categories.data ?? []}
+            onPreview={(file) => importPreview.mutateAsync(file)}
+            onCommit={(rows) => commitImport.mutateAsync(rows)}
+            onDone={() => go('home')}
             onBack={() => go('home')}
           />
         )}

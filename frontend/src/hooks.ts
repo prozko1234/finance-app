@@ -67,6 +67,20 @@ export function useSignOutEverywhere() {
 
 /// Пристрої, що заходять токеном — телефон і, згодом, віджет. У браузері цей список
 /// порожній: браузер живе на куці й пристроєм себе не реєструє.
+/// Імпорт чіпає майже все: транзакції, підсумок, статистику. Тому після нього — те саме
+/// прибирання кеша, що й після будь-якого запису, а не точкове оновлення одного списку.
+export function useImportPreview() {
+  return useMutation({ mutationFn: (file: File) => api.previewImport(file) })
+}
+
+export function useCommitImport() {
+  const invalidate = useInvalidate()
+  return useMutation({
+    mutationFn: (rows: Parameters<typeof api.commitImport>[0]) => api.commitImport(rows),
+    onSuccess: () => invalidate(),
+  })
+}
+
 export function useDevices() {
   return useQuery({ queryKey: queryKeys.devices, queryFn: () => api.getDevices() })
 }

@@ -35,3 +35,18 @@ export function dayHeading(iso: string, today = new Date()): string {
   if (days === -1) return 'Вчора'
   return dayMonth(iso)
 }
+
+/// Українська множина: 1 запис, 2 записи, 5 записів, 21 запис.
+///
+/// Потрібна саме форма, а не «1 записів»: список, який рахує сам себе неправильно, читається
+/// як недороблений, і це помічають раніше за будь-яку іншу дрібницю.
+export function plural(n: number, one: string, few: string, many: string): string {
+  const abs = Math.abs(n) % 100
+  // 11–14 — виняток: там завжди «багато», хоч остання цифра й підказує інше.
+  if (abs >= 11 && abs <= 14) return many
+
+  const last = abs % 10
+  if (last === 1) return one
+  if (last >= 2 && last <= 4) return few
+  return many
+}
