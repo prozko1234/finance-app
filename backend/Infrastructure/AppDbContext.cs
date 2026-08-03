@@ -23,6 +23,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AppSettings> AppSettings => Set<AppSettings>();
     public DbSet<User> Users => Set<User>();
     public DbSet<DeviceToken> DeviceTokens => Set<DeviceToken>();
+    public DbSet<MerchantRule> MerchantRules => Set<MerchantRule>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -159,6 +160,20 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             // has to be an index rather than a scan. Unique because two rows for one secret
             // could only ever be a bug.
             e.HasIndex(x => x.TokenHash).IsUnique();
+        });
+
+        b.Entity<MerchantRule>(e =>
+        {
+            e.Property(x => x.Key).HasMaxLength(MerchantRule.MaxKeyLength).IsRequired();
+            // One rule per shop: a second row for the same key could only ever be two
+            // different answers to the same question.
+            e.HasIndex(x => x.Key).IsUnique();
+            // Restrict: losing a category must not silently take its rules with it —
+            // CategoryService moves transactions to "Інше", and rules follow the same way.
+            e.HasOne(x => x.Category)
+                .WithMany()
+                .HasForeignKey(x => x.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         b.Entity<OpeningBalance>(e =>

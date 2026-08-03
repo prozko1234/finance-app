@@ -39,6 +39,14 @@ public sealed class ImportService(IAppDbContext db, ITransactionService transact
             var from = read.Rows.Min(r => r.Date);
             var to = read.Rows.Max(r => r.Date);
 
+            // Learned rules first, the built-in list second. What the user has filed
+            // themselves is a fact about them; the list is a guess about people in general.
+            var learned = await db.MerchantRules
+                .Select(r => new { r.Key, r.CategoryId })
+                .ToDictionaryAsync(r => r.Key, r => r.CategoryId, ct);
+            var byName = await db.Categories
+                .ToDictionaryAsync(c => c.Name, c => c.Id, ct);
+
             var existing = await db.Transactions
                 .Where(t => t.Date >= from && t.Date <= to)
                 .Select(t => new { t.Id, t.Date, t.AmountOriginal, t.CurrencyOriginal, t.Kind })
@@ -59,9 +67,12 @@ public sealed class ImportService(IAppDbContext db, ITransactionService transact
                     && t.CurrencyOriginal == row.Currency
                     && t.AmountOriginal == size);
 
+                var key = MerchantKey.From(row.Description);
                 previews.Add(new ImportRowPreview(
                     row.Line, row.Date, row.Amount, row.Currency, row.Description,
-                    kind.ToString(), duplicate?.Id));
+                    MerchantKey.Clean(row.Description), key,
+                    kind.ToString(), duplicate?.Id,
+                    SuggestFor(key, learned, byName)));
             }
         }
 
@@ -90,11 +101,59 @@ public sealed class ImportService(IAppDbContext db, ITransactionService transact
                 ? await ImportExpenseAsync(row, ct)
                 : await ImportIncomeAsync(row, ct);
 
-            if (result.IsSuccess) created++;
+            if (result.IsSuccess)
+            {
+                created++;
+                // Only expenses teach: an income row's description is a client or an employer,
+                // and filing "every payment from ACME is Дохід" would be a rule about one
+                // category that already has only one member.
+                if (row.Amount < 0) await RememberAsync(MerchantKey.From(row.Note), row.CategoryId, ct);
+            }
             else problems.Add(new ImportProblemResponse(row.Line, result.Error.Message, row.Note ?? ""));
         }
 
         return Result<ImportResultResponse>.Ok(new ImportResultResponse(created, problems.Count, problems));
+    }
+
+    /// The category this shop most likely belongs to, or null when nothing knows it — and
+    /// then the screen asks rather than guessing, because a wrong category is silently wrong
+    /// and stays that way.
+    private static int? SuggestFor(
+        string key, IReadOnlyDictionary<string, int> learned, IReadOnlyDictionary<string, int> byName)
+    {
+        if (key.Length == 0) return null;
+        if (learned.TryGetValue(key, out var learnedId)) return learnedId;
+
+        var name = BuiltInMerchants.CategoryNameFor(key);
+        return name is not null && byName.TryGetValue(name, out var id) ? id : null;
+    }
+
+    /// Remembers where the user filed this shop, so the same shop never has to be filed
+    /// twice. Called on commit rather than on every keystroke in the preview: a category
+    /// chosen and then changed again should not leave a rule behind.
+    private async Task RememberAsync(string key, int categoryId, CancellationToken ct)
+    {
+        if (key.Length == 0 || key.Length > MerchantRule.MaxKeyLength) return;
+
+        var rule = await db.MerchantRules.FirstOrDefaultAsync(r => r.Key == key, ct);
+        if (rule is null)
+        {
+            db.MerchantRules.Add(new MerchantRule
+            {
+                Key = key, CategoryId = categoryId, Hits = 1,
+                CreatedAt = DateTimeOffset.UtcNow, LastUsedAt = DateTimeOffset.UtcNow,
+            });
+        }
+        else
+        {
+            // The newest answer wins: filing a shop somewhere else is a correction, and a
+            // rule that argued with the user would be a rule they cannot get rid of.
+            rule.CategoryId = categoryId;
+            rule.Hits++;
+            rule.LastUsedAt = DateTimeOffset.UtcNow;
+        }
+
+        await db.SaveChangesAsync(ct);
     }
 
     private async Task<Result<TransactionResponse>> ImportExpenseAsync(

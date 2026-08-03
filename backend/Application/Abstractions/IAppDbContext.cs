@@ -25,6 +25,7 @@ public interface IAppDbContext
     DbSet<AppSettings> AppSettings { get; }
     DbSet<User> Users { get; }
     DbSet<DeviceToken> DeviceTokens { get; }
+    DbSet<MerchantRule> MerchantRules { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

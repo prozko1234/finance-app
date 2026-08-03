@@ -395,9 +395,17 @@ public record ImportRowPreview(
     DateOnly Date,
     decimal Amount,
     string Currency,
+    /// Exactly what the bank wrote, kept so a row can always be checked against the file.
     string Description,
+    /// The shop, tidied for reading — no branch number, no bank boilerplate.
+    string Merchant,
+    /// What rows of the same shop are grouped by, and what a learned rule is keyed on.
+    string MerchantKey,
     string Kind,
-    int? DuplicateOfId);
+    int? DuplicateOfId,
+    /// Where this shop was filed last time, or where the built-in list expects it. Null means
+    /// nothing knows — and then the screen asks instead of guessing.
+    int? SuggestedCategoryId);
 
 public record ImportProblemResponse(int Line, string Reason, string Raw);
 
