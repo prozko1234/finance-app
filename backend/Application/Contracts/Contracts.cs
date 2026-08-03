@@ -384,3 +384,46 @@ public record SetPeriodStartDayRequest(int Day);
 /// the period ended.
 public record EnvelopePeriodResponse(
     DateOnly Start, DateOnly End, decimal Moved, decimal BalanceAfter);
+
+/// One line of a statement as the preview screen shows it. The amount keeps the sign the
+/// bank wrote: it is what says whether the row is money in or money out, and hiding it would
+/// make the screen argue with the file the user is looking at.
+/// <param name="DuplicateOfId">An existing transaction that looks like this one — entered by
+/// hand or imported before. Non-null means the row is preselected as "skip".</param>
+public record ImportRowPreview(
+    int Line,
+    DateOnly Date,
+    decimal Amount,
+    string Currency,
+    string Description,
+    string Kind,
+    int? DuplicateOfId);
+
+public record ImportProblemResponse(int Line, string Reason, string Raw);
+
+/// What the reader made of the file. The shape it detected is reported on purpose: when the
+/// import looks wrong, "я прочитав це як ; у windows-1250" is the sentence that explains why.
+public record ImportPreviewResponse(
+    IReadOnlyList<ImportRowPreview> Rows,
+    IReadOnlyList<ImportProblemResponse> Problems,
+    string Delimiter,
+    bool HeaderFound,
+    string Encoding,
+    IReadOnlyList<string> Columns);
+
+/// <param name="Amount">Signed, as in the preview: negative is an expense.</param>
+public record ImportRowRequest(
+    int Line,
+    DateOnly Date,
+    decimal Amount,
+    string Currency,
+    int CategoryId,
+    string? Note,
+    bool AmountIncludesVat = true);
+
+public record CommitImportRequest(IReadOnlyList<ImportRowRequest> Rows);
+
+public record ImportResultResponse(
+    int Created,
+    int Failed,
+    IReadOnlyList<ImportProblemResponse> Problems);

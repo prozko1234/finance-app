@@ -3,6 +3,7 @@ using FinanceApp.Application.Allocations;
 using FinanceApp.Application.Auth;
 using FinanceApp.Application.Budgets;
 using FinanceApp.Application.Categories;
+using FinanceApp.Application.Import;
 using FinanceApp.Application.Common;
 using FinanceApp.Application.Recurring;
 using FinanceApp.Application.Dev;
@@ -36,6 +37,7 @@ public static class DependencyInjection
         services.AddScoped<IAllocationService, AllocationService>();
         services.AddScoped<IDevDataService, DevDataService>();
         services.AddScoped<ICategoryService, CategoryService>();
+        services.AddScoped<IImportService, ImportService>();
         services.AddScoped<IRecurringService, RecurringService>();
         services.AddScoped<ISettingsService, SettingsService>();
         services.AddScoped<IMoneyViewFactory, MoneyViewFactory>();

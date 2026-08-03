@@ -225,6 +225,7 @@ app.MapOpeningBalanceEndpoints();
 app.MapSummaryEndpoints();
 app.MapStatsEndpoints();
 app.MapRecurringEndpoints();
+app.MapImportEndpoints();
 app.MapTaxEndpoints();
 app.MapSavingsEndpoints();
 app.MapEnvelopeEndpoints();
