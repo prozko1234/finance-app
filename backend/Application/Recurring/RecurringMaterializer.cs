@@ -40,12 +40,24 @@ public sealed class RecurringMaterializer(IAppDbContext db, IFxConverter fx) : I
             // antiquity — which is exactly what a dev seed missing the field once did.
             var earliest = today.AddMonths(-MaxCatchUpMonths);
 
+            // Occurrences the user has deleted. Loaded once for the whole run: the set is
+            // tiny, and asking per date would be a query per charge per load.
+            var skipped = (await db.RecurringSkips
+                    .Where(s => s.Date >= earliest)
+                    .Select(s => new { s.RecurringExpenseId, s.Date })
+                    .ToListAsync(ct))
+                .Select(s => (s.RecurringExpenseId, s.Date))
+                .ToHashSet();
+
             foreach (var r in recurring)
             {
                 var from = r.StartsOn < earliest ? earliest : r.StartsOn;
 
                 foreach (var occ in RecurringSchedule.Occurrences(r.StartsOn, r.Unit, r.Interval, from, today))
+                {
+                    if (skipped.Contains((r.Id, occ))) continue;
                     await MaterializeOneAsync(r, occ, ct);
+                }
             }
         }
         finally

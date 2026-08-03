@@ -26,6 +26,7 @@ public interface IAppDbContext
     DbSet<User> Users { get; }
     DbSet<DeviceToken> DeviceTokens { get; }
     DbSet<MerchantRule> MerchantRules { get; }
+    DbSet<RecurringSkip> RecurringSkips { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

@@ -4,6 +4,7 @@ using FinanceApp.Application.Display;
 using FinanceApp.Application.Mapping;
 using FinanceApp.Application.Recurring;
 using FinanceApp.Domain;
+using FinanceApp.Domain.Budgeting;
 using FinanceApp.Domain.Common;
 using FinanceApp.Domain.Fx;
 using FinanceApp.Domain.Tax;
@@ -190,6 +191,26 @@ public sealed class TransactionService(
     {
         var tx = await db.Transactions.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (tx is null) return Error.NotFound($"Транзакцію {id} не знайдено.");
+
+        // A charge written by a recurring rule needs its deletion remembered, not just done.
+        // Materialization decides what is still owed by looking for a transaction on that
+        // date — the very row being removed — so without this the next read writes it back
+        // and deleting a subscription's expense looks like the app arguing with the user.
+        if (tx.RecurringExpenseId is { } recurringId)
+        {
+            var alreadySkipped = await db.RecurringSkips
+                .AnyAsync(s => s.RecurringExpenseId == recurringId && s.Date == tx.Date, ct);
+
+            if (!alreadySkipped)
+            {
+                db.RecurringSkips.Add(new RecurringSkip
+                {
+                    RecurringExpenseId = recurringId,
+                    Date = tx.Date,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                });
+            }
+        }
 
         db.Transactions.Remove(tx);
         await db.SaveChangesAsync(ct);

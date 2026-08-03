@@ -24,6 +24,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<User> Users => Set<User>();
     public DbSet<DeviceToken> DeviceTokens => Set<DeviceToken>();
     public DbSet<MerchantRule> MerchantRules => Set<MerchantRule>();
+    public DbSet<RecurringSkip> RecurringSkips => Set<RecurringSkip>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -127,6 +128,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .WithMany()
                 .HasForeignKey(r => r.CategoryId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<RecurringSkip>(e =>
+        {
+            // One skip per occurrence: a second row for the same date would mean the same
+            // charge was refused twice, which is not a thing that can happen.
+            e.HasIndex(x => new { x.RecurringExpenseId, x.Date }).IsUnique();
+            // Cascade: without the rule there are no occurrences left to refuse.
+            e.HasOne(x => x.RecurringExpense)
+                .WithMany()
+                .HasForeignKey(x => x.RecurringExpenseId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         b.Entity<FxRate>(e =>
