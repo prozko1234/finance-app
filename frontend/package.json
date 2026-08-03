@@ -12,7 +12,7 @@
     "test:watch": "vitest",
     "ios": "export VITE_API_BASE=${VITE_API_BASE:-http://localhost:5099} && npm run build && npx cap sync ios",
     "ios:open": "npx cap open ios",
-    "bundle": "./scripts/make-bundle.sh",
+    "bundle": "node scripts/make-bundle.mjs",
     "ios:phone": "export VITE_API_BASE=http://$(ipconfig getifaddr en0):5099 && echo \"API: $VITE_API_BASE\" && npm run build && npx cap sync ios"
   },
   "dependencies": {

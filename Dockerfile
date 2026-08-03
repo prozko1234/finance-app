@@ -11,7 +11,7 @@ COPY frontend/ ./
 RUN npm run build
 # The same build, zipped: this is what a phone downloads as a live update instead of
 # waiting for the next trip through Xcode.
-RUN apk add --no-cache zip bash && ./scripts/make-bundle.sh
+RUN node scripts/make-bundle.mjs
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS backend
 WORKDIR /src

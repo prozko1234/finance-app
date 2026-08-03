@@ -13,7 +13,7 @@ namespace FinanceApp.Api.Endpoints;
 /// exactly when a broken build most needs replacing.
 public static class AppBundleEndpoints
 {
-    /// Written by scripts/make-bundle.sh at image build time and copied into wwwroot.
+    /// Written by scripts/make-bundle.mjs at image build time and copied into wwwroot.
     private const string ManifestPath = "app-bundle/bundle.json";
 
     public static IEndpointRouteBuilder MapAppBundleEndpoints(this IEndpointRouteBuilder app)
