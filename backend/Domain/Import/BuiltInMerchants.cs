@@ -76,6 +76,34 @@ public static class BuiltInMerchants
             // і без власної статті вони губились у «Інше», яке тоді нічого не пояснювало.
             ["REVOLUT"] = Transfers, ["PRZELEWU"] = Transfers, ["PRZELEW"] = Transfers,
             ["BLIK"] = Transfers, ["PAYPAL"] = Transfers,
+
+            // Дописано з живої річної виписки: те, що трапилось насправді і чого в списку
+            // «перший тиждень у Польщі» не було. Сюди йде лише те, що впізнав би будь-хто —
+            // мережі й родові слова; конкретні люди й місцеві заклади лишаються поза списком,
+            // бо вони факт про одну людину, а не про країну.
+            ["SPOLEM"] = Groceries, ["ELECLERC"] = Groceries, ["KONZUM"] = Groceries,
+            ["WYPIEKARNIA"] = Groceries,
+
+            // Родові слова в назві закладу. Мережі тут не допоможуть: «BAR NA RÓWNI» і
+            // «DARA KEBAB» — різні заклади, але однаково не продуктовий магазин.
+            ["PIJALNIA"] = EatingOut, ["PIWIARNIA"] = EatingOut, ["KEBAB"] = EatingOut,
+            ["RAMEN"] = EatingOut, ["BARISTA"] = EatingOut, ["KONOBA"] = EatingOut,
+            ["RESTORAN"] = EatingOut, ["POPEYES"] = EatingOut, ["CAFE"] = EatingOut,
+            ["BAR"] = EatingOut, ["PIZZERIA"] = EatingOut,
+
+            ["KOLEO"] = Transport, ["APCOA"] = Transport, ["CARWASH"] = Transport,
+            ["MYJNIA"] = Transport, ["INPOST"] = Transport,
+
+            ["ENERGYLANDIA"] = Fun, ["CYBERMACHINA"] = Fun, ["ENEBA"] = Fun,
+            ["RIOTGAMES"] = Fun, ["MIDASBUY"] = Fun, ["XSOLLA"] = Fun,
+            ["STRZELNICA"] = Fun, ["TERMY"] = Fun,
+
+            ["BARBERSHOP"] = Health, ["ZDROFIT"] = Health, ["KAFETERIA"] = Health,
+            ["SEPHORA"] = Health,
+
+            // Поповнення телефону й хостинг — те саме щомісячне зобов'язання, що й оператор.
+            ["DOŁADOWANIE"] = Subscriptions, ["DOLADOWANIE"] = Subscriptions,
+            ["SCALACUBE"] = Subscriptions,
         };
 
     // The names the app seeds its categories with. Constants so a typo cannot silently
