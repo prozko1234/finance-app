@@ -5,6 +5,9 @@ export type View = 'home' | 'add' | 'balance' | 'settings' | 'recurring' | 'tax'
 interface Props {
   current: View
   onGo: (v: View) => void
+  /// Центр нижньої панелі — головна дія, а не екран. На десктопі її роль грає плаваюча
+  /// кнопка, тож панелі там немає.
+  onAdd: () => void
   /// Dev-only screens exist just in a dev build — the API exposes them in Development only.
   showDev: boolean
   /// Absent when the app runs without an account (local development): a "вийти" that
@@ -36,7 +39,7 @@ const SETUP: Item[] = [
 
 /// One menu, two shapes: a permanent column on desktop, a burger and a slide-over on mobile.
 /// Both drive the same list, so a screen can never be reachable in one and lost in the other.
-export function Nav({ current, onGo, showDev, onLogout }: Props) {
+export function Nav({ current, onGo, onAdd, showDev, onLogout }: Props) {
   const [open, setOpen] = useState(false)
 
   // The account screen only exists when there is an account: locally the app has no door,
@@ -52,13 +55,7 @@ export function Nav({ current, onGo, showDev, onLogout }: Props) {
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="md:hidden fixed top-5 right-4 z-30 h-10 w-10 rounded-xl bg-white dark:bg-neutral-900 shadow-sm text-xl leading-none"
-        aria-label="Меню"
-      >
-        ☰
-      </button>
+      <BottomBar current={current} onGo={go} onAdd={onAdd} onMore={() => setOpen(true)} />
 
       {open && (
         <div className="md:hidden fixed inset-0 z-40 flex">
@@ -68,7 +65,9 @@ export function Nav({ current, onGo, showDev, onLogout }: Props) {
               <span className="font-bold">finance</span>
               <button onClick={() => setOpen(false)} className="text-neutral-400 text-xl" aria-label="Закрити">✕</button>
             </div>
-            <Group items={MONEY} current={current} onGo={go} />
+            {/* Без того, що вже стоїть у нижній панелі: екран, до якого ведуть два різні
+                шляхи, робить обидва менш зрозумілими. Тут — рівно решта. */}
+            <Group items={MONEY.filter((i) => !TABS.some((t) => t.view === i.view))} current={current} onGo={go} />
             <Group items={setup} label="Налаштування" current={current} onGo={go} />
             <LogoutItem onLogout={onLogout} />
           </nav>
@@ -81,6 +80,76 @@ export function Nav({ current, onGo, showDev, onLogout }: Props) {
         <Group items={setup} label="Налаштування" current={current} onGo={go} />
       </nav>
     </>
+  )
+}
+
+/// Нижня панель — те, до чого тягнеться великий палець. Чотири вкладки і дія посередині:
+/// більше не влазить у ширину екрана так, щоб підпис лишався читабельним, а без підпису
+/// іконка перетворюється на загадку.
+///
+/// «Ще» відкриває ту саму шухляду, що й бургер до цього — жоден екран не зник, просто
+/// чотири найчастіші перестали бути за два тапи.
+const TABS: Item[] = [
+  { view: 'home', label: 'Головна', icon: '◉' },
+  { view: 'savings', label: 'Банки', icon: '🐖' },
+  { view: 'stats', label: 'Статистика', icon: '📊' },
+]
+
+function BottomBar({ current, onGo, onAdd, onMore }: {
+  current: View
+  onGo: (v: View) => void
+  onAdd: () => void
+  onMore: () => void
+}) {
+  // Екрани, яких немає серед вкладок, підсвічують «Ще» — інакше панель показує «Головна»
+  // активною, поки на екрані податковий профіль, і бреше про те, де ти знаходишся.
+  const inTabs = TABS.some((t) => t.view === current)
+
+  return (
+    <nav
+      // Панель фіксована, тож відступ під home indicator їй треба свій: падінг на <body>
+      // до фіксованих елементів не дістає.
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      className="md:hidden fixed bottom-0 inset-x-0 z-30 flex items-stretch border-t border-neutral-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-900/95 backdrop-blur"
+      aria-label="Основне меню"
+    >
+      <Tab {...TABS[0]} active={current === TABS[0].view} onGo={onGo} />
+      <Tab {...TABS[1]} active={current === TABS[1].view} onGo={onGo} />
+
+      <button
+        onClick={onAdd}
+        aria-label="Додати транзакцію"
+        className="flex-1 flex justify-center items-start pt-1"
+      >
+        <span className="h-12 w-12 -mt-5 rounded-full bg-emerald-600 text-white text-2xl shadow-lg flex items-center justify-center">
+          +
+        </span>
+      </button>
+
+      <Tab {...TABS[2]} active={current === TABS[2].view} onGo={onGo} />
+      <Tab
+        view="settings" label="Ще" icon="☰"
+        active={!inTabs && current !== 'add'}
+        onGo={onMore}
+      />
+    </nav>
+  )
+}
+
+function Tab({ view, label, icon, active, onGo }: {
+  view: View; label: string; icon: string; active: boolean; onGo: (v: View) => void
+}) {
+  return (
+    <button
+      onClick={() => onGo(view)}
+      aria-current={active ? 'page' : undefined}
+      className={`flex-1 flex flex-col items-center gap-0.5 py-2 text-[10px] ${
+        active ? 'text-emerald-600 font-medium' : 'text-neutral-400'
+      }`}
+    >
+      <span className="text-lg leading-none">{icon}</span>
+      {label}
+    </button>
   )
 }
 

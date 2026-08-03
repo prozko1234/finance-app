@@ -198,6 +198,7 @@ function App() {
         <Nav
           current={view}
           onGo={(v) => go(v)}
+          onAdd={() => { setEditingTx(null); go('add') }}
           showDev={import.meta.env.DEV}
           onLogout={auth.data?.required ? () => logout.mutate() : undefined}
         />
@@ -370,6 +371,8 @@ function App() {
 
       {undo && <UndoBar label={undo.label!} onUndo={undo.undo} />}
 
+      {/* Десктоп: на телефоні цю роль грає центр нижньої панелі, і дві кнопки «+» на одному
+          екрані були б двома різними відповідями на те саме питання. */}
       {view === 'home' && (
         <button
           onClick={() => { setEditingTx(null); go('add') }}
@@ -377,7 +380,7 @@ function App() {
           // on <body> does not reach them — on a home-indicator iPhone this button would end
           // up half under the bar that swipes the app away.
           style={{ bottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
-          className="fixed left-1/2 -translate-x-1/2 h-14 w-14 rounded-full bg-emerald-600 text-white text-3xl shadow-lg flex items-center justify-center"
+          className="hidden md:flex fixed left-1/2 -translate-x-1/2 h-14 w-14 rounded-full bg-emerald-600 text-white text-3xl shadow-lg items-center justify-center"
           aria-label="Додати транзакцію"
         >
           +
