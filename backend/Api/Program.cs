@@ -49,7 +49,12 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 // Allow the frontend (Vite) to call the API during local development.
 const string DevCors = "dev";
 builder.Services.AddCors(o => o.AddPolicy(DevCors, p => p
-    .WithOrigins("http://localhost:5173", "http://127.0.0.1:5173")
+    // capacitor://localhost is where the native shell serves the page from — without it
+    // every request from the simulator fails CORS and the app looks broken for no visible
+    // reason. Development only; the deployed app is same-origin.
+    .WithOrigins(
+        "http://localhost:5173", "http://127.0.0.1:5173",
+        "capacitor://localhost", "http://localhost")
     .AllowAnyHeader()
     .AllowAnyMethod()));
 

@@ -37,3 +37,10 @@ appsettings.*.Local.json
 .DS_Store
 .idea/
 *.swp
+
+# Capacitor iOS — the project is committed, its build output is not.
+frontend/ios/App/build/
+frontend/ios/App/DerivedData/
+frontend/ios/App/App/public/
+frontend/ios/App/App/capacitor.config.json
+frontend/ios/App/.swiftpm/
