@@ -6,6 +6,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_PORT=5099
 FRONTEND_PORT=5173
+# Loopback за замовчуванням. Щоб телефон у тій самій Wi-Fi дістав API:
+#   BACKEND_HOST=0.0.0.0 ./dev.sh
+# Тоді API видно всій локальній мережі — а локально в нього немає пароля, тож робити це
+# варто вдома, а не в кав'ярні.
+BACKEND_HOST="${BACKEND_HOST:-localhost}"
 
 # Homebrew tools are not on PATH for GUI-launched apps.
 export PATH="/opt/homebrew/bin:$PATH"
@@ -43,9 +48,9 @@ trap cleanup EXIT INT TERM
 free_port "$BACKEND_PORT"
 free_port "$FRONTEND_PORT"
 
-echo "→ бекенд  http://localhost:$BACKEND_PORT  (Scalar: /scalar)"
+echo "→ бекенд  http://$BACKEND_HOST:$BACKEND_PORT  (Scalar: /scalar)"
 ASPNETCORE_ENVIRONMENT=Development \
-ASPNETCORE_URLS="http://localhost:$BACKEND_PORT" \
+ASPNETCORE_URLS="http://$BACKEND_HOST:$BACKEND_PORT" \
   dotnet run --project "$ROOT/backend/Api" --no-launch-profile &
 BACK_PID=$!
 
