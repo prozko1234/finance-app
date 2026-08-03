@@ -138,6 +138,19 @@ function App() {
     go('add')
   }
 
+  /// Що саме сталося при видаленні. Списання, яке зробила підписка, і звичайна витрата
+  /// зникають однаково, але означають різне: підписка спише знову наступного разу, і про це
+  /// краще сказати одразу, ніж лишити людину гадати, чи вона щойно її скасувала.
+  ///
+  /// Сказано тостом, а не питанням: підтверджувати кожне видалення — це зупиняти людину там,
+  /// де вона й так може все повернути ([[undo-instead-of-confirmations]]).
+  function deletedLabel(id: number): string {
+    const tx = (transactions.data ?? []).find((t) => t.id === id)
+    if (tx?.source !== 'Recurring') return 'Запис видалено'
+
+    return `Це списання прибрано · ${tx.note || tx.categoryName} спише як завжди`
+  }
+
   function toggleRecurring(r: RecurringType) {
     updateRecurring.mutate({
       id: r.id,
@@ -225,7 +238,7 @@ function App() {
             // Сервер віддав рівно стільки, скільки просили — отже, найімовірніше, є ще.
             canLoadMore={(transactions.data ?? []).length >= recentTake}
             onLoadMore={() => setRecentTake((n) => n + RECENT_PAGE)}
-            onDelete={(id) => txUndo.request(id, 'Запис видалено', () => deleteTx.mutate(id))}
+            onDelete={(id) => txUndo.request(id, deletedLabel(id), () => deleteTx.mutate(id))}
             onAddIncome={() => { setIncomeFirst(true); go('add') }}
             onGoSavings={() => go('savings')}
             onGoAllocation={() => go('allocation')}

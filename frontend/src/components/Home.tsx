@@ -1,5 +1,5 @@
 import type { EnvelopeSummary, SafeToSpend, Transaction } from '../types'
-import { dayHeading, dayMonth, money } from '../format'
+import { dayHeading, dayMonth, money, signedMoney, signedMoneyClass } from '../format'
 import { envelopeIcon } from '../envelopeWords'
 import { buildQuickCategories, type QuickCategory } from '../quickCategories'
 
@@ -350,8 +350,8 @@ function RecentList({ transactions, canLoadMore, onLoadMore, onDelete, onEdit }:
               </p>
             </button>
             <div className="text-right">
-              <p className={`font-semibold tabular-nums ${t.kind === 'Income' ? 'text-emerald-600' : ''}`}>
-                {t.kind === 'Income' ? '+' : ''}{money(t.amountOriginal, t.currencyOriginal)}
+              <p className={`font-semibold tabular-nums ${signedMoneyClass(t.kind)}`}>
+                {signedMoney(t.amountOriginal, t.currencyOriginal, t.kind)}
               </p>
               {t.currencyOriginal !== t.displayCurrency && (
                 <p className="text-xs text-neutral-400 tabular-nums">≈ {money(t.amountDisplay, t.displayCurrency)}</p>

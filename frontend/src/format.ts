@@ -50,3 +50,16 @@ export function plural(n: number, one: string, few: string, many: string): strin
   if (last >= 2 && last <= 4) return few
   return many
 }
+
+/// Сума транзакції так, як її читають: дохід із плюсом, витрата з мінусом.
+///
+/// Мінус — саме типографський «−» (U+2212), а не дефіс: він тієї ж ширини, що й цифри,
+/// тож стовпчик сум не роз'їжджається на один піксель у кожному рядку.
+export function signedMoney(amount: number, currency: string, kind: 'Income' | 'Expense'): string {
+  return `${kind === 'Income' ? '+' : '−'}${money(Math.abs(amount), currency)}`
+}
+
+/// Колір тієї ж суми. Зелений — прихід, червоний — витрата.
+export function signedMoneyClass(kind: 'Income' | 'Expense'): string {
+  return kind === 'Income' ? 'text-emerald-600' : 'text-red-600'
+}

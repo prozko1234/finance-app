@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { Category, Recurring as RecurringType, SaveRecurring } from '../types'
 import { CURRENCIES, todayIso } from '../types'
 import { CADENCES, DEFAULT_CADENCE, sameCadence, scheduleSummary, type Cadence } from '../cadence'
-import { daysUntil, dayMonth, money } from '../format'
+import { daysUntil, dayMonth, money, signedMoney, signedMoneyClass } from '../format'
 import { Screen } from './Screen'
 
 interface Props {
@@ -288,8 +288,8 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
                   {whenNext(r)} · {r.kind === 'Income' ? 'дохід' : r.categoryName}
                 </p>
               </button>
-              <p className={`font-semibold tabular-nums ${r.kind === 'Income' ? 'text-emerald-600' : ''}`}>
-                {r.kind === 'Income' ? '+' : ''}{money(r.amountOriginal, r.currencyOriginal)}
+              <p className={`font-semibold tabular-nums ${signedMoneyClass(r.kind)}`}>
+                {signedMoney(r.amountOriginal, r.currencyOriginal, r.kind)}
               </p>
               <button
                 onClick={() => onToggle(r)}
