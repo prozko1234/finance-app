@@ -88,9 +88,9 @@ describe('Recurring — batch add', () => {
 })
 
 describe('Recurring — delete', () => {
-  /// Пара «познач і підтверди» жила тут одна на весь застосунок: транзакцію видаляв один
-  /// тап без питань, а підписку — два з підтвердженням. Тепер патерн один — видаляємо
-  /// одразу, а повернути дає панель «Повернути» рівнем вище (див. undo.ts).
+  /// This screen used to be the only place in the app with a mark-then-confirm pair: a
+  /// transaction went on one tap, a subscription took two. One pattern now — deleted at once,
+  /// with the app-wide undo bar to take it back (see undo.ts).
   it('deletes on the first tap and leaves the undo to the app', async () => {
     const user = userEvent.setup()
     const p = props({ items: [item(), item({ id: 2, note: 'Оренда', categoryId: 2 })] })
@@ -105,8 +105,8 @@ describe('Recurring — delete', () => {
 })
 
 describe('Recurring — editing', () => {
-  /// Підписку можна було лише видалити й ввести заново — при тому що `PUT` існував весь час,
-  /// не було лише способу його покликати.
+  /// A subscription could only be deleted and typed in again, even though `PUT` had existed
+  /// all along — there was just no way to call it.
   it('opens the same form on the row and saves the correction', async () => {
     const user = userEvent.setup()
     const onUpdate = vi.fn<(id: number, r: SaveRecurring) => Promise<void>>().mockResolvedValue(undefined)
@@ -125,7 +125,8 @@ describe('Recurring — editing', () => {
     })))
   })
 
-  /// Пауза й вид (дохід чи витрата) не в цій формі — правка суми не має їх мовчки міняти.
+  /// The pause and the kind (income or expense) are not in this form, so correcting an
+  /// amount must not quietly change them.
   it('leaves the pause and the kind exactly as they were', async () => {
     const user = userEvent.setup()
     const onUpdate = vi.fn<(id: number, r: SaveRecurring) => Promise<void>>().mockResolvedValue(undefined)
@@ -150,13 +151,38 @@ describe('Recurring — editing', () => {
     await user.click(screen.getByText('Скасувати'))
 
     expect(screen.queryByText(/Редагуємо/)).not.toBeInTheDocument()
-    expect(screen.getByText('+ Ще одна')).toBeInTheDocument()
+    // The list is what the screen goes back to, not the add form: with rows on it, the form
+    // is somewhere you go on purpose.
+    expect(screen.getByText(/\+ Додати підписку/)).toBeInTheDocument()
+  })
+})
+
+describe('Recurring — the monthly cost', () => {
+  it('adds every rhythm up onto one monthly figure', () => {
+    render(<Recurring {...props({ items: [
+      item({ id: 1, amountOriginal: 50, unit: 'Month', interval: 1 }),
+      item({ id: 2, amountOriginal: 1200, unit: 'Year', interval: 1 }),
+      item({ id: 3, amountOriginal: 999, active: false }),
+    ] })} />)
+
+    // 50 a month + 1200 a year = 150 a month; the paused row costs nothing.
+    expect(screen.getByText('−150,00 zł')).toBeInTheDocument()
+    expect(screen.getByText(/2 активних · 1 призупинено/)).toBeInTheDocument()
+  })
+
+  it('opens the add form only when asked, once there is a list to read', async () => {
+    const user = userEvent.setup()
+    render(<Recurring {...props({ items: [item()] })} />)
+
+    expect(screen.queryByPlaceholderText('0')).not.toBeInTheDocument()
+    await user.click(screen.getByText(/\+ Додати підписку/))
+    expect(screen.getByPlaceholderText('0')).toBeInTheDocument()
   })
 })
 
 describe('Recurring — when it next goes out', () => {
-  /// «Кожного 5-го» однаково правдиве і за день до списання, і за день після — а гроші тим
-  /// часом уже пішли.
+  /// "Кожного 5-го" is equally true the day before the charge and the day after, and the
+  /// money has already gone by then.
   it('says when the next charge lands and whether this period already paid', () => {
     render(<Recurring {...props({ items: [
       item({ id: 1, note: 'Netflix', nextChargeOn: '2099-01-05', chargedThisPeriod: true }),

@@ -56,7 +56,7 @@ describe('Allocation', () => {
 
     await userEvent.click(screen.getByText('50/30/20'))
 
-    // Сервер підтвердив: активна схема тепер інша.
+    // The server confirmed it: the active scheme is a different one now.
     rerender(
       <Allocation
         {...props}
@@ -76,7 +76,8 @@ describe('Allocation', () => {
     )
 
     expect(screen.getByText(/Цей період перерахували/)).toBeInTheDocument()
-    expect(screen.getByText(/у банки 1200,00/)).toBeInTheDocument()
+    // The jar is named, not just totalled: the bucket IS the jar the app will create and fill.
+    expect(screen.getByText(/«Заощадження» 1200,00/)).toBeInTheDocument()
     expect(screen.getByText(/Минулі періоди лишились як були/)).toBeInTheDocument()
   })
 

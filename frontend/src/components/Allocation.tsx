@@ -50,8 +50,8 @@ export function Allocation({ data, budget, currency, onSave, onBack }: Props) {
     <Screen
       title="Розподіл бюджету"
       onBack={onBack}
-      subtitle="Денна норма рахується лише з того, що на витрати. Решта відкладається ще до того, як ти побачиш «Можна витратити сьогодні»."
-      footnote="Нова схема діє одразу на цей період — додаток перекладає гроші в банках сам. Минулі періоди не змінюються, а те, що ти вніс руками, лишається понад план."
+      subtitle="Денна норма рахується лише з того, що на витрати. Кожен інший кошик — це банка: застосунок створює її під назвою кошика і сам кладе туди частку, ще до того, як ти побачиш «Можна витратити сьогодні»."
+      footnote="Нова схема діє одразу на цей період — додаток перекладає гроші в банках сам. Минулі періоди не змінюються, а те, що ти вніс руками, лишається понад план. Банка з такою ж назвою, як кошик, не дублюється — вона просто продовжує наповнюватись."
     >
       <FormError>{error}</FormError>
       <AppliedNote active={data.active} appliedName={appliedName} budget={budget} currency={currency} />
@@ -79,9 +79,16 @@ export function Allocation({ data, budget, currency, onSave, onBack }: Props) {
   )
 }
 
-/// Що саме зробила зміна схеми. Питання «а гроші, які вже відкладені?» виникає одразу, і
-/// відповідь має бути на цьому ж екрані: цей період перерахований, минулі — ні. Показуємо
-/// тільки коли сервер уже підтвердив нову схему, інакше це були б цифри старої.
+/// What changing the scheme actually did. "А гроші, які вже відкладені?" comes up the moment
+/// the tap lands, so the answer belongs on this same screen: this period was recomputed, past
+/// ones were not. Shown only once the server has confirmed the new scheme — otherwise these
+/// would be the old one's figures.
+///
+/// Every non-spending bucket is named, with the money going into it, because that bucket IS a
+/// jar: the app creates one per bucket by name and pours the share in by itself. Without the
+/// names, picking a scheme with a pension bucket silently produced a jar the user never asked
+/// for and only met later on the savings screen — the single most confusing thing this screen
+/// did. A bucket whose name a jar already carries keeps that jar, balance and all.
 function AppliedNote({ active, appliedName, budget, currency }: {
   active: { name: string; buckets: AllocationBucket[] }
   appliedName: string | null
@@ -90,18 +97,29 @@ function AppliedNote({ active, appliedName, budget, currency }: {
 }) {
   if (appliedName === null || active.name !== appliedName) return null
 
-  const share = (spending: boolean) => active.buckets
-    .filter((b) => (b.kind === 'Spending') === spending)
-    .reduce((s, b) => s + b.percent, 0)
-
   const shown = (percent: number) =>
     budget === null ? `${pct(percent)}%` : money(budget * percent / 100, currency)
 
+  const spending = active.buckets
+    .filter((b) => b.kind === 'Spending')
+    .reduce((s, b) => s + b.percent, 0)
+  const jars = active.buckets.filter((b) => b.kind !== 'Spending')
+
   return (
-    <p className="rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2.5 text-xs text-neutral-500">
-      Застосовано. Цей період перерахували: на витрати {shown(share(true))}
-      {share(false) > 0 && `, у банки ${shown(share(false))}`}. Минулі періоди лишились як були.
-    </p>
+    <div className="rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2.5 text-xs text-neutral-500 space-y-1">
+      <p>Застосовано. Цей період перерахували: на витрати {shown(spending)}.</p>
+      {jars.length > 0 && (
+        <>
+          <p>Решта йде в банки — застосунок наповнить їх сам, руками нічого робити не треба:</p>
+          <ul className="tabular-nums">
+            {jars.map((b, i) => (
+              <li key={i}>· «{b.name}» {shown(b.percent)} щоперіоду</li>
+            ))}
+          </ul>
+        </>
+      )}
+      <p>Минулі періоди лишились як були.</p>
+    </div>
   )
 }
 
@@ -133,7 +151,11 @@ function PresetCard({ preset, budget, currency, active, onPick }: {
       <ul className={`mt-2 space-y-0.5 text-xs ${active ? 'opacity-90' : 'text-neutral-500'}`}>
         {preset.buckets.map((b, i) => (
           <li key={i} className="flex justify-between gap-3">
-            <span className="truncate">{b.name}</span>
+            {/* Says which rows turn into jars before the tap, not after it. */}
+            <span className="truncate">
+              {b.name}
+              {b.kind !== 'Spending' && <span className="opacity-60"> · банка</span>}
+            </span>
             <span className="tabular-nums shrink-0">
               {budget === null ? `${pct(b.percent)}%` : money(budget * b.percent / 100, currency)}
             </span>

@@ -21,6 +21,19 @@ export const CADENCES: Cadence[] = [
 
 export const DEFAULT_CADENCE = CADENCES[2]
 
+/// What one charge costs per month, whatever rhythm it actually runs on. A yearly domain and
+/// a weekly cleaner are the same kind of standing cost, and the only way to compare them — or
+/// to answer "скільки в мене йде на підписки" — is to put them on one scale.
+///
+/// Weeks are converted through the average year (365.25 / 7 / 12 ≈ 4.348 weeks per month), not
+/// through "4 weeks": that would under-count a weekly charge by a whole month's worth a year.
+export function perMonth(amount: number, unit: RecurrenceUnit, interval: number): number {
+  const safe = Math.max(interval, 1)
+  if (unit === 'Week') return (amount * 365.25) / 7 / 12 / safe
+  if (unit === 'Year') return amount / 12 / safe
+  return amount / safe
+}
+
 export function sameCadence(a: { unit: RecurrenceUnit; interval: number }, b: Cadence): boolean {
   return a.unit === b.unit && a.interval === b.interval
 }

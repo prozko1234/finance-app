@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Category, Recurring as RecurringType, SaveRecurring } from '../types'
 import { CURRENCIES, todayIso } from '../types'
-import { CADENCES, DEFAULT_CADENCE, sameCadence, scheduleSummary, type Cadence } from '../cadence'
+import { CADENCES, DEFAULT_CADENCE, perMonth, sameCadence, scheduleSummary, type Cadence } from '../cadence'
 import { daysUntil, dayMonth, money, signedMoney, signedMoneyClass } from '../format'
 import { Screen } from './Screen'
 
@@ -41,9 +41,14 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
   // Яку підписку зараз правимо. Форма та сама, що й для створення: інша форма для тих самих
   // полів — це друге місце, де їх доведеться міняти.
   const [editing, setEditing] = useState<RecurringType | null>(null)
+  // An empty screen has nothing to look at, so the form is already open there. With rows on
+  // it, the screen's job is answering «що в мене списується і скільки це коштує» — the form
+  // is a thing you go to a few times a year, and it was covering the answer.
+  const [adding, setAdding] = useState(items.length === 0)
 
   function edit(r: RecurringType) {
     setEditing(r)
+    setAdding(true)
     setAmount(String(r.amountOriginal))
     setCurrency(r.currencyOriginal)
     setCategoryId(r.categoryId)
@@ -58,6 +63,7 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
 
   function stopEditing() {
     setEditing(null)
+    setAdding(items.length === 0)
     setAmount('')
     setNote('')
     setError(null)
@@ -138,6 +144,7 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
     } finally {
       setDrafts(left)
       setSaving(false)
+      if (left.length === 0) setAdding(false)
     }
   }
 
@@ -148,6 +155,16 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
       footnote="Те, що списується регулярно, застосунок додає сам — і тримає з бюджету наперед, щоб денна норма не обіцяла грошей, які вже обіцяні."
     >
 
+      <MonthlyCost items={items} />
+
+      {!adding ? (
+        <button
+          onClick={() => setAdding(true)}
+          className="w-full rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700 px-4 py-3 text-sm text-neutral-500"
+        >
+          + Додати підписку чи регулярний дохід
+        </button>
+      ) : (
       <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm space-y-3">
         {editing && (
           <p className="text-sm font-medium text-neutral-400">
@@ -168,34 +185,30 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
           </select>
         </div>
 
-        <div className="flex gap-2 flex-wrap">
-          {categories.map((c) => (
-            <button
-              key={c.id} onClick={() => setCategoryId(c.id)}
-              className={`rounded-xl px-3 py-1.5 text-sm ${
-                categoryId === c.id
-                  ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
-                  : 'bg-neutral-100 dark:bg-neutral-800'
-              }`}
-            >
-              {c.icon} {c.name}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex gap-2 flex-wrap">
-          {CADENCES.map((c) => (
-            <button
-              key={`${c.unit}-${c.interval}`} onClick={() => setCadence(c)}
-              className={`rounded-xl px-3 py-1.5 text-sm ${
-                sameCadence(cadence, c)
-                  ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
-                  : 'bg-neutral-100 dark:bg-neutral-800'
-              }`}
-            >
-              {c.label}
-            </button>
-          ))}
+        {/* Two dropdowns instead of two walls of chips. A category list grown from a year of
+            statements is thirty-odd buttons, and every cadence was on screen at once as well —
+            forty choices to add one subscription, when the answer is almost always the same
+            two. A dropdown shows the current answer and hides the rest until asked. */}
+        <div className="flex gap-2">
+          <select
+            value={categoryId ?? ''} onChange={(e) => setCategoryId(Number(e.target.value))}
+            aria-label="Категорія"
+            className="flex-1 min-w-0 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-sm"
+          >
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>{c.icon ? `${c.icon} ` : ''}{c.name}</option>
+            ))}
+          </select>
+          <select
+            value={`${cadence.unit}-${cadence.interval}`}
+            onChange={(e) => setCadence(CADENCES.find((c) => `${c.unit}-${c.interval}` === e.target.value)!)}
+            aria-label="Як часто"
+            className="flex-1 min-w-0 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-sm"
+          >
+            {CADENCES.map((c) => (
+              <option key={`${c.unit}-${c.interval}`} value={`${c.unit}-${c.interval}`}>{c.label}</option>
+            ))}
+          </select>
         </div>
 
         <div className="flex items-center gap-2 text-sm">
@@ -205,7 +218,8 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
             className="flex-1 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-1.5"
           />
         </div>
-        {/* Розклад словами: «13 серпня» саме по собі не каже, чи це вівторок і чи це щотижня. */}
+        {/* The schedule in words: "13 серпня" on its own does not say whether that is a
+            Tuesday, nor whether it comes back every week. */}
         <p className="text-xs text-neutral-400">
           Списуватиметься {scheduleSummary(cadence.unit, cadence.interval, startsOn)}.
         </p>
@@ -255,6 +269,14 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
           </div>
         ) : (
           <div className="flex gap-2">
+            {items.length > 0 && (
+              <button
+                onClick={() => { setDrafts([]); setAmount(''); setNote(''); setAdding(false) }}
+                className="rounded-xl bg-neutral-100 dark:bg-neutral-800 px-4 py-2.5 text-neutral-500"
+              >
+                Закрити
+              </button>
+            )}
             <button
               onClick={addAnother} disabled={!valid || saving}
               className="rounded-xl bg-neutral-100 dark:bg-neutral-800 px-4 py-2.5 font-medium disabled:opacity-40"
@@ -270,6 +292,7 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
           </div>
         )}
       </div>
+      )}
 
       {items.length === 0 ? (
         <p className="text-center text-neutral-400 text-sm">Ще немає нічого регулярного.</p>
@@ -313,6 +336,50 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
       )}
 
     </Screen>
+  )
+}
+
+/// The one figure this screen is actually opened for: what all of this costs in a month.
+/// A list of seven rows on four different rhythms does not add up in anyone's head, and the
+/// question behind «підписок забагато» is always the total, never the rows.
+///
+/// Grouped by the currency each was entered in, and NOT converted: a rate would have to be
+/// fetched, and a total in a currency none of the rows are in reads as an app's opinion
+/// rather than an answer. Paused rows are left out — they cost nothing while paused.
+function MonthlyCost({ items }: { items: RecurringType[] }) {
+  const live = items.filter((r) => r.active)
+  if (live.length === 0) return null
+
+  const totals = new Map<string, { expense: number; income: number }>()
+  for (const r of live) {
+    const row = totals.get(r.currencyOriginal) ?? { expense: 0, income: 0 }
+    const share = perMonth(r.amountOriginal, r.unit, r.interval)
+    if (r.kind === 'Income') row.income += share
+    else row.expense += share
+    totals.set(r.currencyOriginal, row)
+  }
+
+  return (
+    <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm">
+      <p className="text-sm text-neutral-400">На місяць</p>
+      {[...totals.entries()].map(([currency, { expense, income }]) => (
+        <p key={currency} className="text-sm tabular-nums">
+          {expense > 0 && (
+            <span className="text-2xl font-bold">−{money(expense, currency)}</span>
+          )}
+          {income > 0 && (
+            <span className="text-emerald-600 font-semibold">
+              {expense > 0 ? ' · ' : ''}+{money(income, currency)}
+            </span>
+          )}
+        </p>
+      ))}
+      <p className="text-xs text-neutral-400 mt-1">
+        {live.length === 1 ? '1 активне' : `${live.length} активних`}
+        {items.length > live.length && ` · ${items.length - live.length} призупинено`}
+        {' · тижневі й річні перераховані на місяць'}
+      </p>
+    </div>
   )
 }
 
