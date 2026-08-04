@@ -29,6 +29,7 @@ public static class DependencyInjection
         services.AddScoped<IBudgetPeriods, BudgetPeriodResolver>();
         services.AddScoped<ITransactionService, TransactionService>();
         services.AddScoped<IOpeningBalanceService, OpeningBalanceService>();
+        services.AddScoped<ICarryoverService, CarryoverService>();
         services.AddScoped<ISummaryService, SummaryService>();
         services.AddScoped<IStatsService, StatsService>();
         services.AddScoped<IMonthlyBudget, MonthlyBudget>();

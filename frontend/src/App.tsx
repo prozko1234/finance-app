@@ -15,7 +15,7 @@ import {
   useStats, useAuthStatus, useLogin, useLogout, queryKeys,
   useChangePassword, useChangeEmail, useSignOutEverywhere, useDevices, useRevokeDevice,
   useImportPreview, useCommitImport,
-  useOpeningBalance, useSetOpeningBalance, useClearOpeningBalance,
+  useOpeningBalance, useSetOpeningBalance, useClearOpeningBalance, useDecideCarryover,
 } from './hooks'
 import { Onboarding } from './components/Onboarding'
 import { Home } from './components/Home'
@@ -81,6 +81,7 @@ function App() {
   const openingBalance = useOpeningBalance()
   const setOpeningBalance = useSetOpeningBalance()
   const clearOpeningBalance = useClearOpeningBalance()
+  const decideCarryover = useDecideCarryover()
   const recurring = useRecurring()
   const savings = useSavings()
   const allocations = useAllocations()
@@ -243,6 +244,7 @@ function App() {
             onGoSavings={() => go('savings')}
             onGoAllocation={() => go('allocation')}
             onGoBalance={() => go('balance')}
+            onDecideCarryover={(d) => decideCarryover.mutate(d)}
             onQuickCategory={(categoryId) => { setPresetCategoryId(categoryId); go('add') }}
             onEdit={startEdit}
             // Онбординг показується лише порожньому застосунку, тож той, хто вже мав дані,

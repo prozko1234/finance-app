@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api'
 import type {
-  Credentials, SaveAllocation, SaveCategory, SaveEnvelope, SaveEnvelopeTarget, SaveIncome, SaveOpeningBalance, SaveRecurring, SaveSavingsEntry, SaveSavingsPlan, SaveTaxProfile, SaveTransaction, SaveTransfer,
+  CarryoverDecision, Credentials, SaveAllocation, SaveCategory, SaveEnvelope, SaveEnvelopeTarget, SaveIncome, SaveOpeningBalance, SaveRecurring, SaveSavingsEntry, SaveSavingsPlan, SaveTaxProfile, SaveTransaction, SaveTransfer,
 } from './types'
 
 export const queryKeys = {
@@ -158,6 +158,16 @@ export function useTransactions(take = 20) {
   return useQuery({
     queryKey: [...queryKeys.transactions, take],
     queryFn: () => api.getTransactions(take),
+  })
+}
+
+/// Where last period's leftover goes. Answering it changes the budget, the daily norm and
+/// possibly a jar balance, so it re-reads everything like any other money decision.
+export function useDecideCarryover() {
+  const invalidate = useInvalidateEverything()
+  return useMutation({
+    mutationFn: (decision: CarryoverDecision) => api.decideCarryover(decision),
+    onSuccess: invalidate,
   })
 }
 

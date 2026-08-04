@@ -227,6 +227,7 @@ app.MapGet("/health", () => Results.Ok(new { app = "finance-app", status = "ok" 
 app.MapCategoryEndpoints();
 app.MapTransactionEndpoints();
 app.MapOpeningBalanceEndpoints();
+app.MapCarryoverEndpoints();
 app.MapSummaryEndpoints();
 app.MapStatsEndpoints();
 app.MapRecurringEndpoints();

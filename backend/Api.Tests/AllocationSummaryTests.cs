@@ -3,6 +3,7 @@ using FinanceApp.Application.Common;
 using Microsoft.Extensions.Logging.Abstractions;
 using FinanceApp.Api.Tests.Integration;
 using FinanceApp.Application.Allocations;
+using FinanceApp.Application.Budgets;
 using FinanceApp.Application.Contracts;
 using FinanceApp.Application.Envelopes;
 using FinanceApp.Application.Display;
@@ -31,7 +32,11 @@ public class AllocationSummaryTests
             new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db), fx, NullLogger<EnvelopeService>.Instance),
             new AllocationService(mem.Db),
             new MoneyViewFactory(mem.Db, fx),
-            new BudgetPeriodResolver(mem.Db));
+            new BudgetPeriodResolver(mem.Db),
+            new CarryoverService(
+                mem.Db, new BudgetPeriodResolver(mem.Db),
+                new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db)),
+                NullLogger<CarryoverService>.Instance));
     }
 
     /// The default envelope is what the savings plan feeds and what these tests are about.

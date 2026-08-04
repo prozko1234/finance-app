@@ -5,6 +5,7 @@ using FinanceApp.Api.Tests.Integration;
 using FinanceApp.Application.Recurring;
 using FinanceApp.Application.Savings;
 using FinanceApp.Application.Allocations;
+using FinanceApp.Application.Budgets;
 using FinanceApp.Application.Envelopes;
 using FinanceApp.Application.Display;
 using FinanceApp.Application.Summaries;
@@ -59,7 +60,11 @@ public class RecurringIncomeSummaryTests
             new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db), fx, NullLogger<EnvelopeService>.Instance),
             new AllocationService(mem.Db),
             new MoneyViewFactory(mem.Db, fx),
-            new BudgetPeriodResolver(mem.Db));
+            new BudgetPeriodResolver(mem.Db),
+            new CarryoverService(
+                mem.Db, new BudgetPeriodResolver(mem.Db),
+                new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db)),
+                NullLogger<CarryoverService>.Instance));
 
         var r = await sut.GetSafeToSpendAsync();
 
@@ -102,7 +107,11 @@ public class RecurringIncomeSummaryTests
             new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db), fx, NullLogger<EnvelopeService>.Instance),
             new AllocationService(mem.Db),
             new MoneyViewFactory(mem.Db, fx),
-            new BudgetPeriodResolver(mem.Db));
+            new BudgetPeriodResolver(mem.Db),
+            new CarryoverService(
+                mem.Db, new BudgetPeriodResolver(mem.Db),
+                new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db)),
+                NullLogger<CarryoverService>.Instance));
 
         var r = await sut.GetSafeToSpendAsync();
 

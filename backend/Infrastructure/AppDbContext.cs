@@ -13,6 +13,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<FxRate> FxRates => Set<FxRate>();
     public DbSet<OpeningBalance> OpeningBalances => Set<OpeningBalance>();
+    public DbSet<PeriodCarryover> PeriodCarryovers => Set<PeriodCarryover>();
     public DbSet<RecurringExpense> RecurringExpenses => Set<RecurringExpense>();
     public DbSet<TaxProfile> TaxProfiles => Set<TaxProfile>();
     public DbSet<SavingsPlan> SavingsPlans => Set<SavingsPlan>();
@@ -194,6 +195,19 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.AmountOriginal).HasPrecision(18, 2);
             e.Property(x => x.AmountBase).HasPrecision(18, 2);
             e.Property(x => x.CurrencyOriginal).HasMaxLength(3).IsRequired();
+        });
+
+        b.Entity<PeriodCarryover>(e =>
+        {
+            e.Property(x => x.AmountBase).HasPrecision(18, 2);
+            e.Property(x => x.Decision).HasConversion<string>().HasMaxLength(20);
+            // Asked once per period, enforced here and not only in the service: two answers
+            // for one period would mean the leftover was moved twice.
+            e.HasIndex(x => x.PeriodStart).IsUnique();
+            e.HasOne<Envelope>()
+                .WithMany()
+                .HasForeignKey(x => x.EnvelopeId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         b.Entity<AllocationScheme>(e =>

@@ -22,6 +22,12 @@ public record MonthlyBudgetResult(
 public interface IMonthlyBudget
 {
     Task<MonthlyBudgetResult> ResolveAsync(CancellationToken ct = default);
+
+    /// The same arithmetic for a period that is not the one being lived in — what a finished
+    /// period had to spend. Needed to work out what was left over at its end.
+    /// <param name="asOf">The day the figures are read as of. For a finished period that is
+    /// its last day; an opening balance counted after it is none of that period's business.</param>
+    Task<MonthlyBudgetResult> ForAsync(BudgetPeriod period, DateOnly asOf, CancellationToken ct = default);
 }
 
 /// This month's budget: income after tax, or the manually set amount when there is no income.
@@ -29,10 +35,14 @@ public interface IMonthlyBudget
 /// two places deriving take-home separately is how the numbers start to drift.
 public sealed class MonthlyBudget(IAppDbContext db, IBudgetPeriods periods) : IMonthlyBudget
 {
-    public async Task<MonthlyBudgetResult> ResolveAsync(CancellationToken ct = default)
+    public async Task<MonthlyBudgetResult> ResolveAsync(CancellationToken ct = default) =>
+        await ForAsync(await periods.CurrentAsync(ct), DateOnly.FromDateTime(DateTime.Now), ct);
+
+    public async Task<MonthlyBudgetResult> ForAsync(
+        BudgetPeriod period, DateOnly asOf, CancellationToken ct = default)
     {
-        var today = DateOnly.FromDateTime(DateTime.Now);
-        var (first, last) = await periods.CurrentAsync(ct);
+        var (first, last) = period;
+        var today = asOf < last ? asOf : last;
 
         // An opening balance taken earlier this period wins over everything: whatever the
         // income was, what the user actually HAS is the only number that can be divided over
@@ -56,11 +66,21 @@ public sealed class MonthlyBudget(IAppDbContext db, IBudgetPeriods periods) : IM
             // period. The row's timestamp settles it without asking — money recorded after
             // the count was made is money that came after it.
             var (later, laterTaxes) = await TakeHomeAsync(opening.Date, last, opening.UpdatedAt, ct);
+
+            // No carryover on top: "скільки в мене зараз є" already contains last period's
+            // leftover — it is sitting in the account being counted.
             return new MonthlyBudgetResult(
                 opening.AmountBase + later, laterTaxes, opening.Date, true);
         }
 
         var (takeHome, taxes) = await TakeHomeAsync(first, last, null, ct);
+
+        // Money the user said to keep spending rather than put away. Frozen when they said it,
+        // so it cannot drift afterwards.
+        var carried = await db.PeriodCarryovers
+            .Where(x => x.PeriodStart == first && x.Decision == CarryoverDecision.ToBudget)
+            .SumAsync(x => (decimal?)x.AmountBase, ct) ?? 0m;
+        takeHome += carried;
 
         // No income and no count = no budget, and the app says so instead of inventing one.
         // There used to be a "запасний бюджет" here: a monthly amount typed once in settings

@@ -14,6 +14,7 @@ public interface IAppDbContext
     DbSet<Transaction> Transactions { get; }
     DbSet<Category> Categories { get; }
     DbSet<OpeningBalance> OpeningBalances { get; }
+    DbSet<PeriodCarryover> PeriodCarryovers { get; }
     DbSet<FxRate> FxRates { get; }
     DbSet<RecurringExpense> RecurringExpenses { get; }
     DbSet<TaxProfile> TaxProfiles { get; }

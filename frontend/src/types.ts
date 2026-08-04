@@ -316,7 +316,19 @@ export interface SafeToSpend {
   /// Період, який покривають ці цифри: від дня зарплати до дня перед наступною.
   periodStart: string
   periodEnd: string
+  /// Залишок минулого періоду, поки не сказано, куди його. null — питання вже закрите.
+  carryover: Carryover | null
 }
+
+export interface Carryover {
+  amount: number
+  fromStart: string
+  fromEnd: string
+  /// Банка, куди піде відповідь за замовчуванням.
+  envelopeName: string
+}
+
+export type CarryoverDecision = 'ToEnvelope' | 'ToBudget' | 'Ignore'
 
 /// «Скільки в мене зараз є до кінця місяця» — старт не з 1 числа.
 export interface OpeningBalance {

@@ -107,7 +107,10 @@ public record SafeToSpendResponse(
     /// The period these figures cover. Sent so the screen can name it («10.07 – 09.08»)
     /// instead of saying "місяць" to someone whose money arrives on the 10th.
     DateOnly PeriodStart = default,
-    DateOnly PeriodEnd = default);
+    DateOnly PeriodEnd = default,
+    /// Last period's leftover, when it is still waiting to be told where to go. Null once the
+    /// question has been answered — including when the answer was "не рахувати".
+    CarryoverResponse? Carryover = null);
 
 /// Where the month's budget went before the daily norm was computed — the "куди пішов
 /// бюджет" row. Null-ish case (the default one-bucket scheme) still comes through, so the
@@ -376,6 +379,16 @@ public record MonthStatsResponse(
     decimal Net,
     decimal SavedByPlan = 0m,
     decimal SavedByHand = 0m);
+
+/// <param name="Decision">"ToEnvelope", "ToBudget" or "Ignore".</param>
+public record DecideCarryoverRequest(string Decision, int? EnvelopeId = null);
+
+/// Last period's leftover, waiting to be told where to go. Rides along with the summary so the
+/// home screen needs no second request to know whether to ask.
+/// <param name="EnvelopeName">The jar the default answer would put it in, named so the button
+/// can say where the money is going rather than just "відкласти".</param>
+public record CarryoverResponse(
+    decimal Amount, DateOnly FromStart, DateOnly FromEnd, string EnvelopeName);
 
 public record CategoryStatsResponse(
     int CategoryId, string Name, string? Icon, decimal Amount, decimal Percent, int Count);

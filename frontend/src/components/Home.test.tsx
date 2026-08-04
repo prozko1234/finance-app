@@ -15,6 +15,7 @@ function summary(over: Partial<SafeToSpend> = {}): SafeToSpend {
     allocation: null,
     windowStart: '2026-07-01', fromOpeningBalance: false,
     periodStart: '2026-07-01', periodEnd: '2026-07-31',
+    carryover: null,
     ...over,
   }
 }
@@ -23,6 +24,7 @@ const props = {
   transactions: [], canLoadMore: false, onLoadMore: vi.fn(), paydayNudge: null,
   onDelete: vi.fn(), onAddIncome: vi.fn(), onQuickCategory: vi.fn(), onEdit: vi.fn(),
   onGoSavings: vi.fn(), onGoAllocation: vi.fn(), onGoBalance: vi.fn(),
+  onDecideCarryover: vi.fn(),
 }
 
 describe('Home', () => {
@@ -298,5 +300,32 @@ describe('Home — the payday question', () => {
   it('says nothing when there is nothing to ask about', () => {
     render(<Home {...props} summary={summary()} />)
     expect(screen.queryByText('Коли до тебе приходять гроші?')).not.toBeInTheDocument()
+  })
+
+  /// The leftover used to vanish at a period boundary: a new period's budget is the new
+  /// income, so what went unspent existed only in the bank account.
+  it('asks where last period\'s leftover should go, and defaults to the jar', async () => {
+    const onDecideCarryover = vi.fn()
+    render(
+      <Home
+        {...props}
+        onDecideCarryover={onDecideCarryover}
+        summary={summary({
+          carryover: {
+            amount: 340, fromStart: '2026-06-01', fromEnd: '2026-06-30', envelopeName: 'Подушка',
+          },
+        })}
+      />,
+    )
+
+    expect(screen.getByText(/Минулого періоду лишилось 340,00/)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByText(/У банку «Подушка»/))
+    expect(onDecideCarryover).toHaveBeenCalledWith('ToEnvelope')
+  })
+
+  it('says nothing about a leftover when there is none to place', () => {
+    render(<Home {...props} summary={summary()} />)
+    expect(screen.queryByText(/Минулого періоду лишилось/)).not.toBeInTheDocument()
   })
 })

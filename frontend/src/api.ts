@@ -1,5 +1,5 @@
 import type {
-  AuthStatus, AppSettings, Category, Credentials, Envelope, EnvelopePeriod, SaveEnvelope, SaveEnvelopeTarget, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
+  AuthStatus, AppSettings, CarryoverDecision, Category, Credentials, Envelope, EnvelopePeriod, SaveEnvelope, SaveEnvelopeTarget, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
   Allocation, SaveAllocation, IncomePreview, OpeningBalance, SaveOpeningBalance, SaveSavingsEntry, SaveSavingsPlan, Savings, SaveTransfer, Stats, TaxDefaults, TaxProfile, Transaction,
   ImportPreview, ImportResult, ImportRowToSave,
 } from './types'
@@ -146,6 +146,9 @@ export const api = {
   clearOpeningBalance: () => http<OpeningBalance>('/api/opening-balance', { method: 'DELETE' }),
 
   getSafeToSpend: () => http<SafeToSpend>('/api/summary/safe-to-spend'),
+
+  decideCarryover: (decision: CarryoverDecision) =>
+    http<void>('/api/carryover', { method: 'POST', body: JSON.stringify({ decision }) }),
 
   getStats: (months: number, month: string | null) =>
     http<Stats>(`/api/stats?months=${months}${month ? `&month=${month}` : ''}`),

@@ -1,5 +1,6 @@
 using FinanceApp.Application.Abstractions;
 using FinanceApp.Application.Allocations;
+using FinanceApp.Application.Budgets;
 using FinanceApp.Application.Envelopes;
 using FinanceApp.Application.Common;
 using FinanceApp.Application.Contracts;
@@ -24,7 +25,7 @@ public sealed class SummaryService(
     IAppDbContext db, IFxConverter fx, IRecurringMaterializer materializer,
     IMonthlyBudget monthlyBudget, IEnvelopeService envelopeService,
     IAllocationService allocations, IMoneyViewFactory moneyViews,
-    IBudgetPeriods periods) : ISummaryService
+    IBudgetPeriods periods, ICarryoverService carryover) : ISummaryService
 {
     public async Task<SafeToSpendResponse> GetSafeToSpendAsync(CancellationToken ct = default)
     {
@@ -78,6 +79,8 @@ public sealed class SummaryService(
         var view = await moneyViews.CurrentAsync(ct);
         var show = (decimal v) => view.FromBaseTodayAsync(v, ct);
 
+        var left = await carryover.PendingAsync(ct);
+
         return new SafeToSpendResponse(
             today, view.Currency, r.BudgetSet,
             r.PeriodBudget is null ? null : await show(r.PeriodBudget.Value),
@@ -106,7 +109,12 @@ public sealed class SummaryService(
             month.WindowStart,
             month.FromOpeningBalance,
             period.Start,
-            period.End);
+            period.End,
+            // The leftover is converted like everything else on this screen: it is money the
+            // user is about to make a decision about, and a figure in a currency they are not
+            // reading in is not one they can decide with.
+            left is null ? null : new CarryoverResponse(
+                await show(left.Amount), left.FromStart, left.FromEnd, left.EnvelopeName));
     }
 
     /// Active recurring EXPENSES whose charge in THIS PERIOD is still in the future = not yet

@@ -1,4 +1,4 @@
-import type { EnvelopeSummary, SafeToSpend, Transaction } from '../types'
+import type { CarryoverDecision, EnvelopeSummary, SafeToSpend, Transaction } from '../types'
 import { dayHeading, dayMonth, money, signedMoney, signedMoneyClass } from '../format'
 import { envelopeIcon } from '../envelopeWords'
 import { buildQuickCategories, type QuickCategory } from '../quickCategories'
@@ -20,17 +20,26 @@ interface Props {
   onGoSavings: () => void
   onGoAllocation: () => void
   onGoBalance: () => void
+  /// Куди подіти залишок минулого періоду. Питається лише коли він є і про нього ще не сказали.
+  onDecideCarryover: (decision: CarryoverDecision) => void
 }
 
 export function Home({
   summary, transactions, paydayNudge, canLoadMore, onLoadMore, onDelete, onAddIncome, onQuickCategory, onEdit, onGoSavings, onGoAllocation,
-  onGoBalance,
+  onGoBalance, onDecideCarryover,
 }: Props) {
   const quick = buildQuickCategories(transactions)
 
   return (
     <div className="space-y-6">
       <SafeToSpendCard summary={summary} onAddIncome={onAddIncome} />
+      {summary?.carryover && (
+        <CarryoverCard
+          carryover={summary.carryover}
+          currency={summary.currency}
+          onDecide={onDecideCarryover}
+        />
+      )}
       {paydayNudge && <PaydayNudge {...paydayNudge} />}
       {summary?.budgetSet && (
         <PeriodCard summary={summary} onGoAllocation={onGoAllocation} onGoBalance={onGoBalance} />
@@ -46,6 +55,53 @@ export function Home({
         onDelete={onDelete}
         onEdit={onEdit}
       />
+    </div>
+  )
+}
+
+/// The money that survived the last period, and the one question it raises. Until this card
+/// existed the leftover simply vanished: a new period's budget is the new income, so anything
+/// underspent lived only in the bank account — and the app, which asks to be trusted with one
+/// number, was quietly poorer than reality every month.
+///
+/// Asked rather than moved automatically, because a leftover is sometimes last month's win and
+/// sometimes the money for a thing planned for next week, and no rule can tell those apart. The
+/// answer that is usually right is the wide button; the other two are one tap away and not one
+/// of them is destructive. Ignoring it is an answer too — that is what stops it coming back.
+function CarryoverCard({ carryover, currency, onDecide }: {
+  carryover: NonNullable<SafeToSpend['carryover']>
+  currency: string
+  onDecide: (decision: CarryoverDecision) => void
+}) {
+  return (
+    <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm space-y-2">
+      <p className="text-sm font-medium">
+        Минулого періоду лишилось {money(carryover.amount, currency)}
+      </p>
+      <p className="text-xs text-neutral-500">
+        За {dayMonth(carryover.fromStart)} – {dayMonth(carryover.fromEnd)} ти не витратив цих
+        грошей. Вони на рахунку — скажи, чим їх вважати, і застосунок перестане про це питати.
+      </p>
+      <button
+        onClick={() => onDecide('ToEnvelope')}
+        className="w-full rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 px-3 py-2 text-sm font-medium"
+      >
+        У банку «{carryover.envelopeName}»
+      </button>
+      <div className="flex gap-2">
+        <button
+          onClick={() => onDecide('ToBudget')}
+          className="flex-1 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-sm"
+        >
+          Лишити на витрати
+        </button>
+        <button
+          onClick={() => onDecide('Ignore')}
+          className="rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-500"
+        >
+          Не рахувати
+        </button>
+      </div>
     </div>
   )
 }
