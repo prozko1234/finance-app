@@ -10,13 +10,10 @@ function tx(over: Partial<Transaction>): Transaction {
   }
 }
 
-const icon = () => '🍽'
-
 describe('buildQuickCategories', () => {
   it('collapses a category into one shortcut regardless of amount', () => {
     const actions = buildQuickCategories(
       [tx({ id: 1, amountOriginal: 25 }), tx({ id: 2, amountOriginal: 12 }), tx({ id: 3, amountOriginal: 7 })],
-      icon,
     )
 
     expect(actions).toHaveLength(1)
@@ -31,7 +28,6 @@ describe('buildQuickCategories', () => {
         tx({ id: 2, categoryId: 1 }),
         tx({ id: 3, categoryId: 1 }),
       ],
-      icon,
     )
 
     expect(actions.map((a) => a.categoryId)).toEqual([1, 2])
@@ -40,14 +36,13 @@ describe('buildQuickCategories', () => {
   it('breaks ties by most recent use', () => {
     const actions = buildQuickCategories(
       [tx({ id: 1, categoryId: 3, categoryName: 'Житло' }), tx({ id: 2, categoryId: 1 })],
-      icon,
     )
 
     expect(actions.map((a) => a.categoryId)).toEqual([3, 1])
   })
 
   it('ignores income', () => {
-    const actions = buildQuickCategories([tx({ id: 1, kind: 'Income' }), tx({ id: 2 })], icon)
+    const actions = buildQuickCategories([tx({ id: 1, kind: 'Income' }), tx({ id: 2 })])
 
     expect(actions).toHaveLength(1)
     expect(actions[0].categoryId).toBe(1)
@@ -55,10 +50,16 @@ describe('buildQuickCategories', () => {
 
   it('respects the limit', () => {
     const many = [1, 2, 3, 4, 5, 6].map((c) => tx({ id: c, categoryId: c, categoryName: `К${c}` }))
-    expect(buildQuickCategories(many, icon)).toHaveLength(4)
+    expect(buildQuickCategories(many)).toHaveLength(4)
+  })
+
+  it('carries the emoji the category itself has, not one guessed from its name', () => {
+    const actions = buildQuickCategories([tx({ id: 1, categoryName: 'Кава', categoryIcon: '☕' })])
+
+    expect(actions[0].icon).toBe('☕')
   })
 
   it('returns nothing when there is no history', () => {
-    expect(buildQuickCategories([], icon)).toEqual([])
+    expect(buildQuickCategories([])).toEqual([])
   })
 })

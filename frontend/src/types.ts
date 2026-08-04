@@ -31,6 +31,9 @@ export interface Transaction {
   fxDate: string
   categoryId: number
   categoryName: string
+  /// Емодзі самої категорії. Раніше список угадував його з назви по табличці, тож усе, що
+  /// користувач створив сам, показувалось однаковим 📦.
+  categoryIcon?: string | null
   /// З якої банки заплачено. null — зі звичайних грошей на витрати.
   envelopeId?: number | null
   envelopeName?: string | null

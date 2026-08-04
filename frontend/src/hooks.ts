@@ -22,6 +22,24 @@ export const queryKeys = {
   devices: ['devices'] as const,
 }
 
+/// Any write re-reads everything, rather than a hand-picked list of keys.
+///
+/// Every figure in this app is derived from the same money: income sets the budget, the budget
+/// sets the daily norm, the envelope goals and the recurring reserve; an expense paid out of a
+/// jar changes its balance; the tax profile changes take-home and therefore all of the above;
+/// the display currency changes every number on every screen, statistics included. Hand-picked
+/// lists lost here again and again — the key that got forgotten was always the one that left
+/// half the screen updated and half of it stale (useSetPeriodStartDay reached this same
+/// conclusion first).
+///
+/// The price is a few extra GETs per action, and only for queries currently on screen:
+/// TanStack Query refetches active ones only. For a solo app that is cheaper than the whole
+/// class of "I changed it and nothing moved" bugs.
+function useInvalidateEverything() {
+  const qc = useQueryClient()
+  return () => { qc.invalidateQueries() }
+}
+
 export function useAuthStatus() {
   return useQuery({ queryKey: queryKeys.auth, queryFn: () => api.getAuthStatus(), retry: false })
 }
@@ -36,8 +54,8 @@ export function useLogin() {
   })
 }
 
-/// Пароль змінено — сесія на цьому пристрої лишається живою, тому перечитуємо тільки
-/// статус акаунта, а не весь кеш.
+/// The password changed but this device's session stays alive, so only the account status is
+/// re-read rather than the whole cache.
 export function useChangePassword() {
   const qc = useQueryClient()
   return useMutation({
@@ -56,7 +74,7 @@ export function useChangeEmail() {
   })
 }
 
-/// Виходить і цей пристрій теж — далі те саме прибирання кеша, що й при звичайному виході.
+/// This device is signed out too, so the cache is emptied exactly as on an ordinary log out.
 export function useSignOutEverywhere() {
   const qc = useQueryClient()
   return useMutation({
@@ -65,16 +83,13 @@ export function useSignOutEverywhere() {
   })
 }
 
-/// Пристрої, що заходять токеном — телефон і, згодом, віджет. У браузері цей список
-/// порожній: браузер живе на куці й пристроєм себе не реєструє.
-/// Імпорт чіпає майже все: транзакції, підсумок, статистику. Тому після нього — те саме
-/// прибирання кеша, що й після будь-якого запису, а не точкове оновлення одного списку.
+/// A preview writes nothing, so nothing is invalidated; committing the rows does.
 export function useImportPreview() {
   return useMutation({ mutationFn: (file: File) => api.previewImport(file) })
 }
 
 export function useCommitImport() {
-  const invalidate = useInvalidate()
+  const invalidate = useInvalidateEverything()
   return useMutation({
     mutationFn: (rows: Parameters<typeof api.commitImport>[0]) => api.commitImport(rows),
     onSuccess: () => invalidate(),
@@ -118,22 +133,13 @@ export function useCategories() {
   return useQuery({ queryKey: queryKeys.categories, queryFn: () => api.getCategories() })
 }
 
-function useInvalidateCategories() {
-  const qc = useQueryClient()
-  return () => {
-    qc.invalidateQueries({ queryKey: queryKeys.categories })
-    qc.invalidateQueries({ queryKey: queryKeys.transactions })
-    qc.invalidateQueries({ queryKey: queryKeys.recurring })
-  }
-}
-
 export function useCreateCategory() {
-  const invalidate = useInvalidateCategories()
+  const invalidate = useInvalidateEverything()
   return useMutation({ mutationFn: (c: SaveCategory) => api.createCategory(c), onSuccess: invalidate })
 }
 
 export function useUpdateCategory() {
-  const invalidate = useInvalidateCategories()
+  const invalidate = useInvalidateEverything()
   return useMutation({
     mutationFn: ({ id, data }: { id: number; data: SaveCategory }) => api.updateCategory(id, data),
     onSuccess: invalidate,
@@ -141,12 +147,13 @@ export function useUpdateCategory() {
 }
 
 export function useDeleteCategory() {
-  const invalidate = useInvalidateCategories()
+  const invalidate = useInvalidateEverything()
   return useMutation({ mutationFn: (id: number) => api.deleteCategory(id), onSuccess: invalidate })
 }
 
-/// Скільки рядків просимо — у ключі, тож «Показати ще» це новий запит, а вже побачене
-/// лишається в кеші. Інвалідація по префіксу ['transactions'] чіпає всі сторінки разом.
+/// How many rows we ask for is part of the key, so "show more" is a new fetch while what
+/// has already been seen stays cached. Invalidating the ['transactions'] prefix takes every
+/// page with it.
 export function useTransactions(take = 20) {
   return useQuery({
     queryKey: [...queryKeys.transactions, take],
@@ -162,44 +169,29 @@ export function useAllocations() {
   return useQuery({ queryKey: queryKeys.allocations, queryFn: () => api.getAllocations() })
 }
 
-/// Changing the scheme changes the daily norm and the savings goal, so both derived
-/// queries have to go — not just the allocation itself.
 export function useSettings() {
   return useQuery({ queryKey: queryKeys.settings, queryFn: () => api.getSettings() })
 }
 
-/// Так само, як валюта: день зарплати переставляє межі періоду, а отже й бюджет, денну
-/// норму, резерв підписок і цілі банок. Дешевше перечитати все, ніж вгадувати.
+/// Payday moves the period boundaries, and with them the budget, the daily norm, the
+/// recurring reserve and every envelope goal.
 export function useSetPeriodStartDay() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (day: number) => api.setPeriodStartDay(day),
-    // Everything, not a hand-picked list. The list used to miss підписки (whose next charge
-    // moves with the period boundary) and транзакції (whose «з цього періоду» labels do),
-    // which is how half the screen changed its numbers and half did not.
-    onSuccess: () => qc.invalidateQueries(),
-  })
+  const invalidate = useInvalidateEverything()
+  return useMutation({ mutationFn: (day: number) => api.setPeriodStartDay(day), onSuccess: invalidate })
 }
 
-/// Currency touches every number on screen, so a switch invalidates everything that
-/// carries money — not just the settings screen that made the change.
+/// The display currency is carried by every screen that shows money, statistics included —
+/// which is precisely the key the hand-picked list used to forget.
 export function useSetDisplayCurrency() {
-  const qc = useQueryClient()
+  const invalidate = useInvalidateEverything()
   return useMutation({
     mutationFn: (currency: string) => api.setDisplayCurrency(currency),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.settings })
-      qc.invalidateQueries({ queryKey: queryKeys.summary })
-      qc.invalidateQueries({ queryKey: queryKeys.transactions })
-      qc.invalidateQueries({ queryKey: queryKeys.savings })
-      qc.invalidateQueries({ queryKey: queryKeys.allocations })
-    },
+    onSuccess: invalidate,
   })
 }
 
-/// Історія однієї банки. Id у ключі, тож перемикання між банками не мигає — уже
-/// переглянутий лишається в кеші. Ключ починається з savings, тому будь-який рух грошей
-/// (депозит, зняття) інвалідує й історію разом із рештою.
+/// One envelope's history. The id is in the key, so switching between jars does not flicker —
+/// the one already looked at stays cached.
 export function useEnvelopeHistory(envelopeId: number | null) {
   return useQuery({
     queryKey: [...queryKeys.savings, 'history', envelopeId],
@@ -209,45 +201,26 @@ export function useEnvelopeHistory(envelopeId: number | null) {
 }
 
 export function useSaveAllocation() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (a: SaveAllocation) => api.saveAllocation(a),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.allocations })
-      qc.invalidateQueries({ queryKey: queryKeys.summary })
-      qc.invalidateQueries({ queryKey: queryKeys.savings })
-    },
-  })
+  const invalidate = useInvalidateEverything()
+  return useMutation({ mutationFn: (a: SaveAllocation) => api.saveAllocation(a), onSuccess: invalidate })
 }
 
 export function useRecurring() {
   return useQuery({ queryKey: queryKeys.recurring, queryFn: () => api.getRecurring() })
 }
 
-/// After any write, the derived data (transactions, summary, budget, recurring) is stale.
-function useInvalidate() {
-  const qc = useQueryClient()
-  return () => {
-    qc.invalidateQueries({ queryKey: queryKeys.transactions })
-    qc.invalidateQueries({ queryKey: queryKeys.summary })
-    qc.invalidateQueries({ queryKey: queryKeys.recurring })
-    // Every month cached under any key: a new expense changes the bar it lands in.
-    qc.invalidateQueries({ queryKey: queryKeys.stats })
-  }
-}
-
 export function useCreateTransaction() {
-  const invalidate = useInvalidate()
+  const invalidate = useInvalidateEverything()
   return useMutation({ mutationFn: (tx: SaveTransaction) => api.createTransaction(tx), onSuccess: invalidate })
 }
 
 export function useCreateIncome() {
-  const invalidate = useInvalidate()
+  const invalidate = useInvalidateEverything()
   return useMutation({ mutationFn: (i: SaveIncome) => api.createIncome(i), onSuccess: invalidate })
 }
 
 export function useUpdateTransaction() {
-  const invalidate = useInvalidate()
+  const invalidate = useInvalidateEverything()
   return useMutation({
     mutationFn: ({ id, data }: { id: number; data: SaveTransaction }) => api.updateTransaction(id, data),
     onSuccess: invalidate,
@@ -255,7 +228,7 @@ export function useUpdateTransaction() {
 }
 
 export function useUpdateIncome() {
-  const invalidate = useInvalidate()
+  const invalidate = useInvalidateEverything()
   return useMutation({
     mutationFn: ({ id, data }: { id: number; data: SaveIncome }) => api.updateIncome(id, data),
     onSuccess: invalidate,
@@ -263,7 +236,7 @@ export function useUpdateIncome() {
 }
 
 export function useDeleteTransaction() {
-  const invalidate = useInvalidate()
+  const invalidate = useInvalidateEverything()
   return useMutation({ mutationFn: (id: number) => api.deleteTransaction(id), onSuccess: invalidate })
 }
 
@@ -271,19 +244,8 @@ export function useOpeningBalance() {
   return useQuery({ queryKey: queryKeys.openingBalance, queryFn: () => api.getOpeningBalance() })
 }
 
-/// Counting what is left changes the budget itself, so it invalidates everything the
-/// ordinary money mutations do — plus the count.
-function useInvalidateOpeningBalance() {
-  const invalidate = useInvalidate()
-  const qc = useQueryClient()
-  return () => {
-    invalidate()
-    qc.invalidateQueries({ queryKey: queryKeys.openingBalance })
-  }
-}
-
 export function useSetOpeningBalance() {
-  const invalidate = useInvalidateOpeningBalance()
+  const invalidate = useInvalidateEverything()
   return useMutation({
     mutationFn: (b: SaveOpeningBalance) => api.setOpeningBalance(b),
     onSuccess: invalidate,
@@ -291,17 +253,17 @@ export function useSetOpeningBalance() {
 }
 
 export function useClearOpeningBalance() {
-  const invalidate = useInvalidateOpeningBalance()
+  const invalidate = useInvalidateEverything()
   return useMutation({ mutationFn: () => api.clearOpeningBalance(), onSuccess: invalidate })
 }
 
 export function useCreateRecurring() {
-  const invalidate = useInvalidate()
+  const invalidate = useInvalidateEverything()
   return useMutation({ mutationFn: (r: SaveRecurring) => api.createRecurring(r), onSuccess: invalidate })
 }
 
 export function useUpdateRecurring() {
-  const invalidate = useInvalidate()
+  const invalidate = useInvalidateEverything()
   return useMutation({
     mutationFn: ({ id, data }: { id: number; data: SaveRecurring }) => api.updateRecurring(id, data),
     onSuccess: invalidate,
@@ -309,7 +271,7 @@ export function useUpdateRecurring() {
 }
 
 export function useDeleteRecurring() {
-  const invalidate = useInvalidate()
+  const invalidate = useInvalidateEverything()
   return useMutation({ mutationFn: (id: number) => api.deleteRecurring(id), onSuccess: invalidate })
 }
 
@@ -322,15 +284,12 @@ export function useTaxDefaults() {
 }
 
 export function useSaveTaxProfile() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (p: SaveTaxProfile) => api.saveTaxProfile(p),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.taxProfile }),
-  })
+  const invalidate = useInvalidateEverything()
+  return useMutation({ mutationFn: (p: SaveTaxProfile) => api.saveTaxProfile(p), onSuccess: invalidate })
 }
 
-/// Live income preview. Debounced so typing "24600" is one request, not five.
-/// Only meaningful in the base currency — the tax engine works in PLN.
+/// Live income preview. Debounced so typing "24600" is one request, not five. Only meaningful
+/// in the base currency — the tax engine works in PLN.
 export function useIncomePreview(amount: number, includesVat: boolean, enabled: boolean) {
   const debounced = useDebounced(amount, 350)
   return useQuery({
@@ -354,18 +313,9 @@ export function useSavings() {
   return useQuery({ queryKey: queryKeys.savings, queryFn: api.getSavings })
 }
 
-/// Both the plan and manual entries change safe-to-spend, so the summary must refetch too —
-/// and the income preview, which shows the savings goal while the form is still open.
 function useSavingsMutation<T>(fn: (v: T) => Promise<unknown>) {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: fn,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.savings })
-      qc.invalidateQueries({ queryKey: queryKeys.summary })
-      qc.invalidateQueries({ queryKey: queryKeys.incomePreview })
-    },
-  })
+  const invalidate = useInvalidateEverything()
+  return useMutation({ mutationFn: fn, onSuccess: invalidate })
 }
 
 export function useSaveSavingsPlan() {
@@ -389,8 +339,9 @@ export function useDeleteSavingsEntry() {
   return useSavingsMutation((id: number) => api.deleteSavingsEntry(id))
 }
 
-/// Банки як самостійна річ. Той самий інвалідатор, що й у рухів: список банок живе всередині
-/// `savings`, а порожня банка все одно нічого не тримає з норми — але наступна може.
+/// Envelopes as a thing in their own right, sharing the movements' invalidation: the list of
+/// jars lives inside `savings`, and an empty jar holds nothing back from the norm — but the
+/// next one might.
 export function useCreateEnvelope() {
   return useSavingsMutation((e: SaveEnvelope) => api.createEnvelope(e))
 }

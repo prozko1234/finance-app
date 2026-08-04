@@ -26,7 +26,7 @@ export function Home({
   summary, transactions, paydayNudge, canLoadMore, onLoadMore, onDelete, onAddIncome, onQuickCategory, onEdit, onGoSavings, onGoAllocation,
   onGoBalance,
 }: Props) {
-  const quick = buildQuickCategories(transactions, (name) => ICONS[name] ?? '📦')
+  const quick = buildQuickCategories(transactions)
 
   return (
     <div className="space-y-6">
@@ -394,10 +394,10 @@ function groupByDay(rows: Transaction[]): [string, Transaction[]][] {
   return [...days.entries()]
 }
 
-const ICONS: Record<string, string> = {
-  Їжа: '🍽', Транспорт: '🚌', Житло: '🏠', "Здоров'я": '💊', Розваги: '🎮', Інше: '📦',
-}
-
+/// Емодзі бере сама транзакція — те, що стоїть у категорії. Тут колись була табличка
+/// «назва → емодзі» з шістьма стартовими категоріями, і будь-яка інша категорія — створена
+/// руками чи перейменована — показувалась однаковим 📦, хоч у налаштуваннях їй було обрано
+/// своє. 📦 лишається тільки для категорії, якій емодзі не задали взагалі.
 function iconFor(t: Transaction): string {
-  return ICONS[t.categoryName] ?? '📦'
+  return t.categoryIcon || '📦'
 }

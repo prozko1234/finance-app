@@ -50,7 +50,11 @@ public record TransactionResponse(
     /// Income only: whether the figure the user typed was the gross one. Derived rather than
     /// stored — the two candidates differ by the whole VAT, so there is nothing to guess — and
     /// sent so the edit form opens on the same toggle the invoice was written with.
-    bool AmountIncludesVat = false);
+    bool AmountIncludesVat = false,
+    /// The emoji the category actually carries. Sent with the row because the list used to
+    /// guess it from the category NAME against a hard-coded table, so every category the user
+    /// made themselves — and every renamed one — showed the same 📦.
+    string? CategoryIcon = null);
 
 public record CategoryResponse(int Id, string Name, string? Icon, string? Color, int SortOrder, bool IsSystem);
 

@@ -18,7 +18,6 @@ export interface QuickCategory {
 /// recently, so the order is stable rather than jumping around after every entry.
 export function buildQuickCategories(
   transactions: Transaction[],
-  iconFor: (categoryName: string) => string | null,
   limit = 4,
 ): QuickCategory[] {
   const counts = new Map<number, QuickCategory & { lastSeen: number }>()
@@ -35,7 +34,7 @@ export function buildQuickCategories(
     counts.set(t.categoryId, {
       categoryId: t.categoryId,
       categoryName: t.categoryName,
-      icon: iconFor(t.categoryName),
+      icon: t.categoryIcon ?? null,
       uses: 1,
       lastSeen: index, // transactions arrive newest first, so smaller = more recent
     })
