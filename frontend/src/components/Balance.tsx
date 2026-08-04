@@ -6,20 +6,20 @@ import { Card, CardSkeleton, FormError, PrimaryButton, Screen, SectionTitle } fr
 
 interface Props {
   data: OpeningBalance | null
-  /// Валюта читання — дефолт для нового підрахунку.
+  /// The reading currency — the default for a new count.
   currency: string
   onSet: (b: SaveOpeningBalance) => Promise<void>
   onClear: () => Promise<void>
   onBack: () => void
 }
 
-/// «Скільки в мене зараз є» — та сама цифра, що на першому екрані банку.
+/// "Скільки в мене зараз є" — the same figure as on the banking app's front screen.
 ///
-/// Механізм існував із самого початку, але ввести його можна було
-/// ЛИШЕ в онбордингу, тобто один раз у житті застосунку. А він перебиває бюджет із доходу,
-/// зсуває вікно розрахунку і ставить план відкладень на паузу до наступної зарплати — тобто
-/// керує головною цифрою. Помилкову суму не було чим виправити: вона діяла до кінця періоду.
-/// Тепер це звичайний екран: порахувати заново, побачити, що діє, і прибрати.
+/// The mechanism existed from the start, but it could ONLY be entered during onboarding, that
+/// is once in the app's lifetime. Yet it overrides the budget from income, shifts the counting
+/// window and stands the savings plan down until the next payday — it drives the headline
+/// figure. A wrong amount could not be corrected: it held until the period ended. It is an
+/// ordinary screen now: count again, see what is in force, and clear it.
 export function Balance({ data, currency, onSet, onClear, onBack }: Props) {
   return (
     <Screen
@@ -38,8 +38,8 @@ export function Balance({ data, currency, onSet, onClear, onBack }: Props) {
   )
 }
 
-/// Що діє прямо зараз. `appliesNow` API повертав давно, але ніде не показувався — і
-/// зрозуміти, чому норма менша за очікувану, було нізвідки.
+/// What is in force right now. The API returned `appliesNow` long ago but nothing showed it,
+/// so there was nowhere to find out why the norm was smaller than expected.
 function Current({ data, onClear }: { data: OpeningBalance; onClear: () => Promise<void> }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -92,8 +92,8 @@ function Current({ data, onClear }: { data: OpeningBalance; onClear: () => Promi
   )
 }
 
-/// Один підрахунок замінює попередній: історія догадок про той самий період тільки
-/// породила б питання, яка з них зараз у силі.
+/// A new count replaces the previous one: a history of guesses about the same period would
+/// only raise the question of which one is in force.
 function CountForm({ currency, onSet }: {
   currency: string
   onSet: (b: SaveOpeningBalance) => Promise<void>
@@ -147,8 +147,8 @@ function CountForm({ currency, onSet }: {
         </select>
       </div>
 
-      {/* День підрахунку, бо з нього рахуються витрати. Вчорашня цифра — теж чесна цифра,
-          якщо в банк ти дивився вчора. */}
+      {/* The day of the count, because spending is measured from it. Yesterday's figure is an
+          honest one too, if yesterday is when you looked. */}
       <div>
         <label className="text-xs text-neutral-400">Коли дивився</label>
         <input

@@ -2,8 +2,8 @@ import type { Stats as StatsData } from '../types'
 import { money } from '../format'
 import { Card, CardSkeleton, Screen, SectionTitle } from './Screen'
 
-/// Two questions, one screen: «чи я виходжу в плюс» (a row per month, income against
-/// expense) and «на що пішло» (that month's expenses by category). No date pickers, no
+/// Two questions, one screen: "чи я виходжу в плюс" (a row per month, income against
+/// expense) and "на що пішло" (that month's expenses by category). No date pickers, no
 /// filters, no chart library — bars are divs, and a wider question is a wider screen.
 ///
 /// Bars are drawn with paired horizontal rows rather than vertical columns because on a
@@ -94,12 +94,12 @@ function Bar({ value, scale, className }: { value: number; scale: number; classN
   )
 }
 
-/// «Скільки я відкладаю» — and, right beside it, the answer to the question that always comes
+/// "Скільки я відкладаю" — and, right beside it, the answer to the question that always comes
 /// next: how the allocation scheme and the jars relate to each other.
 ///
 /// They are two halves of one number. The scheme moves its share into jars by itself at the
-/// start of every period (that is «за схемою»); anything the user adds on top, takes back out,
-/// or pays straight out of a jar is «руками». Summed, that is what actually stayed put — and
+/// start of every period (that is "за схемою"); anything the user adds on top, takes back out,
+/// or pays straight out of a jar is "руками". Summed, that is what actually stayed put — and
 /// that sum, not the plan, is what the rate is computed from. A scheme promising 20% while
 /// the jars get raided every month should read as a low number, not a high one.
 ///
@@ -141,7 +141,7 @@ function Saved({ data }: { data: StatsData }) {
                   {saved > 0 ? '+' : ''}{money(saved, c)}
                 </span>
                 {m.income > 0 && <span className="text-neutral-400"> · {rate(saved, m.income)}</span>}
-                {/* Both halves only when they differ — «500 за схемою» under a row that
+                {/* Both halves only when they differ — "500 за схемою" under a row that
                     already says 500 is a line to read for nothing. */}
                 {m.savedByHand !== 0 && m.savedByPlan !== 0 && (
                   <span className="block text-xs text-neutral-400">

@@ -48,8 +48,8 @@ describe('Allocation', () => {
     expect(onSave).toHaveBeenCalledWith({ preset: '50-30-20' })
   })
 
-  /// «А гроші, які вже відкладені?» — питання виникає одразу після тапу, і відповідь має
-  /// бути тут же, а не в голові автора.
+  /// "А гроші, які вже відкладені?" comes up the moment the tap lands, and the answer belongs
+  /// on the screen rather than in the author's head.
   it('says what the change did to the period that is running', async () => {
     const onSave = vi.fn().mockResolvedValue(undefined)
     const { rerender } = render(<Allocation {...props} data={data()} onSave={onSave} />)

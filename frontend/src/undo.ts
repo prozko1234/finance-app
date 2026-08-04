@@ -1,22 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-/// Видалення, яке ще можна забрати назад. Рядок зникає одразу — це чесний фідбек, — але
-/// запит на сервер іде лише через кілька секунд, і «Повернути» його просто скасовує.
+/// A delete that can still be taken back. The row disappears at once — honest feedback — but
+/// the request only leaves for the server a few seconds later, and undo simply cancels it.
 ///
-/// До цього в застосунку жили три різні патерни: транзакція і рух у банці видалялись одним
-/// тапом без питань і без вороття, а підписка — через «познач і підтверди». Тобто найдорожча
-/// втрата (запис про гроші) була найдешевшою в один тап. Підтвердження на кожен тап — не
-/// вихід: діалог, який бачиш щодня, перестаєш читати, а зайве рішення тут — це те, від чого
-/// застосунок і має звільняти.
+/// The app used to have three different patterns: a transaction and a jar movement went on one
+/// tap, no questions and no way back, while a subscription took mark-then-confirm. The most
+/// expensive loss — a record about money — was the cheapest single tap. Confirming every tap is
+/// not the answer either: a dialog seen daily stops being read, and an extra decision is
+/// exactly what this app exists to remove.
 ///
-/// Скасувати можна лише одне останнє видалення: друге підтверджує перше. Черга з кількох
-/// «Повернути» означала б, що треба пам'ятати, який саме рядок повернеться.
+/// Only the last delete can be undone; a second one confirms the first. A queue of undos would
+/// mean remembering which row is about to come back.
 const DELAY_MS = 5000
 
 export interface DeferredDelete {
-  /// Id, які список має приховати, поки видалення ще можна скасувати.
+  /// The ids the list must hide while the delete can still be cancelled.
   hidden: number[]
-  /// Текст для панелі «Повернути», або null — коли нічого не висить.
+  /// The label for the undo bar, or null when nothing is pending.
   label: string | null
   request: (id: number, label: string, commit: () => void) => void
   undo: () => void
@@ -52,8 +52,8 @@ export function useDeferredDelete(delayMs = DELAY_MS): DeferredDelete {
     setPending(null)
   }, [])
 
-  // Застосунок закривають — видалення все одно має відбутись: людина вже побачила його
-  // зробленим, і рядок, що повернувся сам, читався б як загублена дія.
+  // The app is closing, and the delete must still happen: the user has already seen it done,
+  // and a row that came back by itself would read as a lost action.
   useEffect(() => () => {
     if (!job.current) return
     clearTimeout(job.current.timer)

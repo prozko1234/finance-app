@@ -14,7 +14,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace FinanceApp.Api.Tests;
 
-/// Before envelopes, a scheme's Пенсія bucket only ever subtracted from the daily norm: the
+/// Before envelopes, a scheme's pension bucket only ever subtracted from the daily norm: the
 /// app held the money back every month and could never say how much had piled up, or let
 /// the user actually put it anywhere. These tests are about that gap being closed.
 public class EnvelopeTests
@@ -56,7 +56,7 @@ public class EnvelopeTests
     public async Task Every_non_spending_bucket_becomes_a_pot_money_can_go_into()
     {
         using var mem = new SqliteInMemory();
-        // 60% зобовʼязання / 10 пенсія / 10 довгі заощадження / 10 нерегулярні / 10 розваги
+        // 60% commitments / 10 pension / 10 long-term savings / 10 irregular / 10 fun
         await ActivateAsync(mem, "60-solution");
 
         var envelopes = await Sut(mem).StatusAsync(Month(Budget));
@@ -144,7 +144,7 @@ public class EnvelopeTests
         Assert.Equal(850m, after.HeldBack);
     }
 
-    /// The point of replacing «треба/варто/хочу»: where the money comes from is a fact that
+    /// The point of replacing "треба/варто/хочу": where the money comes from is a fact that
     /// changes a number, unlike a priority, which changed nothing on any screen.
     [Fact]
     public async Task Paying_out_of_an_envelope_empties_it_by_that_much()
@@ -173,8 +173,8 @@ public class EnvelopeTests
         Assert.Equal(600m, after.HeldBack);
     }
 
-    /// The question the envelope screen exists to answer: за період скільки пішло і
-    /// скільки там тепер.
+    /// The question the envelope screen exists to answer: over a period, how much moved and
+    /// how much is in the jar now.
     [Fact]
     public async Task History_reports_what_moved_and_what_the_balance_became()
     {
@@ -253,7 +253,7 @@ public class EnvelopeTests
     /// window the home screen used, so a counted balance stood the goals down on one and not
     /// on the other: every page load deleted or re-created the app's own deposit, the balance
     /// flipped between two numbers depending on which screen had loaded last, and the id churn
-    /// turned an ordinary edit into «Операцію не знайдено».
+    /// turned an ordinary edit into "Операцію не знайдено".
     [Fact]
     public async Task A_counted_balance_stands_the_plan_down_on_the_savings_screen_too()
     {
@@ -303,8 +303,8 @@ public class EnvelopeTests
         Assert.Equal(0m, after.StillToReserve);
     }
 
-    // Банки як самостійна річ: до цього банку можна було отримати лише як кошик схеми, тобто
-    // «Відпустка» вимагала зайти в схему й вигадати їй відсоток.
+    // Jars as a thing in their own right: until now a jar could only be had as a scheme
+    // bucket, so "Відпустка" meant opening the scheme and inventing a percentage for it.
 
     [Fact]
     public async Task A_pot_can_be_made_by_hand_and_stands_beside_the_scheme_ones()
@@ -447,8 +447,8 @@ public class EnvelopeTests
         Assert.True(again.MonthGoal > 0m);
     }
 
-    // Ціль на банку: банка, яку не годує схема, без цілі — просто скарбничка без сенсу.
-    // Гроші вона не тримає: темп — це інформація для рішення, а не ще одне резервування.
+    // A target on a jar: without one, a jar no scheme feeds is a pointless piggy bank. It
+    // holds no money back — the pace is information to decide with, not another reservation.
 
     [Fact]
     public async Task A_target_with_a_date_says_what_has_to_go_in_each_period()
@@ -458,7 +458,7 @@ public class EnvelopeTests
         var made = (await Sut(mem).CreateAsync("Відпустка", BucketKind.Savings)).Value!;
         await Savings(mem).AddEntryAsync(new("Deposit", 2_200m, null, null, null, made.Id));
 
-        // Кінець третього періоду від сьогоднішнього: 6 000 − 2 200 = 3 800 на три періоди.
+        // The end of the third period from this one: 6,000 − 2,200 = 3,800 over three periods.
         var third = BudgetPeriods.For(Today, BudgetPeriods.FirstOfMonth);
         for (var i = 0; i < 2; i++) third = BudgetPeriods.For(third.End.AddDays(1), BudgetPeriods.FirstOfMonth);
 
@@ -474,8 +474,9 @@ public class EnvelopeTests
         Assert.False(jar.Target.Overdue);
     }
 
-    /// Ціль нічого не тримає з денної норми: інакше вона змагалася б зі схемою за ті самі
-    /// гроші й тримала б їх двічі — і застосунок вирішував би за людину, чого їй хотіти.
+    /// A target holds nothing back from the daily norm: otherwise it would compete with the
+    /// scheme for the same money and hold it twice — and the app would be deciding for the user
+    /// what they are allowed to want.
     [Fact]
     public async Task A_target_reserves_nothing()
     {

@@ -37,18 +37,19 @@ public class IncomePreviewTests
         Frequency = Frequency.OneOff,
     };
 
-    /// Форма доходу обіцяла суму з плану, а відкладала схема — і в самій формі редактор
-    /// плану нічого не робив. Ціль тут має приходити з того самого джерела, що й усюди.
+    /// The income form promised the plan's amount while the scheme was the one putting money
+    /// aside — and the plan editor inside the form did nothing. The goal here has to come from
+    /// the same source as everywhere else.
     [Fact]
     public async Task The_savings_line_follows_the_scheme_when_the_scheme_owns_the_goal()
     {
         using var mem = new SqliteInMemory();
         mem.Db.TaxProfiles.Add(Profile());
-        // Тільки одна схема може бути активною, тож стартову спершу знімаємо.
+        // Only one scheme may be active, so the seeded one is stood down first.
         foreach (var scheme in mem.Db.AllocationSchemes) scheme.IsActive = false;
         await mem.Db.SaveChangesAsync();
 
-        // 50/30/20: 20% у заощадження. План каже 5% — і має бути проігнорований.
+        // 50/30/20: 20% into savings. The plan says 5%, and must be ignored.
         mem.Db.AllocationSchemes.Add(AllocationPresets.Find("50-30-20")!.ToScheme(isActive: true));
         mem.Db.SavingsPlans.Add(new SavingsPlan
         {
@@ -62,7 +63,7 @@ public class IncomePreviewTests
         Assert.True(r.IsSuccess);
         var p = r.Value!;
         Assert.Equal("50/30/20", p.SavingsFromScheme);
-        // Рівно 20% від того бюджету, який ця фактура створює — не 5% плану.
+        // Exactly 20% of the budget this invoice creates — not the plan's 5%.
         Assert.Equal(Math.Floor(p.BudgetAfter * 0.20m * 100m) / 100m, p.SavingsGoalAfter);
     }
 

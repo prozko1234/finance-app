@@ -5,8 +5,8 @@ export type View = 'home' | 'add' | 'balance' | 'settings' | 'recurring' | 'tax'
 interface Props {
   current: View
   onGo: (v: View) => void
-  /// Центр нижньої панелі — головна дія, а не екран. На десктопі її роль грає плаваюча
-  /// кнопка, тож панелі там немає.
+  /// The centre of the bottom bar is the main action, not a screen. On desktop a floating
+  /// button plays that role, so there is no bar there.
   onAdd: () => void
   /// Dev-only screens exist just in a dev build — the API exposes them in Development only.
   showDev: boolean
@@ -66,8 +66,8 @@ export function Nav({ current, onGo, onAdd, showDev, onLogout }: Props) {
               <span className="font-bold">finance</span>
               <button onClick={() => setOpen(false)} className="text-neutral-400 text-xl" aria-label="Закрити">✕</button>
             </div>
-            {/* Без того, що вже стоїть у нижній панелі: екран, до якого ведуть два різні
-                шляхи, робить обидва менш зрозумілими. Тут — рівно решта. */}
+            {/* Without what already sits in the bottom bar: a screen reachable by two
+                different routes makes both less clear. This is exactly the rest. */}
             <Group items={MONEY.filter((i) => !TABS.some((t) => t.view === i.view))} current={current} onGo={go} />
             <Group items={setup} label="Налаштування" current={current} onGo={go} />
             <LogoutItem onLogout={onLogout} />
@@ -84,12 +84,12 @@ export function Nav({ current, onGo, onAdd, showDev, onLogout }: Props) {
   )
 }
 
-/// Нижня панель — те, до чого тягнеться великий палець. Чотири вкладки і дія посередині:
-/// більше не влазить у ширину екрана так, щоб підпис лишався читабельним, а без підпису
-/// іконка перетворюється на загадку.
+/// The bottom bar is what a thumb reaches for. Four tabs and the action in the middle: more
+/// than that does not fit across the screen with a readable label, and without a label an icon
+/// becomes a riddle.
 ///
-/// «Ще» відкриває ту саму шухляду, що й бургер до цього — жоден екран не зник, просто
-/// чотири найчастіші перестали бути за два тапи.
+/// "Ще" opens the same drawer the burger used to — no screen disappeared, the four most
+/// frequent ones simply stopped being two taps away.
 const TABS: Item[] = [
   { view: 'home', label: 'Головна', icon: '◉' },
   { view: 'savings', label: 'Банки', icon: '🐖' },
@@ -102,14 +102,14 @@ function BottomBar({ current, onGo, onAdd, onMore }: {
   onAdd: () => void
   onMore: () => void
 }) {
-  // Екрани, яких немає серед вкладок, підсвічують «Ще» — інакше панель показує «Головна»
-  // активною, поки на екрані податковий профіль, і бреше про те, де ти знаходишся.
+  // Screens that are not tabs light up "Ще" — otherwise the bar shows "Головна" as active
+  // while the tax profile is on screen, and lies about where you are.
   const inTabs = TABS.some((t) => t.view === current)
 
   return (
     <nav
-      // Панель фіксована, тож відступ під home indicator їй треба свій: падінг на <body>
-      // до фіксованих елементів не дістає.
+      // The bar is fixed, so it needs its own home-indicator inset: padding on <body> does
+      // not reach fixed elements.
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       className="md:hidden fixed bottom-0 inset-x-0 z-30 flex items-stretch border-t border-neutral-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-900/95 backdrop-blur"
       aria-label="Основне меню"

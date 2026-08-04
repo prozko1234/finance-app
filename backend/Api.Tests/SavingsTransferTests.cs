@@ -14,8 +14,8 @@ using static FinanceApp.Api.Tests.TestIncome;
 
 namespace FinanceApp.Api.Tests;
 
-/// Перекидання між банками. Руками це були два рухи — зняти тут, покласти там, — і між ними
-/// гроші не існували ніде; а якщо другий рух забували, вони там і лишались.
+/// Transfers between jars. By hand this was two movements — withdraw here, deposit there — and
+/// in between the money existed nowhere; forget the second one and it stayed that way.
 public class SavingsTransferTests
 {
     private static EnvelopeService Envelopes(SqliteInMemory mem) =>
@@ -34,7 +34,7 @@ public class SavingsTransferTests
     private static MonthlyBudgetResult Month() => new(
         6_000m, null, BudgetPeriods.For(DateOnly.FromDateTime(DateTime.Now), BudgetPeriods.FirstOfMonth).Start, false);
 
-    /// Дві банки з грошима в першій.
+    /// Two jars, with money in the first one.
     private static async Task<(int From, int To)> TwoJarsAsync(SqliteInMemory mem, decimal inFirst)
     {
         mem.Db.Transactions.Add(Income(6_000m));
@@ -58,7 +58,7 @@ public class SavingsTransferTests
         var jars = await Envelopes(mem).StatusAsync(Month());
         Assert.Equal(600m, jars.Single(e => e.Id == from).Balance);
         Assert.Equal(400m, jars.Single(e => e.Id == to).Balance);
-        // Разом — стільки ж, скільки було: перекидання не створює і не з'їдає грошей.
+        // The total is what it was: a transfer neither creates nor eats money.
         Assert.Equal(1_000m, jars.Sum(e => e.Balance));
     }
 
@@ -87,8 +87,8 @@ public class SavingsTransferTests
         Assert.False(refused.IsSuccess);
     }
 
-    /// Половина перекидання — не рух сам по собі: якби зникла лише вона, гроші пішли б із
-    /// однієї банки й не прийшли б у жодну, а «Відкладено всього» показало б це як факт.
+    /// Half a transfer is not a movement in itself: if only that half vanished, money would
+    /// leave one jar and arrive in none — and "Відкладено всього" would report that as fact.
     [Fact]
     public async Task Undoing_a_transfer_takes_both_halves()
     {

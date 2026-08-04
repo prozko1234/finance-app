@@ -1,26 +1,26 @@
 import { CapacitorUpdater } from '@capgo/capacitor-updater'
 import { isNative } from './native'
 
-/// Нова версія фронту доїжджає на телефон без Xcode.
+/// A new build of the front end reaches the phone without Xcode.
 ///
-/// Capacitor пакує веб-асети всередину апки, і без цього кожна зміна React-коду вимагала б
-/// перезбірки й перевстановлення — тобто вбила б цикл «пожив → муляє → полагодив того ж дня»,
-/// який і рухає цей проєкт. Тепер Xcode потрібен лише коли міняється нативний код.
+/// Capacitor packs the web assets inside the app, so without this every React change would mean
+/// a rebuild and a reinstall — killing the "lived with it → it grates → fixed the same day"
+/// loop this project runs on. Xcode is now only needed when native code changes.
 ///
-/// Оновлення **не** застосовується на льоту: воно чекає наступного запуску. Підмінити
-/// сторінку під руками людини, яка саме вводить витрату, — це втратити те, що вона вводила.
+/// An update is **not** applied on the fly: it waits for the next launch. Swapping the page out
+/// from under someone who is entering an expense loses what they were entering.
 
-/// Позначити збірку робочою треба самому. Якщо цього не станеться — оновлення, яке не
-/// стартує, буде відкочено, і апка повернеться до попередньої робочої версії. Без цього
-/// один поламаний деплой перетворив би телефон на цеглину, до якої не дістатись без кабелю.
+/// Marking the build as healthy has to be done explicitly. If it never happens, an update that
+/// does not start is rolled back and the app returns to the last working version. Without this
+/// one broken deploy would brick the phone until a cable was involved.
 export async function markRunningVersionHealthy(): Promise<void> {
   if (!isNative()) return
 
   try {
     await CapacitorUpdater.notifyAppReady()
   } catch (e) {
-    // Не фатально: у найгіршому разі оновлення відкотиться, а це саме та поведінка, якої
-    // ми й хочемо, коли щось пішло не так.
+    // Not fatal: at worst the update rolls back, which is exactly the behaviour wanted when
+    // something has gone wrong.
     console.warn('notifyAppReady failed', e)
   }
 }

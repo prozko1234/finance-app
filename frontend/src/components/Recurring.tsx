@@ -9,8 +9,8 @@ interface Props {
   categories: Category[]
   items: RecurringType[]
   onCreate: (r: SaveRecurring) => Promise<void>
-  /// Виправлення підписки замість «видалити й ввести заново». `PUT` був давно, не було
-  /// лише способу його покликати.
+  /// Correcting a subscription instead of deleting and retyping it. `PUT` had existed for a
+  /// long time; there was just no way to call it.
   onUpdate: (id: number, r: SaveRecurring) => Promise<void>
   onToggle: (r: RecurringType) => void
   onDelete: (id: number) => Promise<void>
@@ -31,18 +31,18 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
   const [currency, setCurrency] = useState('PLN')
   const [categoryId, setCategoryId] = useState<number | null>(categories[0]?.id ?? null)
   const [cadence, setCadence] = useState<Cadence>(DEFAULT_CADENCE)
-  // Дата першого списання, а не «число місяця»: для щотижневої підписки числа не існує,
-  // а день тижня береться саме звідси.
+  // The date of the first charge, not a day-of-month: a weekly subscription has no such day,
+  // and the weekday is taken from here.
   const [startsOn, setStartsOn] = useState(todayIso)
   const [note, setNote] = useState('')
   const [drafts, setDrafts] = useState<Draft[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // Яку підписку зараз правимо. Форма та сама, що й для створення: інша форма для тих самих
-  // полів — це друге місце, де їх доведеться міняти.
+  // Which subscription is being corrected. The same form as for creating one: a second form
+  // over the same fields is a second place to change them.
   const [editing, setEditing] = useState<RecurringType | null>(null)
   // An empty screen has nothing to look at, so the form is already open there. With rows on
-  // it, the screen's job is answering «що в мене списується і скільки це коштує» — the form
+  // it, the screen's job is answering "що в мене списується і скільки це коштує" — the form
   // is a thing you go to a few times a year, and it was covering the answer.
   const [adding, setAdding] = useState(items.length === 0)
 
@@ -57,7 +57,7 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
     setNote(r.note ?? '')
     setDrafts([])
     setError(null)
-    // Форма живе над списком: без цього тап по рядку виглядав би так, ніби нічого не сталось.
+    // The form lives above the list; without this, tapping a row would look like nothing happened.
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -82,7 +82,7 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
         unit: cadence.unit,
         interval: cadence.interval,
         note: note.trim() || null,
-        // Пауза й вид (дохід чи витрата) не в цій формі — вони лишаються, якими були.
+        // The pause and the kind (income or expense) are not in this form; they stay as they were.
         active: editing.active,
         kind: editing.kind,
         amountIncludesVat: editing.amountIncludesVat,
@@ -321,8 +321,8 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
               >
                 {r.active ? '⏸' : '▶'}
               </button>
-              {/* Видаляє одразу: повернути можна панеллю «Повернути», спільною для всього
-                  застосунку. Пара «познач і підтверди» жила тут одна на весь застосунок. */}
+              {/* Deletes at once: the app-wide undo bar is how it comes back. The
+                  mark-then-confirm pair lived here and nowhere else. */}
               <button
                 onClick={() => void onDelete(r.id)}
                 className="px-1 text-neutral-300 hover:text-red-500"
@@ -341,7 +341,7 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
 
 /// The one figure this screen is actually opened for: what all of this costs in a month.
 /// A list of seven rows on four different rhythms does not add up in anyone's head, and the
-/// question behind «підписок забагато» is always the total, never the rows.
+/// question behind "підписок забагато" is always the total, never the rows.
 ///
 /// Grouped by the currency each was entered in, and NOT converted: a rate would have to be
 /// fetched, and a total in a currency none of the rows are in reads as an app's opinion
@@ -383,9 +383,9 @@ function MonthlyCost({ items }: { items: RecurringType[] }) {
   )
 }
 
-/// Коли це станеться наступного разу — і чи вже сталось цього періоду. Рядок підписки, що вже
-/// списалась, виглядав точно як той, що ще попереду: «кожного 5-го» однаково правдиве і за
-/// день до, і за день після, а гроші тим часом уже пішли.
+/// When this happens next — and whether it already happened this period. A subscription that
+/// has already charged looked exactly like one still ahead: "кожного 5-го" is equally true the
+/// day before and the day after, and the money has gone by then.
 function whenNext(r: RecurringType): string {
   if (!r.active) return 'на паузі'
 

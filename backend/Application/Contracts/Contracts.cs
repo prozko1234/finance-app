@@ -74,12 +74,14 @@ public record MonthTaxBreakdown(
     decimal Tax,
     decimal SetAside,     // VAT + ZUS + здоровотна + податок
     decimal TakeHome,     // = MonthlyBudget
-    /// Валюта цього розкладу — завжди базова. Польський рушій рахує у злотих, і саме ці
-    /// цифри побачить книгова, тож вони не конвертуються разом з рештою екрана.
+    /// This split's currency is always the base one. The Polish engine works in złoty, and
+    /// these are the figures the bookkeeper will see, so they are not converted with the rest
+    /// of the screen.
     string Currency,
-    /// Рік, на який перевірені вшиті ставки ZUS, здоровотної та порогів PIT. Машинного
-    /// API на них немає (перевірено), тож єдиний захист від тихо застарілих цифр —
-    /// сказати вголос, за який рік вони, і дати додатку помітити, що рік уже інший.
+    /// The year the built-in ZUS, health-contribution and PIT-threshold figures were checked
+    /// against. There is no machine-readable API for them (verified), so the only guard against
+    /// quietly stale numbers is to say which year they are for and let the app notice when the
+    /// year has moved on.
     int RatesYear = 0);
 
 public record SafeToSpendResponse(

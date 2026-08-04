@@ -3,8 +3,8 @@ import type { Device } from '../api'
 import { dayMonth } from '../format'
 import { Card, FormError, PrimaryButton, Screen, SectionTitle } from './Screen'
 
-/// Мінімальна довжина пароля — та сама, що на сервері (AccountService.MinPasswordLength).
-/// Тут вона лише щоб не відправляти запит, який точно повернеться помилкою.
+/// The minimum password length, the same as the server's (AccountService.MinPasswordLength).
+/// It is here only to avoid sending a request that is certain to come back an error.
 const MIN_PASSWORD = 10
 
 interface Props {
@@ -13,15 +13,15 @@ interface Props {
   onChangeEmail: (password: string, email: string) => Promise<void>
   onSignOutEverywhere: () => Promise<void>
   onLogout: () => void
-  /// Пристрої, що заходять токеном. Порожньо, поки нативної апки немає.
+  /// Devices that sign in with a token. Empty until there is a native app.
   devices: Device[]
   onRevokeDevice: (id: number) => Promise<void>
   onBack: () => void
 }
 
-/// Все про сам акаунт в одному місці. До цього пароль жив у змінній оточення: щоб його
-/// змінити, треба було лізти в Coolify і передеплоїти, а сесію на чужому пристрої не
-/// можна було закрити взагалі.
+/// Everything about the account itself in one place. The password used to live in an
+/// environment variable: changing it meant going into Coolify and redeploying, and a session on
+/// somebody else's device could not be closed at all.
 export function Account({
   email, onChangePassword, onChangeEmail, onSignOutEverywhere, onLogout,
   devices, onRevokeDevice, onBack,
@@ -163,8 +163,8 @@ function SessionsCard({ onSignOutEverywhere, onLogout }: {
   )
 }
 
-/// Показується лише коли пристрої є. Порожня картка «тут нічого немає» на екрані, який
-/// відкривають раз на півроку, — це питання без відповіді: у браузера пристроїв не буває.
+/// Shown only when there are devices. An empty "nothing here" card on a screen opened twice a
+/// year is a question with no answer: a browser has no devices.
 function DevicesCard({ devices, onRevoke }: {
   devices: Device[]
   onRevoke: (id: number) => Promise<void>

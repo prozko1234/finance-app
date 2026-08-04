@@ -1,31 +1,31 @@
 import type { ImportRow } from './types'
 
-/// Одна крамниця в прев'ю: усі її рядки, разом.
+/// One shop in the preview: all of its rows, together.
 ///
-/// Це головна причина, чому імпорт на 300 рядків не є 300 рішеннями. Виписка за місяць — це
-/// зазвичай 20–30 різних крамниць, і «ŻABKA × 14 · 340 zł» одним рядком з одним вибором
-/// категорії лишає рівно стільки роботи, скільки її насправді є.
+/// This is the main reason a 300-row import is not 300 decisions. A month's statement is
+/// usually 20–30 different shops, and "ŻABKA × 14 · 340 zł" as one row with one category
+/// choice leaves exactly as much work as there actually is.
 export interface ImportGroup {
   key: string
   merchant: string
   rows: ImportRow[]
-  /// Сума по групі, зі знаком: видатки від'ємні, надходження додатні.
+  /// The group's total, signed: expenses negative, income positive.
   total: number
-  /// Куди покласти. null — ніхто не знає, і саме ці групи треба показати вгорі.
+  /// Where it goes. Null — nobody knows, and those groups are the ones to show first.
   categoryId: number | null
   include: boolean
 }
 
-/// Групи, готові до показу. Дублікати сюди не потрапляють — вони окремим списком, вимкнені
-/// за замовчуванням: рядок, який уже є в застосунку, не має тихо додатись удруге.
+/// The groups ready to be shown. Duplicates stay out — they get their own list, off by
+/// default: a row the app already has must not quietly be added a second time.
 export function groupRows(rows: ImportRow[]): ImportGroup[] {
   const byKey = new Map<string, ImportGroup>()
 
   for (const row of rows) {
     if (row.duplicateOfId !== null) continue
 
-    // Рядок без назви крамниці групувати нема за чим — кожен такий сам по собі, інакше
-    // безіменні перекази з різних місяців злиплись би в одну купу.
+    // A row with no shop name has nothing to group by, so each stands alone — otherwise
+    // nameless transfers from different months would clump into one pile.
     const key = row.merchantKey || `line:${row.line}`
     const existing = byKey.get(key)
 
@@ -45,23 +45,23 @@ export function groupRows(rows: ImportRow[]): ImportGroup[] {
     })
   }
 
-  // Невідомі — вгору: це єдині, що потребують рішення. Далі за розміром, бо саме там
-  // помилка в категорії коштує найбільше.
+  // Unknown ones first: they are the only ones needing a decision. Then by size, because that
+  // is where a wrong category costs the most.
   return [...byKey.values()].sort((a, b) => {
     if ((a.categoryId === null) !== (b.categoryId === null)) return a.categoryId === null ? -1 : 1
     return Math.abs(b.total) - Math.abs(a.total)
   })
 }
 
-/// Скільки груп іще чекають на рішення. Кнопка «Імпортувати» на це не зважає — можна
-/// імпортувати і так, — але сказати про це треба.
+/// How many groups are still waiting for a decision. The import button does not care — it can
+/// go ahead regardless — but it is worth saying.
 export function undecidedCount(groups: ImportGroup[]): number {
   return groups.filter((g) => g.include && g.categoryId === null).length
 }
 
-/// Рядки, які поїдуть на сервер: тільки увімкнені групи, кожен рядок із категорією своєї
-/// групи. Групи без категорії відпадають — сервер відмовив би все одно, а мовчазна втрата
-/// половини імпорту виглядала б як успіх.
+/// The rows that go to the server: enabled groups only, each row carrying its group's
+/// category. Groups without a category drop out — the server would refuse them anyway, and
+/// silently losing half an import would look like success.
 export function rowsToCommit(groups: ImportGroup[], extra: ImportRow[] = [], extraCategoryId: number | null = null) {
   const fromGroups = groups
     .filter((g) => g.include && g.categoryId !== null)

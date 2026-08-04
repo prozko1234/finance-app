@@ -6,7 +6,7 @@ import { Card, CardSkeleton, FormError, PrimaryButton, RatesNote, Screen, Sectio
 interface Props {
   profile: TaxProfileData | null
   defaults: TaxDefaults | null
-  /// Що цей період уже нарахував за цим профілем. null — доходу ще немає.
+  /// What this period has accrued under this profile. Null — there is no income yet.
   month: MonthTaxes | null
   onSave: (p: SaveTaxProfile) => Promise<void>
   onBack: () => void
@@ -33,9 +33,9 @@ export function TaxProfile({ profile, defaults, month, onSave, onBack }: Props) 
   )
 }
 
-/// Розклад цього періоду — цифри для книгової. Жив на головній під розкривачкою «з чого»,
-/// де його читали раз на місяць, а решту часу він робив головну довшою. Тут він на своєму
-/// місці: поруч зі ставками, з яких і вийшов.
+/// This period's split — the bookkeeper's figures. It used to live on the home screen behind a
+/// disclosure, where it was read once a month and made the home screen longer the rest of the
+/// time. Here it belongs: beside the rates it came out of.
 function MonthCard({ month }: { month: MonthTaxes | null }) {
   if (!month) return null
 

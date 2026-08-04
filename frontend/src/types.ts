@@ -23,24 +23,24 @@ export interface Transaction {
   amountOriginal: number
   currencyOriginal: string
   amountBase: number
-  /// Та сама сума, як її читає користувач — за курсом дати САМОЇ транзакції.
-  /// Дорівнює amountBase, поки основна валюта PLN.
+  /// The same amount as the user reads it, at the rate of THIS transaction's own date.
+  /// Equals amountBase while the base currency is PLN.
   amountDisplay: number
   displayCurrency: string
   fxRate: number
   fxDate: string
   categoryId: number
   categoryName: string
-  /// Емодзі самої категорії. Раніше список угадував його з назви по табличці, тож усе, що
-  /// користувач створив сам, показувалось однаковим 📦.
+  /// The emoji the category itself carries. The list used to guess it from the name against a
+  /// table, so everything the user made themselves showed the same 📦.
   categoryIcon?: string | null
-  /// З якої банки заплачено. null — зі звичайних грошей на витрати.
+  /// Which jar this was paid out of. Null — out of ordinary spending money.
   envelopeId?: number | null
   envelopeName?: string | null
   frequency: Frequency
   source: string
-  /// Дохід: чи те, що вписали, було сумою з VAT. Відновлено з самого рядка — брутто й нетто
-  /// різняться на цілий VAT, тож форма редагування відкривається на тому самому перемикачі.
+  /// Income only: whether the figure typed was the one with VAT. Recovered from the row —
+  /// gross and net differ by the whole VAT — so the edit form opens on the same toggle.
   amountIncludesVat: boolean
   date: string
   merchant?: string | null
@@ -56,7 +56,7 @@ export interface SaveTransaction {
   date?: string | null
   merchant?: string | null
   note?: string | null
-  /// Звідки гроші: null (і за замовчуванням) — зі звичайних, інакше id банки.
+  /// Where the money comes from: null (the default) — ordinary money, otherwise a jar id.
   envelopeId?: number | null
 }
 
@@ -92,9 +92,10 @@ export interface MonthTaxes {
   tax: number
   setAside: number
   takeHome: number
-  /// Завжди базова валюта: польський рушій рахує у злотих, і це ті цифри, що в книгової.
+  /// Always the base currency: the Polish engine works in złoty, and these are the figures
+  /// the bookkeeper will see.
   currency: string
-  /// Рік, на який перевірені вшиті ставки ZUS і пороги PIT.
+  /// The year the built-in ZUS rates and PIT thresholds were checked against.
   ratesYear: number
 }
 
@@ -114,8 +115,8 @@ export interface IncomePreview {
   savingsActive: boolean
   savingsGoalAfter: number
   currency: string
-  /// Назва схеми, яка диктує ціль, або null — тоді вирішує план. Якщо задано, редактор
-  /// плану у формі нічого не змінить, і форма має це сказати.
+  /// The scheme dictating the goal, or null when the plan decides it. When set, the plan
+  /// editor in the form changes nothing — and the form has to say so.
   savingsFromScheme: string | null
 }
 
@@ -126,45 +127,48 @@ export interface SavingsSummary {
   stillToReserve: number
 }
 
-/// Одна банка: скільки в ній назбиралось і як іде цей місяць.
+/// One jar: what has piled up in it, and how this month is going.
 export interface EnvelopeSummary {
   id: number
   name: string
   kind: BucketKind
-  /// Банка, яка існує завжди і яку годує план заощаджень.
+  /// The jar that always exists and that the savings plan feeds.
   isDefault: boolean
   balance: number
   monthGoal: number
   depositedThisMonth: number
   stillToReserve: number
-  /// Банку принесла схема: назву й ціль задає її кошик, тому тут їх не міняють.
+  /// The scheme brought this jar: its bucket owns the name and the goal, so neither is
+  /// editable here.
   isFromScheme: boolean
-  /// До чого банку наповнюють, якщо ціль поставили. Гроші не тримає — лише показує темп.
+  /// What the jar is being filled up to, if a target was set. Holds no money back — it only
+  /// shows the pace.
   target: EnvelopeTarget | null
 }
 
-/// «Відпустка 6 000 до червня» → «950 за період».
+/// "Відпустка 6 000 до червня" → "950 за період".
 export interface EnvelopeTarget {
   amount: number
-  /// Дата, до якої збираємо, або null — тоді темпу немає, є лише сума.
+  /// The date being saved towards, or null — then there is no pace, only an amount.
   date: string | null
   remaining: number
   periodsLeft: number
-  /// Скільки має заходити щопері́од, щоб дійти вчасно. 0 — коли дати немає або ціль зібрана.
+  /// What has to go in each period to arrive on time. 0 when there is no date, or it is met.
   perPeriod: number
   reached: boolean
-  /// Дата минула, а грошей ще не досить — сказано вголос, а не перетворено в більшу суму.
+  /// The date has gone by with money still missing — said out loud rather than quietly
+  /// turned into a bigger monthly figure.
   overdue: boolean
 }
 
-/// Ціль або її кінець: amount === null знімає ціль разом із датою.
+/// A target, or the end of one: amount === null takes it off along with the date.
 export interface SaveEnvelopeTarget {
   amount: number | null
   currency?: string | null
   date?: string | null
 }
 
-/// Банка сама по собі, без цифр періоду — відповідь на створення й перейменування.
+/// A jar on its own, without the period's figures — the answer to creating or renaming one.
 export interface Envelope {
   id: number
   name: string
@@ -172,8 +176,8 @@ export interface Envelope {
   isDefault: boolean
 }
 
-/// Банка, зроблена руками: «Відпустка», «Ремонт». Вид — будь-який, крім `Spending`:
-/// гроші на витрати — це денна норма, а не банка.
+/// A jar made by hand: "Відпустка", "Ремонт". Any kind except `Spending` — money to spend
+/// is the daily norm, not a jar.
 export interface SaveEnvelope {
   name: string
   kind: BucketKind
@@ -183,23 +187,23 @@ export interface SavingsEntry {
   id: number
   date: string
   kind: 'Deposit' | 'Withdrawal'
-  /// У базовій валюті — те, що ця операція зробила з балансом.
+  /// In base currency — what this movement did to the balance.
   amount: number
-  /// Те, що людина реально вписала, і в якій валюті.
+  /// What the person actually typed, and in which currency.
   amountOriginal: number
   currencyOriginal: string
   note: string | null
   envelopeId: number
   envelopeName: string
-  /// Записав додаток, виконуючи схему, а не людина руками. Редагування чи видалення такого
-  /// руху скасовується наступним завантаженням екрана, тому UI цього й не пропонує.
+  /// Written by the app carrying out the scheme, not by hand. Editing or deleting such a
+  /// movement is undone by the next screen load, which is why the UI does not offer it.
   isAuto: boolean
-  /// Половина перекидання між банками. Редагується лише цілком: видалення забирає й другу
-  /// половину, бо гроші, що пішли з однієї банки й не прийшли в жодну, — це не факт.
+  /// Half of a transfer between jars. Edited only as a whole: deleting takes the other half
+  /// too, because money that left one jar and arrived in none is not a fact.
   isTransfer: boolean
 }
 
-/// Перекидання між банками: одна дія замість «зняти тут і не забути покласти там».
+/// A transfer between jars: one act instead of "withdraw here and remember to deposit there".
 export interface SaveTransfer {
   fromEnvelopeId: number
   toEnvelopeId: number
@@ -219,12 +223,12 @@ export interface Savings {
   stillToReserve: number
   currency: string
   recent: SavingsEntry[]
-  /// Усі банки, не тільки заощадження — інакше в пенсійний нічого не покласти.
+  /// Every jar, not only the savings one — otherwise a pension pot has no way to be fed.
   envelopes: EnvelopeSummary[]
-  /// Назва схеми розподілу, якщо ціль тепер диктує вона, а не план нижче.
+  /// The allocation scheme's name, when the goal is now its call rather than the plan's.
   goalFromScheme: string | null
-  /// День, коли порахували залишок, якщо саме це поставило план на паузу до наступної
-  /// зарплати. Інакше null.
+  /// The day the balance was counted, when that is what stood the plan down until the next
+  /// payday. Null otherwise.
   planPausedFrom: string | null
 }
 
@@ -240,7 +244,7 @@ export interface SaveSavingsEntry {
   date?: string | null
   note?: string | null
   currency?: string | null
-  /// У яку банку. Не вказано — у ту, що за замовчуванням.
+  /// Which jar. Omitted — the default one.
   envelopeId?: number
 }
 
@@ -252,13 +256,13 @@ export interface AllocationBucket {
   percent: number
 }
 
-/// Кошик із сумою, що реально в нього потрапила цього місяця.
+/// A bucket with the money that actually landed in it this month.
 export interface BucketShare extends AllocationBucket {
   id: number
   amount: number
 }
 
-/// Куди пішов бюджет ще до того, як порахувалась денна норма.
+/// Where the budget went before the daily norm was worked out.
 export interface AllocationSummary {
   schemeName: string
   preset: string | null
@@ -285,7 +289,7 @@ export interface Allocation {
   presets: AllocationPreset[]
 }
 
-/// Або ключ пресета, або назва плюс власні кошики.
+/// Either a preset key, or a name plus the user's own buckets.
 export interface SaveAllocation {
   preset?: string | null
   name?: string | null
@@ -309,14 +313,14 @@ export interface SafeToSpend {
   monthTaxes: MonthTaxes | null
   envelopes: EnvelopeSummary[]
   allocation: AllocationSummary | null
-  /// День, з якого рахуються витрати — 1 число або день, коли порахував залишок.
+  /// The day spending is counted from — the 1st, or the day the balance was counted.
   windowStart: string | null
-  /// Бюджет узятий із «скільки в мене зараз є», а не з доходу чи заданої суми.
+  /// The budget came from "скільки в мене зараз є" rather than from income.
   fromOpeningBalance: boolean
-  /// Період, який покривають ці цифри: від дня зарплати до дня перед наступною.
+  /// The period these figures cover: from payday to the day before the next one.
   periodStart: string
   periodEnd: string
-  /// Залишок минулого періоду, поки не сказано, куди його. null — питання вже закрите.
+  /// Last period's leftover, while it is still waiting to be placed. Null — already answered.
   carryover: Carryover | null
 }
 
@@ -324,19 +328,19 @@ export interface Carryover {
   amount: number
   fromStart: string
   fromEnd: string
-  /// Банка, куди піде відповідь за замовчуванням.
+  /// The jar the default answer would put it in.
   envelopeName: string
 }
 
 export type CarryoverDecision = 'ToEnvelope' | 'ToBudget' | 'Ignore'
 
-/// «Скільки в мене зараз є до кінця місяця» — старт не з 1 числа.
+/// "Скільки в мене зараз є до кінця місяця" — starting somewhere other than the 1st.
 export interface OpeningBalance {
   isSet: boolean
   amount: number | null
   currency: string
   date: string | null
-  /// Порахований цього місяця, тобто саме він зараз керує денною нормою.
+  /// Counted this month, so it is what drives the daily norm right now.
   appliesNow: boolean
 }
 
@@ -346,7 +350,8 @@ export interface SaveOpeningBalance {
   date?: string
 }
 
-/// Одиниця повторення. Кварталу немає свідомо — це 3 × Month, як і пів року це 6 × Month.
+/// The unit a schedule repeats in. No quarter on purpose — that is 3 × Month, as half a year
+/// is 6 × Month.
 export type RecurrenceUnit = 'Week' | 'Month' | 'Year'
 
 export interface Recurring {
@@ -355,7 +360,7 @@ export interface Recurring {
   currencyOriginal: string
   categoryId: number
   categoryName: string
-  /// Дата першого списання — від неї рахується весь розклад.
+  /// The date of the first charge — the whole schedule is counted from it.
   startsOn: string
   unit: RecurrenceUnit
   interval: number
@@ -363,9 +368,10 @@ export interface Recurring {
   note?: string | null
   kind: 'Expense' | 'Income'
   amountIncludesVat: boolean
-  /// Коли спишеться наступного разу; null — поки на паузі.
+  /// When it goes out next; null while paused.
   nextChargeOn: string | null
-  /// Цього періоду вже пішло з бюджету — рядок виглядає так само, тож це треба сказати.
+  /// Already taken out of this period's budget. The row looks identical either way, so it
+  /// has to be said.
   chargedThisPeriod: boolean
 }
 
@@ -381,30 +387,30 @@ export interface SaveRecurring {
   amountIncludesVat?: boolean
   /// Omitted = 'Month'.
   unit?: RecurrenceUnit
-  /// Кожні N одиниць: 2 + Week — раз на два тижні, 3 + Month — раз на квартал.
+  /// Every N units: 2 + Week is fortnightly, 3 + Month is quarterly.
   interval?: number
 }
 
 export interface AppSettings {
-  /// Валюта, в якій користувач читає застосунок.
+  /// The currency the user reads the app in.
   displayCurrency: string
-  /// Валюта зберігання. Не змінюється ніколи — історія не переписується.
+  /// The storage currency. Never changes — history is not rewritten.
   baseCurrency: string
-  /// true = основна валюта не PLN, тож податковий розклад треба підписати окремо.
+  /// True = the base currency is not PLN, so the tax split needs its own label.
   taxesInBaseCurrency: boolean
-  /// День місяця, коли приходять гроші — з нього починається період.
+  /// The day of the month the money arrives — where the period starts.
   periodStartDay: number
-  /// Період, який цей день дає прямо зараз.
+  /// The period that day produces right now.
   periodStart: string
   periodEnd: string
 }
 
-/// Валюта зберігання. Для вводу нових сум — дефолт; для показу бери displayCurrency
-/// з налаштувань, інакше підпишеш злоті чужою міткою.
+/// The storage currency. Use it as the default when entering new amounts; to DISPLAY one,
+/// take displayCurrency from the settings, or złoty end up labelled as something else.
 export const BASE_CURRENCY = 'PLN'
 export const CURRENCIES = ['PLN', 'UAH', 'USD', 'EUR'] as const
 
-/// 'None' = «просто гроші»: сума вся твоя. Решта — форми оподаткування в Польщі.
+/// 'None' = "просто гроші": the whole amount is yours. The rest are Polish tax regimes.
 export type TaxRegime = 'None' | 'Ryczalt' | 'UoP' | 'Zlecenie'
 
 export interface TaxProfile {
@@ -434,16 +440,16 @@ export interface TaxDefaults {
   healthOver300k: number
 }
 
-/// Статистика: стовпчики по місяцях + розклад одного місяця по категоріях.
-/// month — "yyyy-MM"; income для доходу — це przychód без VAT, як і в бюджеті.
+/// Statistics: a column per month, plus one month broken down by category.
+/// month is "yyyy-MM"; income is przychód, VAT excluded, exactly as the budget counts it.
 export interface MonthStats {
   month: string
   income: number
   expense: number
   net: number
-  /// Скільки схема розподілу відклала в банки сама.
+  /// What the allocation scheme moved into jars by itself.
   savedByPlan: number
-  /// Що додав або зняв руками, і що заплатив прямо з банки. Може бути від'ємним.
+  /// What the user added or took out by hand, and paid straight out of a jar. Can be negative.
   savedByHand: number
 }
 
@@ -464,11 +470,11 @@ export interface Stats {
   categories: CategoryStats[]
 }
 
-/// required=false — локальна робота без акаунта; тоді екран входу не показуємо взагалі.
+/// required=false — running locally with no account; then no login screen is shown at all.
 export interface AuthStatus {
   required: boolean
   authenticated: boolean
-  /// Пошта акаунта; null, поки не увійшли.
+  /// The account's email; null until signed in.
   email: string | null
 }
 
@@ -477,7 +483,7 @@ export interface Credentials {
   password: string
 }
 
-/// Один період у житті банки: скільки в нього зайшло чи вийшло і що стало з балансом.
+/// One period in a jar's life: what moved in or out, and what the balance became.
 export interface EnvelopePeriod {
   start: string
   end: string
@@ -485,23 +491,23 @@ export interface EnvelopePeriod {
   balanceAfter: number
 }
 
-/// Один рядок виписки, як його зрозумів сервер. `amount` зі знаком: від'ємне — витрата.
+/// One statement row as the server understood it. `amount` is signed: negative is an expense.
 export interface ImportRow {
   line: number
   date: string
   amount: number
   currency: string
-  /// Рівно те, що написав банк — щоб рядок завжди можна було звірити з файлом.
+  /// Exactly what the bank wrote, so a row can always be checked against the file.
   description: string
-  /// Крамниця, прибрана для читання: без номера точки й банківських слів.
+  /// The shop tidied up for reading: no branch number, none of the bank's own words.
   merchant: string
-  /// За чим групуються рядки однієї крамниці й на чому вчиться правило.
+  /// What one shop's rows are grouped by, and what a rule is learned on.
   merchantKey: string
   kind: 'Expense' | 'Income'
-  /// Схожа транзакція, що вже є в застосунку — внесена руками чи імпортована раніше.
+  /// A similar transaction the app already has — entered by hand or imported earlier.
   duplicateOfId: number | null
-  /// Куди цю крамницю клали минулого разу, або що каже вбудований словник. null — ніхто
-  /// не знає, і тоді екран питає, а не вгадує.
+  /// Where this shop went last time, or what the built-in dictionary says. Null — nobody
+  /// knows, and then the screen asks rather than guesses.
   suggestedCategoryId: number | null
 }
 
@@ -514,7 +520,7 @@ export interface ImportProblem {
 export interface ImportPreview {
   rows: ImportRow[]
   problems: ImportProblem[]
-  /// Що саме сервер розпізнав — щоб, коли імпорт виглядає дивно, було видно чому.
+  /// What the server actually recognised, so a strange-looking import shows its reasons.
   delimiter: string
   headerFound: boolean
   encoding: string

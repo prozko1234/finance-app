@@ -35,8 +35,8 @@ describe('useDeferredDelete', () => {
     expect(result.current.hidden).toEqual([])
   })
 
-  /// Друге видалення підтверджує перше: черга з кількох «Повернути» означала б, що треба
-  /// пам'ятати, який саме рядок повернеться.
+  /// A second delete confirms the first: a queue of undos would mean remembering which row is
+  /// about to come back.
   it('commits the previous delete when another one starts', () => {
     const first = vi.fn()
     const second = vi.fn()
@@ -50,8 +50,8 @@ describe('useDeferredDelete', () => {
     expect(result.current.hidden).toEqual([2])
   })
 
-  /// Закрив застосунок — видалення все одно має відбутись: людина вже побачила його
-  /// зробленим, і рядок, що повернувся сам, читався б як загублена дія.
+  /// The app closed, and the delete must still happen: the user has already seen it done, and a
+  /// row that came back by itself would read as a lost action.
   it('commits a pending delete when the screen goes away', () => {
     const commit = vi.fn()
     const { result, unmount } = renderHook(() => useDeferredDelete(5000))

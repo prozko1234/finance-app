@@ -3,10 +3,15 @@
 Rules for writing code in this repo. Read before adding or changing code.
 
 ## Language
-- **Code comments and XML doc comments: ALWAYS English.** No exceptions.
+- **Code comments and XML doc comments: ALWAYS English.** No exceptions. This covers `//`,
+  `///`, `/* */`, JSX `{/* */}`, and comments inside tests — every comment in the repo.
+- **The one thing that may appear in Cyrillic inside a comment is a quoted UI string or a
+  quoted user question** — `the "Можна витратити сьогодні" card` — because that is the
+  literal thing on screen. Quote it, do not narrate in Ukrainian around it.
 - **User-facing strings stay Ukrainian** — UI text, and API error messages that reach the
   user (the app's language is Ukrainian). Only comments are English.
 - Identifiers, file names, commit messages: English.
+- If you touch a file that still has Ukrainian comments, translate the ones you touch.
 
 ## Token discipline (keep sessions cheap)
 Everything below stays in context for the rest of the session, so noisy output is

@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { envelopeIcon, envelopeWords } from './envelopeWords'
 
 describe('envelopeWords', () => {
-  /// У банці «Зобовʼязання» «внесок у заощадження» під 🐖 читався як помилка застосунку:
-  /// гроші, що йдуть на борг, не відкладаються в скарбничку.
+  /// In a jar called "Зобовʼязання", "внесок у заощадження" under a 🐖 read as a bug: money
+  /// going towards a debt is not being saved into a piggy bank.
   it('names the movement after what the jar actually is', () => {
     expect(envelopeWords('Debt').deposit).toBe('Погашення')
     expect(envelopeWords('Debt').depositAction).toBe('Погасити')

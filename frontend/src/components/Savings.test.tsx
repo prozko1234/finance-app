@@ -48,8 +48,8 @@ function renderScreen(
 ) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 
-  // Відкрита банка живе в адресі (див. router.ts), тож тут її тримає найменша можлива
-  // обгортка — інакше кожен тест мусив би сам вести цей стан.
+  // The opened jar lives in the address (see router.ts), so the smallest possible wrapper
+  // holds it here — otherwise every test would have to carry that state itself.
   function Harness() {
     const [openId, setOpenId] = useState<number | null>(null)
     return (
@@ -80,7 +80,7 @@ function renderScreen(
 }
 
 describe('Savings', () => {
-  /// Раніше екран відкривався на одній банці, і де лежить решта — було невидно.
+  /// The screen used to open on one jar, with no way to see where the rest of the money was.
   it('opens on the list of every envelope with its balance', () => {
     renderScreen(data([envelope(), envelope({ id: 2, name: 'Пенсія', balance: 4200, isDefault: false })]))
 
@@ -90,7 +90,7 @@ describe('Savings', () => {
     expect(screen.getByText('Пенсія')).toBeInTheDocument()
   })
 
-  /// Те, заради чого екран переробляли: за період видно і рух, і що стало з балансом.
+  /// The reason the screen was rebuilt: per period, both the movement and the resulting balance.
   it('shows period by period once an envelope is opened', async () => {
     renderScreen(data([envelope()]))
     const user = userEvent.setup()
@@ -100,13 +100,13 @@ describe('Savings', () => {
     expect(screen.getByText('По періодах')).toBeInTheDocument()
     expect(screen.getByText('10 липня – 9 серпня')).toBeInTheDocument()
     expect(screen.getByText('+1200,00 zł')).toBeInTheDocument()
-    // Двічі на екрані: великою цифрою зверху і як баланс після цього періоду.
+    // Twice on screen: as the headline figure at the top, and as the balance after this period.
     expect(screen.getAllByText('8200,00 zł').length).toBeGreaterThan(1)
-    // Зняття видно так само чесно, як і відкладання.
+    // A withdrawal is shown as honestly as a deposit.
     expect(screen.getByText('−400,00 zł')).toBeInTheDocument()
   })
 
-  /// План активний, а ціль 0 — без причини на екрані це виглядає як зламаний додаток.
+  /// An active plan with a goal of 0 looks like a broken app unless the reason is on screen.
   it('says why nothing is put aside in a period that started from a count', () => {
     renderScreen(data([envelope({ monthGoal: 0, depositedThisMonth: 0 })], {
       monthGoal: 0, depositedThisMonth: 0, planPausedFrom: '2026-07-20',
@@ -115,8 +115,8 @@ describe('Savings', () => {
     expect(screen.getByText(/20 липня ти порахував залишок/)).toBeInTheDocument()
   })
 
-  /// Внесок за схемою можна було відредагувати чи видалити — і наступне завантаження
-  /// екрана приводило його назад. Дія, яка ніби спрацювала і скасувалась сама.
+  /// A deposit the scheme made could be edited or deleted — and the next screen load brought it
+  /// back. An action that appeared to work and then undid itself.
   it('does not let the scheme own deposit be edited or deleted', async () => {
     const onDeleteEntry = vi.fn()
     renderScreen(data([envelope()], {
@@ -137,7 +137,7 @@ describe('Savings', () => {
 
     await user.click(screen.getByText('Заощадження'))
 
-    // Рух руками лишається з ✕; за схемою — без нього.
+    // A hand-made movement keeps its ✕; a scheme's does not have one.
     expect(screen.getAllByLabelText('Видалити')).toHaveLength(1)
     expect(screen.getByText('за схемою')).toBeInTheDocument()
 
@@ -153,9 +153,9 @@ describe('Savings', () => {
 
     expect(screen.queryByText(/Відкладати щомісяця/)).not.toBeInTheDocument()
   })
-  // Банки як самостійна річ: до цього банку можна було отримати лише як кошик схеми.
+  // Jars as a thing in their own right: until now a jar could only be had as a scheme bucket.
 
-  /// Слово «банка» саме запрошує зробити банку на відпустку — а зробити її було неможливо.
+  /// The word "банка" invites making one for a holiday — and there was no way to make one.
   it('makes a pot of its own from a name and a kind', async () => {
     const onCreateEnvelope = vi.fn()
     renderScreen(data([envelope()]), vi.fn(), { onCreateEnvelope })
@@ -190,8 +190,8 @@ describe('Savings', () => {
     await waitFor(() => expect(onArchiveEnvelope).toHaveBeenCalledWith(3))
   })
 
-  /// Банка, що зникла з грошима всередині, забрала б їх із «Відкладено всього» — тобто з
-  /// тієї єдиної цифри, якій застосунок просить вірити.
+  /// A jar that vanished with money inside would take it out of "Відкладено всього" — the one
+  /// figure this app asks to be trusted.
   it('does not offer to put away a pot that still holds money', async () => {
     renderScreen(data([envelope({ id: 3, name: 'Відпустка', isDefault: false, balance: 240 })]))
     const user = userEvent.setup()
@@ -202,8 +202,8 @@ describe('Savings', () => {
     expect(screen.getByText(/у ній ще 240,00/)).toBeInTheDocument()
   })
 
-  /// Назву банки зі схеми шукає кошик — перейменування тихо віддало б баланс банці, яку
-  /// ніхто не наповнює.
+  /// A scheme's bucket finds its jar by name, so a rename would quietly hand the balance to a
+  /// jar nobody feeds.
   it('does not offer renaming for a pot the scheme owns', async () => {
     renderScreen(data([envelope({ id: 2, name: 'Пенсія', isDefault: false, isFromScheme: true })]))
     const user = userEvent.setup()
@@ -213,7 +213,7 @@ describe('Savings', () => {
     expect(screen.queryByText('Назва й вид')).not.toBeInTheDocument()
     expect(screen.getByText(/задає схема розподілу/)).toBeInTheDocument()
   })
-  // Ціль на банку: без неї банка, яку не годує схема, — скарбничка без сенсу.
+  // A target on a jar: without one, a jar no scheme feeds is a pointless piggy bank.
 
   it('turns a target with a date into what has to go in each period', async () => {
     renderScreen(data([envelope({
@@ -229,11 +229,11 @@ describe('Savings', () => {
 
     expect(screen.getByText(/до 9 жовтня/)).toBeInTheDocument()
     expect(screen.getByText(/1266,67 zł за період, 3 періоди/)).toBeInTheDocument()
-    // Найважливіше вголос: ціль не забирає нічого з денної норми.
+    // The important part, said out loud: a target takes nothing out of the daily norm.
     expect(screen.getByText(/нічого не тримає з «Можна витратити сьогодні»/)).toBeInTheDocument()
   })
 
-  /// Дата необовʼязкова: «зібрати 6 000» — теж ціль, і вигадувати за людину дедлайн не можна.
+  /// The date is optional: "зібрати 6 000" is a goal too, and a deadline must not be invented.
   it('sets a target without a date at all', async () => {
     const onSetTarget = vi.fn()
     renderScreen(data([envelope({ id: 3, name: 'Ремонт', isDefault: false })]), vi.fn(), { onSetTarget })
@@ -260,13 +260,13 @@ describe('Savings', () => {
     const user = userEvent.setup()
 
     await user.click(screen.getByText('Відпустка'))
-    // Без дати темпу немає — і екран каже це, а не показує 0 за період.
+    // With no date there is no pace, and the screen says so rather than showing 0 per period.
     expect(screen.getByText(/Дати немає, тож і темпу немає/)).toBeInTheDocument()
 
     await user.click(screen.getByText('Прибрати'))
     await waitFor(() => expect(onSetTarget).toHaveBeenCalledWith(3, { amount: null }))
   })
-  /// «Внесок у заощадження» під 🐖 у банці «Зобовʼязання» читався як помилка застосунку.
+  /// "Внесок у заощадження" under a 🐖 in a jar called "Зобовʼязання" read as a bug.
   it('speaks the language of the jar it is showing', async () => {
     renderScreen(data([envelope({ id: 4, name: 'Зобовʼязання', kind: 'Debt', isDefault: false })], {
       recent: [
@@ -285,7 +285,7 @@ describe('Savings', () => {
     expect(screen.getByText('Погашення')).toBeInTheDocument()
     expect(screen.queryByText('Внесок')).not.toBeInTheDocument()
   })
-  /// Руками це були два рухи, і між ними гроші не існували ніде.
+  /// By hand this was two movements, and in between the money existed nowhere.
   it('moves money to another jar in one act', async () => {
     const onTransfer = vi.fn()
     renderScreen(data([
@@ -304,7 +304,7 @@ describe('Savings', () => {
     }))
   })
 
-  /// Порожній банці нема що перекидати, а єдиній — нікуди.
+  /// An empty jar has nothing to transfer, and the only jar has nowhere to send it.
   it('does not offer a move from an empty jar', async () => {
     renderScreen(data([
       envelope({ id: 1, name: 'Заощадження', balance: 0 }),
@@ -317,8 +317,8 @@ describe('Savings', () => {
     expect(screen.queryByText('Перекинути в іншу банку')).not.toBeInTheDocument()
   })
 
-  /// Половина перекидання — не рух сам по собі: правити її окремо означало б розсинхронити
-  /// дві сторони однієї дії.
+  /// Half a transfer is not a movement in itself: editing it alone would put the two sides of
+  /// one act out of step.
   it('shows a transfer as a transfer and does not open it for editing', async () => {
     renderScreen(data([envelope({ id: 1, name: 'Заощадження', balance: 600 })], {
       recent: [

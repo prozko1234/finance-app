@@ -7,7 +7,7 @@ import { CardSkeleton, FormError, Screen } from './Screen'
 
 interface Props {
   data: AllocationData | null
-  /// Бюджет місяця — щоб показувати не відсотки, а гроші. null = ще не заданий.
+  /// The period's budget, so shares can be shown as money rather than percentages. Null = not set.
   budget: number | null
   currency: string
   onSave: (a: SaveAllocation) => Promise<void>
@@ -24,7 +24,7 @@ const KINDS: { kind: BucketKind; label: string }[] = [
 
 export function Allocation({ data, budget, currency, onSave, onBack }: Props) {
   const [error, setError] = useState<string | null>(null)
-  // Назва щойно застосованої схеми — щоб сказати, що саме змінилось у цьому періоді.
+  // The name of the scheme just applied, so the screen can say what changed this period.
   const [appliedName, setAppliedName] = useState<string | null>(null)
 
   // The header stays while loading — the way back must not depend on the data arriving.
@@ -123,8 +123,8 @@ function AppliedNote({ active, appliedName, budget, currency }: {
   )
 }
 
-/// Один тап = схема застосована. Ніяких «обери, потім збережи»: зайвий крок — це
-/// зайве рішення, а схему все одно видно на головній одразу після вибору.
+/// One tap applies the scheme. No "pick, then save": the extra step is an extra decision, and
+/// the scheme shows up on the home screen right after the choice anyway.
 function PresetCard({ preset, budget, currency, active, onPick }: {
   preset: AllocationPreset
   budget: number | null
@@ -166,8 +166,8 @@ function PresetCard({ preset, budget, currency, active, onPick }: {
   )
 }
 
-/// Свій розподіл — за замовчуванням згорнутий. Більшості вистачить пресета, а хто хоче
-/// свій, той і розгорне.
+/// A split of one's own, collapsed by default. A preset is enough for most people, and
+/// whoever wants their own will open it.
 function CustomSplit({ current, budget, currency, onSave }: {
   current: { name: string; preset: string | null; buckets: AllocationBucket[] }
   budget: number | null
@@ -285,7 +285,7 @@ function CustomSplit({ current, budget, currency, onSave }: {
   )
 }
 
-/// Відсотки без хвоста нулів: 20, а не 20.00.
+/// Percentages without trailing zeros: 20, not 20.00.
 function pct(v: number): string {
   return String(Math.round(v * 100) / 100)
 }

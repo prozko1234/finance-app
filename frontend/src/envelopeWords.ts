@@ -1,16 +1,16 @@
 import type { BucketKind } from './types'
 
-/// Як називати рух у банці й чим її малювати — залежно від того, що це за банка.
+/// What to call a movement in a jar, and what to draw it with — depending on the kind of jar.
 ///
-/// Раніше будь-який внесок у будь-яку банку звався однаково, а на кожній банці стояло 🐖: у
-/// банці «Зобовʼязання» це читалось як помилка застосунку — гроші, які йдуть на борг, не
-/// «відкладаються» в свинку-скарбничку. Слово має збігатися з тим, що людина насправді робить,
-/// інакше воно щоразу вимагає перекладу в голові.
+/// Every deposit into every jar used to be called the same thing, and every jar wore a 🐖: in a
+/// jar called "Зобовʼязання" that read as a bug — money going towards a debt is not being
+/// saved into a piggy bank. The word has to match what the person is actually doing, or it
+/// needs translating in one's head every time.
 export interface EnvelopeWords {
   icon: string
-  /// Підпис руху всередину в історії: «Внесок», «Погашення», «Інвестовано».
+  /// The label for money going in, in the history: "Внесок", "Погашення", "Інвестовано".
   deposit: string
-  /// Кнопка, що кладе гроші: «Відкласти», «Погасити», «Інвестувати».
+  /// The button that puts money in: "Відкласти", "Погасити", "Інвестувати".
   depositAction: string
 }
 
@@ -19,7 +19,7 @@ const WORDS: Record<BucketKind, EnvelopeWords> = {
   Investing: { icon: '📈', deposit: 'Інвестовано', depositAction: 'Інвестувати' },
   Debt: { icon: '🏦', deposit: 'Погашення', depositAction: 'Погасити' },
   Other: { icon: '📦', deposit: 'Внесок', depositAction: 'Відкласти' },
-  // Гроші на витрати — це денна норма, а не банка; сюди можна дійти лише з чужих даних.
+  // Money to spend is the daily norm, not a jar; this is only reachable from foreign data.
   Spending: { icon: '💳', deposit: 'Внесок', depositAction: 'Відкласти' },
 }
 
@@ -31,8 +31,8 @@ export function envelopeIcon(kind: BucketKind): string {
   return envelopeWords(kind).icon
 }
 
-/// Зняття однакове для всіх видів: «зняв гроші з банки» — це те саме, що людина зробила, чи то
-/// пенсія, чи борг. Вигадувати «вивести» й «повернути» означало б перекладати ще й це.
+/// A withdrawal is the same for every kind: taking money out of a jar is the same act whether
+/// it is a pension or a debt. Inventing separate verbs would be one more thing to translate.
 export const WITHDRAWAL_LABEL = 'Знято'
 export const WITHDRAWAL_ACTION = 'Зняти'
 export const WITHDRAWAL_ICON = '↩️'

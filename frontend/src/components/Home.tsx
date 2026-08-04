@@ -6,11 +6,11 @@ import { buildQuickCategories, type QuickCategory } from '../quickCategories'
 interface Props {
   summary: SafeToSpend | null
   transactions: Transaction[]
-  /// Питання про день зарплати тому, хто ніколи його не бачив: онбординг показується лише
-  /// порожньому застосунку, тож у того, хто вже мав дані, період і досі йде з 1 числа.
-  /// null — питати нема про що.
+  /// The payday question for someone who never saw it: onboarding only shows on an empty app,
+  /// so anyone who already had data is still on a period that starts on the 1st.
+  /// Null — there is nothing to ask.
   paydayNudge: { onGo: () => void; onDismiss: () => void } | null
-  /// Ще є що показувати — сервер віддав рівно стільки, скільки просили.
+  /// There is more to show — the server returned exactly as many rows as were asked for.
   canLoadMore: boolean
   onLoadMore: () => void
   onDelete: (id: number) => void
@@ -20,7 +20,7 @@ interface Props {
   onGoSavings: () => void
   onGoAllocation: () => void
   onGoBalance: () => void
-  /// Куди подіти залишок минулого періоду. Питається лише коли він є і про нього ще не сказали.
+  /// Where last period's leftover goes. Asked only when there is one and nobody has placed it.
   onDecideCarryover: (decision: CarryoverDecision) => void
 }
 
@@ -106,10 +106,12 @@ function CarryoverCard({ carryover, currency, onDecide }: {
   )
 }
 
-/// Одне питання, один раз. Питається саме тут, бо саме цю цифру воно й міняє: поки період
-/// іде з 1 числа, наприкінці місяця норма обіцяє гроші, яких на рахунку вже немає.
+/// One question, once. Asked here because this is the figure it changes: while the period
+/// starts on the 1st, the norm at the end of the month promises money the account no longer
+/// has.
 ///
-/// «Так і є» закриває його назавжди — нудж, який повертається, це вже не питання, а докір.
+/// "Гроші приходять 1-го" closes it for good — a nudge that comes back is no longer a
+/// question, it is a reproach.
 function PaydayNudge({ onGo, onDismiss }: { onGo: () => void; onDismiss: () => void }) {
   return (
     <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm space-y-2">
@@ -165,9 +167,9 @@ function SafeToSpendCard({ summary, onAddIncome }: { summary: SafeToSpend | null
     return <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm animate-pulse h-40" />
   }
 
-  // Питання одне й те саме і на першому запуску, і кожного разу, коли починається новий
-  // період: скільки прийшло. Раніше тут пропонувалось «задати місячний бюджет» — вигадану
-  // цифру, яка потім жила своїм життям поруч із реальним доходом.
+  // The same question on the first run and at the start of every period: how much arrived.
+  // This used to offer "задати місячний бюджет" — a made-up figure that then lived its own
+  // life beside the real income.
   if (!summary.budgetSet) {
     return (
       <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm text-center space-y-3">
@@ -189,9 +191,9 @@ function SafeToSpendCard({ summary, onAddIncome }: { summary: SafeToSpend | null
   const positive = left >= 0
   const c = summary.currency
 
-  // Одна цифра, один рядок під нею. Все, що пояснює, звідки вона взялась, живе в картці
-  // періоду нижче: до M25 тут був ще й абзац про вікно розрахунку, і головна читалась як
-  // текст, а не як відповідь на одне питання.
+  // One figure, one line under it. Everything explaining where it came from lives in the
+  // period card below: until M25 there was a paragraph about the counting window here too, and
+  // the home screen read as prose rather than as the answer to one question.
   return (
     <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm text-center">
       <p className="text-sm uppercase tracking-wide text-neutral-400">
@@ -210,9 +212,9 @@ function SafeToSpendCard({ summary, onAddIncome }: { summary: SafeToSpend | null
   )
 }
 
-/// «Місяць», поки гроші приходять 1 числа. Коли зарплата в інший день, місяць — не те
-/// слово: період 10.07–09.08 названий місяцем читається як помилка додатка, тому там
-/// стоять самі дати.
+/// "Місяць" while the money arrives on the 1st. When payday is another day, month is the wrong
+/// word: a period of 10.07–09.08 labelled as a month reads as a bug, so it shows the dates
+/// themselves instead.
 function periodLabel(summary: SafeToSpend): string {
   if (!summary.periodStart || !summary.periodEnd) return 'Місяць'
   if (Number(summary.periodStart.slice(8, 10)) === 1) return 'Місяць'
@@ -236,11 +238,11 @@ function TomorrowNote({ summary }: { summary: SafeToSpend }) {
   )
 }
 
-/// Період — три цифри в один рядок, не стовпчик із семи. До M25 тут була таблиця з
-/// податками, схемою розподілу і двома розкривачками: щоб дізнатись «скільки лишилось»,
-/// доводилось прочитати весь місяць. Тепер картка відповідає одним рядком, а те, що
-/// потрібно раз на місяць, живе на своїх екранах (податки — на екрані податків, кошики —
-/// на розподілі), де воно й так є повністю.
+/// The period as three figures on one line, not a column of seven. Until M25 this was a table
+/// with taxes, the allocation scheme and two disclosures: finding out "скільки лишилось" meant
+/// reading the whole month. The card now answers in one line, and what is needed once a month
+/// lives on its own screen — taxes on the tax screen, buckets on the allocation one — where it
+/// is there in full anyway.
 function PeriodCard({ summary, onGoAllocation, onGoBalance }: {
   summary: SafeToSpend; onGoAllocation: () => void; onGoBalance: () => void
 }) {
@@ -255,8 +257,9 @@ function PeriodCard({ summary, onGoAllocation, onGoBalance }: {
   return (
     <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm space-y-1.5">
       <div className="flex items-baseline justify-between gap-3">
-        {/* Коли бюджет іде від порахованого залишку, заголовок веде туди, де цю суму можна
-            перерахувати або прибрати. Доти це просто межі періоду — тиснути нема на що. */}
+        {/* When the budget comes from a counted balance, the heading leads to where that
+            figure can be recounted or cleared. Otherwise it is just the period's boundaries,
+            with nothing to press. */}
         {from ? (
           <button onClick={onGoBalance} className="text-sm font-medium text-neutral-400">
             З {from} · залишок
@@ -288,8 +291,9 @@ function PeriodCard({ summary, onGoAllocation, onGoBalance }: {
         </p>
       )}
 
-      {/* Податки лишаються у валюті рушія: це цифри для книгової, і сума з міткою гривні
-          не збіглася б ні з одним документом. Розклад по VAT/ZUS — на екрані податків. */}
+      {/* Taxes stay in the engine's currency: these are the bookkeeper's figures, and a sum
+          labelled in hryvnia would match no document at all. The VAT/ZUS split lives on the
+          tax screen. */}
       {taxes && (
         <p className="text-xs text-neutral-400 tabular-nums">
           Прийшло {money(taxes.gross, taxes.currency)} · на податки{' '}
@@ -300,14 +304,14 @@ function PeriodCard({ summary, onGoAllocation, onGoBalance }: {
   )
 }
 
-/// Скільки місячна арифметика тримає в банках. Одним рядком, а не по кошиках: вже
-/// відкладене вручну і те, що ще тримається з бюджету, — це та сама зарезервована сума,
-/// і два рядки читались би як подвійне утримання.
+/// How much the month's arithmetic is holding in jars. One line rather than one per bucket:
+/// what has already been put aside by hand and what is still held back from the budget are the
+/// same reserved money, and two lines would read as holding it twice.
 function heldBack(summary: SafeToSpend): number {
   return summary.envelopes.reduce((s, e) => s + e.depositedThisMonth + e.stillToReserve, 0)
 }
 
-/// Банки get their own card, not lines in the period summary: a balance that survives
+/// Jars get their own card, not lines in the period summary: a balance that survives
 /// across months is a different kind of number from this month's arithmetic.
 ///
 /// Every pot is listed, not just savings. A scheme with a pension bucket used to hold money
@@ -346,9 +350,9 @@ function EnvelopesCard({ envelopes, currency, onOpen }: {
               {e.monthGoal > 0 && (
                 <span className="text-neutral-400 text-xs">
                   {' · '}
-                  {/* Схема відкладає сама, тож зазвичай план виконаний. Суму тут не
-                      повторюємо: вона вже стоїть праворуч у тому ж рядку, і два однакові
-                      числа поруч не влізали в рядок на телефоні. */}
+                  {/* The scheme fills the jar itself, so the plan is usually met. The amount
+                      is not repeated here: it already stands on the right of the same row, and
+                      two identical numbers side by side did not fit on a phone. */}
                   {e.depositedThisMonth >= e.monthGoal
                     ? 'за планом ✓'
                     : `${money(e.depositedThisMonth, currency)} з ${money(e.monthGoal, currency)}`}
@@ -388,15 +392,15 @@ function RecentList({ transactions, canLoadMore, onLoadMore, onDelete, onEdit }:
           >
             <span className="text-xl">{t.kind === 'Income' ? '💰' : iconFor(t)}</span>
             <button
-              // Дохід теж відкривається — формою доходу, бо в ньому ще є VAT. Раніше тап по
-              // рядку доходу нічого не робив, і виправляти рахунок доводилось видаленням і
-              // повторним уведенням — а саме там і губиться цифра.
+              // Income opens too, in the income form, because it still carries VAT. Tapping an
+              // income row used to do nothing, so correcting an invoice meant deleting and
+              // retyping it — which is exactly where a figure gets lost.
               onClick={() => onEdit(t)}
               className="flex-1 min-w-0 text-left"
             >
               <p className="font-medium truncate">
                 {t.kind === 'Income' ? 'Дохід' : t.categoryName}
-                {/* Видно одразу, чому ця витрата не зменшила денну норму. */}
+                {/* Says at a glance why this expense did not reduce the daily norm. */}
                 {t.envelopeName && (
                   <span className="text-xs text-neutral-400"> · з «{t.envelopeName}»</span>
                 )}
@@ -425,8 +429,8 @@ function RecentList({ transactions, canLoadMore, onLoadMore, onDelete, onEdit }:
       </ul>
       </div>
       ))}
-      {/* Довантаження замість жорсткої стелі: список довший за екран нікому не потрібен
-          щодня, а «а де та витрата минулого тижня» трапляється. */}
+      {/* Load more instead of a hard ceiling: nobody needs a list longer than the screen
+          every day, but "where was that expense last week" does happen. */}
       {canLoadMore && (
         <button
           onClick={onLoadMore}
@@ -439,7 +443,7 @@ function RecentList({ transactions, canLoadMore, onLoadMore, onDelete, onEdit }:
   )
 }
 
-/// Дні йдуть у тому порядку, у якому прийшли рядки — сервер уже віддає їх від найновішого.
+/// Days come in the order the rows arrived — the server already returns them newest first.
 function groupByDay(rows: Transaction[]): [string, Transaction[]][] {
   const days = new Map<string, Transaction[]>()
   for (const t of rows) {
@@ -450,10 +454,10 @@ function groupByDay(rows: Transaction[]): [string, Transaction[]][] {
   return [...days.entries()]
 }
 
-/// Емодзі бере сама транзакція — те, що стоїть у категорії. Тут колись була табличка
-/// «назва → емодзі» з шістьма стартовими категоріями, і будь-яка інша категорія — створена
-/// руками чи перейменована — показувалась однаковим 📦, хоч у налаштуваннях їй було обрано
-/// своє. 📦 лишається тільки для категорії, якій емодзі не задали взагалі.
+/// The emoji comes from the transaction itself — the one set on its category. There used to be
+/// a name → emoji table here covering the six starter categories, so every other category,
+/// whether made by hand or renamed, showed the same 📦 while its own emoji sat unused in
+/// settings. 📦 now only stands in for a category that was never given one.
 function iconFor(t: Transaction): string {
   return t.categoryIcon || '📦'
 }

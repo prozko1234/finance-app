@@ -16,9 +16,9 @@ const queryClient = new QueryClient({
   },
 })
 
-// Сказати оболонці, що ця збірка справді стартувала. Мовчання означає «поламано», і
-// оновлення відкотиться на попередню робочу версію — саме тому виклик стоїть після рендера,
-// а не перед ним.
+// Tell the shell this build really did start. Silence means "broken", and the update rolls
+// back to the previous working version — which is exactly why this call sits after the render
+// rather than before it.
 void markRunningVersionHealthy()
 
 createRoot(document.getElementById('root')!).render(

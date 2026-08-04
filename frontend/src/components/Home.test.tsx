@@ -34,8 +34,8 @@ describe('Home', () => {
     expect(screen.getByText(/^375,00/)).toBeInTheDocument() // the headline figure itself
   })
 
-  /// Те саме питання і на першому запуску, і на початку кожного періоду: скільки прийшло.
-  /// Раніше тут пропонувалось вигадати «місячний бюджет».
+  /// The same question on the first run and at the start of every period: how much arrived.
+  /// This used to ask the user to invent a "місячний бюджет".
   it('asks for the income when the period has none yet', () => {
     render(
       <Home
@@ -62,9 +62,8 @@ describe('Home', () => {
       />,
     )
 
-    // Одним рядком: скільки прийшло і скільки з того на податки. Розклад по VAT/ZUS
-    // переїхав на екран податків — на головній він був розкривачкою, яку ніхто не
-    // відкриває двічі.
+    // One line: how much arrived and how much of it goes to taxes. The VAT/ZUS split moved to
+    // the tax screen — on the home screen it was a disclosure nobody opens twice.
     expect(screen.getByText(/Прийшло/)).toBeInTheDocument()
     expect(screen.getByText(/24 600,00/)).toBeInTheDocument()
     expect(screen.getByText(/на податки/)).toBeInTheDocument()
@@ -92,7 +91,7 @@ describe('Home', () => {
 
     expect(screen.getByText(/Заощадження/)).toBeInTheDocument()
     expect(screen.getByText(/5000,00/)).toBeInTheDocument()
-    // Пенсія раніше тільки віднімалась від норми і ніде не було видно, що вона росте.
+    // A pension bucket used to only subtract from the norm, with nowhere showing it growing.
     expect(screen.getByText(/Пенсія/)).toBeInTheDocument()
     expect(screen.getByText(/1200,00/)).toBeInTheDocument()
     expect(screen.getByText('Відкладено')).toBeInTheDocument()
@@ -156,8 +155,8 @@ describe('Home', () => {
     expect(screen.queryByText(/лишилось/)).not.toBeInTheDocument()
   })
 
-  /// Три цифри в один рядок. До M25 це був стовпчик із семи рядків і двох розкривачок:
-  /// щоб побачити «скільки лишилось», доводилось прочитати весь місяць.
+  /// Three figures on one line. Until M25 this was a column of seven rows and two disclosures:
+  /// seeing "скільки лишилось" meant reading the whole month.
   it('puts the period arithmetic in one line and links the схема', async () => {
     render(
       <Home
@@ -183,15 +182,15 @@ describe('Home', () => {
     expect(screen.getByText('Місяць')).toBeInTheDocument()
     expect(screen.getByText(/Бюджет/)).toBeInTheDocument()
     expect(screen.getByText(/лишилось/)).toBeInTheDocument()
-    // Одним рядком: 1200 у заощадження + 600 у борг. Два рядки читались би як
-    // подвійне утримання тих самих грошей.
+    // One line: 1200 into savings + 600 into debt. Two lines would read as holding the same
+    // money back twice.
     expect(screen.getByText(/у банках 1800,00/)).toBeInTheDocument()
-    // Кошики схеми повністю є на екрані розподілу, тому тут лишається тільки шлях туди.
+    // The scheme's buckets are all on the allocation screen, so only the way there stays here.
     expect(screen.getByRole('button', { name: '70/20/10 →' })).toBeInTheDocument()
   })
 
-  /// Для людини, якій платять 10-го, картка «Місяць» з періодом 10.07–09.08 читається
-  /// як помилка додатка. Тому там дати, а не слово.
+  /// For someone paid on the 10th, a card headed "Місяць" covering 10.07–09.08 reads as a bug.
+  /// So it shows the dates rather than the word.
   it('names the period by its dates when payday is not the 1st', () => {
     render(
       <Home
@@ -212,9 +211,9 @@ describe('Home', () => {
       />,
     )
 
-    // Інакше «витрачено 400» за місяць виглядає так, ніби додаток щось загубив. Раніше
-    // це був абзац під головною цифрою; тепер це заголовок рядка періоду — те саме
-    // сказано там, де стоять числа, яких воно стосується.
+    // Otherwise "витрачено 400" for a month looks as though the app lost something. This used
+    // to be a paragraph under the headline figure; now it is the period row's heading — the
+    // same thing said where the numbers it refers to actually are.
     expect(screen.getByRole('button', { name: /З 20 липня/ })).toBeInTheDocument()
     expect(screen.getByText(/Було/)).toBeInTheDocument()
   })
@@ -230,8 +229,8 @@ describe('Home', () => {
     render(<Home {...props} summary={summary()} />)
     expect(screen.getByRole('button', { name: 'Розподіл →' })).toBeInTheDocument()
   })
-  /// Дохід теж редагується: раніше тап по рядку доходу нічого не робив, і виправляти
-  /// рахунок доводилось видаленням і повторним уведенням — а саме там і губиться цифра.
+  /// Income is editable too: tapping an income row used to do nothing, so correcting an
+  /// invoice meant deleting and retyping it — which is exactly where a figure gets lost.
   it('opens an income row for editing, not only expenses', async () => {
     const onEdit = vi.fn()
     const income: Transaction = {
@@ -259,7 +258,7 @@ describe('Home — the recent list', () => {
     }
   }
 
-  /// Дата стояла в кожному рядку окремо й нічого не додавала.
+  /// The date used to stand on every row separately and added nothing.
   it('groups the rows by day instead of repeating the date on each', () => {
     render(<Home {...props} summary={summary()} transactions={[
       tx({ id: 1, date: todayIso() }),
@@ -284,8 +283,8 @@ describe('Home — the recent list', () => {
 })
 
 describe('Home — the payday question', () => {
-  /// Онбординг показується лише порожньому застосунку, тож той, хто вже мав дані, ніколи не
-  /// бачив цього питання — і жив із періодом із 1 числа.
+  /// Onboarding only shows on an empty app, so anyone who already had data never saw this
+  /// question — and lived with a period starting on the 1st.
   it('asks once and goes away for good', async () => {
     const onGo = vi.fn()
     const onDismiss = vi.fn()

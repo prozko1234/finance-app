@@ -23,7 +23,7 @@ public interface IStatsService
 /// two views answer it.
 ///
 /// Deliberately still CALENDAR months, even though the budget now runs from payday to
-/// payday (<see cref="Domain.Budgeting.BudgetPeriod"/>). A bar labelled «липень» that
+/// payday (<see cref="Domain.Budgeting.BudgetPeriod"/>). A bar labelled "липень" that
 /// actually covers 25.06–24.07 is harder to read than one that covers July, and this screen
 /// answers "чи я виходжу в плюс", not "скільки лишилось" — that question belongs to the home
 /// screen, which does follow the period. Worth revisiting if the two ever have to agree.
@@ -64,8 +64,8 @@ public sealed class StatsService(
             .ToListAsync(ct);
 
         // What went into the jars, and by whose hand. Deposits the scheme made are told apart
-        // from the user's own so the screen can answer the question behind «скільки я
-        // відкладаю» — how much of it happens by itself and how much still takes a decision.
+        // from the user's own so the screen can answer the question behind "скільки я
+        // відкладаю" — how much of it happens by itself and how much still takes a decision.
         var moved = await db.SavingsEntries
             .Where(x => x.Date >= from && x.Date <= lastDay)
             .Select(x => new Moved(

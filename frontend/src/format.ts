@@ -1,5 +1,5 @@
-/// «20 липня» — день і місяць без року. Рік у цих підписах завжди поточний, і показувати
-/// його означало б додати шуму в речення, яке має читатись за пів секунди.
+/// "20 липня" — day and month, no year. The year in these labels is always the current one,
+/// and showing it would add noise to a sentence meant to be read in half a second.
 export function dayMonth(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
@@ -15,8 +15,8 @@ export function money(amount: number, currency: string): string {
   }
 }
 
-/// Скільки днів лишилось до дати. Рахується по локальній півночі, а не по годинах: «за 6 днів»
-/// не має ставати «за 5», бо зараз вечір.
+/// How many days are left until a date. Counted by local midnight rather than by hours: "за 6
+/// днів" must not become "за 5" just because it is evening.
 export function daysUntil(iso: string): number {
   const [y, m, d] = iso.split('-').map(Number)
   const target = new Date(y, m - 1, d)
@@ -25,8 +25,8 @@ export function daysUntil(iso: string): number {
   return Math.round((target.getTime() - today.getTime()) / 86_400_000)
 }
 
-/// Заголовок групи в списку останніх: «Сьогодні», «Вчора» або «28 липня». Дата рядком
-/// повторювалась у кожному записі й нічого не додавала — у групі вона потрібна один раз.
+/// A group heading in the recent list: "Сьогодні", "Вчора" or "28 липня". The date used to
+/// repeat on every row and added nothing — a group needs it once.
 export function dayHeading(iso: string, today = new Date()): string {
   const midnight = new Date(today.getFullYear(), today.getMonth(), today.getDate())
   const [y, m, d] = iso.split('-').map(Number)
@@ -36,13 +36,13 @@ export function dayHeading(iso: string, today = new Date()): string {
   return dayMonth(iso)
 }
 
-/// Українська множина: 1 запис, 2 записи, 5 записів, 21 запис.
+/// Ukrainian plurals: 1 запис, 2 записи, 5 записів, 21 запис.
 ///
-/// Потрібна саме форма, а не «1 записів»: список, який рахує сам себе неправильно, читається
-/// як недороблений, і це помічають раніше за будь-яку іншу дрібницю.
+/// The right form matters: a list that miscounts itself reads as unfinished, and it is noticed
+/// before any other small thing.
 export function plural(n: number, one: string, few: string, many: string): string {
   const abs = Math.abs(n) % 100
-  // 11–14 — виняток: там завжди «багато», хоч остання цифра й підказує інше.
+  // 11–14 are the exception: always the many-form, whatever the last digit suggests.
   if (abs >= 11 && abs <= 14) return many
 
   const last = abs % 10
@@ -51,15 +51,15 @@ export function plural(n: number, one: string, few: string, many: string): strin
   return many
 }
 
-/// Сума транзакції так, як її читають: дохід із плюсом, витрата з мінусом.
+/// A transaction's amount as it is read: income with a plus, an expense with a minus.
 ///
-/// Мінус — саме типографський «−» (U+2212), а не дефіс: він тієї ж ширини, що й цифри,
-/// тож стовпчик сум не роз'їжджається на один піксель у кожному рядку.
+/// The minus is the typographic one (U+2212), not a hyphen: it is the same width as the
+/// digits, so a column of amounts does not drift by a pixel per row.
 export function signedMoney(amount: number, currency: string, kind: 'Income' | 'Expense'): string {
   return `${kind === 'Income' ? '+' : '−'}${money(Math.abs(amount), currency)}`
 }
 
-/// Колір тієї ж суми. Зелений — прихід, червоний — витрата.
+/// The same amount's colour. Green for money in, red for money out.
 export function signedMoneyClass(kind: 'Income' | 'Expense'): string {
   return kind === 'Income' ? 'text-emerald-600' : 'text-red-600'
 }

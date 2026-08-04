@@ -2,8 +2,9 @@ import { useState } from 'react'
 import type { Credentials } from '../types'
 import { Card, FormError, PrimaryButton } from './Screen'
 
-/// Вхід у власний акаунт. Реєстрації немає — акаунт тут один, і він уже створений;
-/// «забув пароль» теж немає: пошту нікуди не відправляємо, вона тільки ім'я входу.
+/// Signing in to one's own account. There is no sign-up — there is one account and it already
+/// exists; there is no forgotten-password flow either: no email is ever sent, the address is
+/// only a login name.
 export function Login({ onSubmit }: { onSubmit: (c: Credentials) => Promise<void> }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')

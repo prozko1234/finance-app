@@ -18,7 +18,7 @@ describe('money', () => {
 describe('dayHeading', () => {
   const today = new Date(2026, 6, 30) // 30 липня 2026
 
-  /// Дата в кожному рядку списку нічого не додавала — у заголовку дня вона потрібна раз.
+  /// A date on every row of the list added nothing — the day's heading needs it once.
   it('names the day the way a person would', () => {
     expect(dayHeading('2026-07-30', today)).toBe('Сьогодні')
     expect(dayHeading('2026-07-29', today)).toBe('Вчора')
@@ -34,7 +34,8 @@ describe('daysUntil', () => {
   })
 })
 
-/// Локальні копії помічників із types.ts — тест про календар не має тягти сюди типи застосунку.
+/// Local copies of the helpers from types.ts — a test about the calendar should not drag the
+/// app's types in with it.
 function todayIsoLocal(): string {
   const d = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')

@@ -17,13 +17,14 @@ interface Props {
   onArchiveEnvelope: (id: number) => Promise<void>
   onSetTarget: (id: number, t: SaveEnvelopeTarget) => Promise<void>
   onTransfer: (t: SaveTransfer) => Promise<void>
-  /// Яка банка відкрита — приходить з адреси, а не зі стану екрана.
+  /// Which jar is open — comes from the address, not from screen state.
   openId: number | null
   onOpen: (id: number | null) => void
   onBack: () => void
 }
 
-/// Види банки словами. `Spending` тут немає свідомо: гроші на витрати — це денна норма.
+/// The kinds of jar in words. `Spending` is deliberately absent: money to spend is the
+/// daily norm, not a jar.
 const KINDS: { kind: BucketKind; label: string }[] = [
   { kind: 'Savings', label: 'Заощадження' },
   { kind: 'Investing', label: 'Інвестиції' },
@@ -31,15 +32,15 @@ const KINDS: { kind: BucketKind; label: string }[] = [
   { kind: 'Other', label: 'Інше' },
 ]
 
-/// Два екрани замість одного перевантаженого. Раніше тут одночасно жили чипси вибору,
-/// велика цифра, форма «покласти/зняти», форма плану і список рухів — п'ять блоків, і
-/// незрозуміло, яка банка зараз на екрані.
+/// Two screens instead of one overloaded one. This used to hold, all at once, the jar chips,
+/// the headline figure, a deposit/withdraw form, the plan form and the list of movements —
+/// five blocks, with no way to tell which jar was on screen.
 ///
-/// Тепер: список усіх банок → тап → екран однієї банки з історією по періодах. Списком
-/// відповідаємо на «де скільки лежить», екраном банки — на «за місяць скільки пішло і
-/// скільки там тепер».
+/// Now: a list of every jar → tap → one jar's screen with its history period by period. The
+/// list answers "де скільки лежить"; the jar screen answers "за місяць скільки пішло і
+/// скільки там тепер".
 ///
-/// «Банка», не «конверт»: метафора з монобанку, яку не треба вчити.
+/// "Банка", not "конверт": the metaphor from monobank, which nobody has to be taught.
 export function Savings({
   data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteEntry,
   onCreateEnvelope, onUpdateEnvelope, onArchiveEnvelope, onSetTarget, onTransfer,
@@ -69,7 +70,7 @@ export function Savings({
         onRename={onUpdateEnvelope}
         onSetTarget={onSetTarget}
         onTransfer={onTransfer}
-        // Порожня банка зникає — і екран разом із нею, бо дивитись уже нема на що.
+        // An emptied jar goes away, and the screen goes with it: there is nothing left to look at.
         onArchive={async (id) => { await onArchiveEnvelope(id); onOpen(null) }}
         onBack={() => onOpen(null)}
       />
@@ -89,9 +90,9 @@ export function Savings({
   )
 }
 
-/// План стоїть, бо період почався з підрахунку залишку: та сума — це гроші на життя, і
-/// відкласти з них ще раз означало б порізати денну норму навпіл. Без цього рядка екран
-/// показує живий план поруч із ціллю 0 і виглядає зламаним.
+/// The plan is standing down because the period began by counting the balance: that figure is
+/// money to live on, and putting some of it aside again would halve the daily norm. Without
+/// this line the screen shows a live plan next to a goal of 0 and looks broken.
 function PausedNote({ pausedFrom }: { pausedFrom: string | null }) {
   if (!pausedFrom) return null
 
@@ -103,7 +104,7 @@ function PausedNote({ pausedFrom }: { pausedFrom: string | null }) {
   )
 }
 
-/// Усе видно одразу: скільки відкладено разом і де саме воно лежить.
+/// Everything at a glance: how much is put away in total, and where exactly it sits.
 function EnvelopeList({ envelopes, currency, onOpen }: {
   envelopes: EnvelopeSummary[]
   currency: string
@@ -128,8 +129,9 @@ function EnvelopeList({ envelopes, currency, onOpen }: {
             <span className="text-xl shrink-0" aria-hidden>{envelopeIcon(e.kind)}</span>
             <span className="min-w-0 flex-1">
               <span className="block font-medium truncate">{e.name}</span>
-              {/* Одне число під назвою — рух саме цього періоду. Ціль і «ще тримається»
-                  прибрані: під схемою вони майже завжди збігаються й нічого не додають. */}
+              {/* One figure under the name — this period's movement. The goal and what is
+                  still held back are gone: under a scheme they almost always match and add
+                  nothing. */}
               <span className={`block text-xs tabular-nums ${e.depositedThisMonth < 0 ? 'text-red-600' : 'text-neutral-400'}`}>
                 {e.depositedThisMonth === 0
                   ? 'цього періоду без змін'
@@ -144,11 +146,12 @@ function EnvelopeList({ envelopes, currency, onOpen }: {
   )
 }
 
-/// Банка під власну ціль. Слово «банка» саме запрошує зробити банку на відпустку — а до цього
-/// єдиним способом було зайти в схему розподілу й вигадати тій відпустці відсоток від доходу.
+/// A jar for a goal of one's own. The word "банка" invites exactly this — and until now the
+/// only way to get one was to open the allocation scheme and invent a percentage of income for
+/// that holiday.
 ///
-/// Згорнута в один рядок, поки не потрібна: список банок — це відповідь на «де скільки лежить»,
-/// і форма створення над ним щодня заважала б читати цифри.
+/// Collapsed to a single line until wanted: the jar list answers "де скільки лежить", and a
+/// create form sitting above it would get in the way of reading the figures every day.
 function NewEnvelope({ onCreate }: { onCreate: (e: SaveEnvelope) => Promise<void> }) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
@@ -231,12 +234,13 @@ function KindPicker({ kind, onPick }: { kind: BucketKind; onPick: (k: BucketKind
   )
 }
 
-/// Ціль на банку: «Відпустка 6 000 до червня» → «1 266,67 за період». Без цього банка, яку не
-/// годує схема, — скарбничка без сенсу: гроші заходять, і ніщо не каже, чи цього досить.
+/// A target on a jar: "Відпустка 6 000 до червня" → "1 266,67 за період". Without it, a jar no
+/// scheme feeds is a pointless piggy bank: money goes in and nothing says whether it is enough.
 ///
-/// Ціль **нічого не тримає** з денної норми. Автоматичне резервування змагалося б зі схемою за
-/// ті самі гроші й тримало б їх двічі — а головне, застосунок вирішував би за людину, скільки
-/// її бажання коштує їй сьогодні. Тут лише темп, з яким вона зважує сама.
+/// A target holds back **nothing** from the daily norm. Reserving automatically would compete
+/// with the scheme for the same money and hold it twice — and, more importantly, the app would
+/// be deciding for the user what their wish costs them today. What it gives is a pace to weigh
+/// that up with.
 function TargetCard({ envelope, currency, onSave }: {
   envelope: EnvelopeSummary
   currency: string
@@ -292,8 +296,8 @@ function TargetCard({ envelope, currency, onSave }: {
           />
           <span className="text-neutral-400 font-medium">{currency}</span>
         </div>
-        {/* Дата необовʼязкова: «зібрати 6 000» — теж ціль, а вимагати дату означало б
-            перетворити бажання на план із дедлайном, якого людина не ставила. */}
+        {/* The date is optional: "зібрати 6 000" is a goal too, and demanding one would turn
+            a wish into a plan with a deadline nobody set. */}
         <label className="flex items-center justify-between gap-3 text-sm text-neutral-500">
           До якої дати (необов'язково)
           <input
@@ -374,7 +378,7 @@ function TargetCard({ envelope, currency, onSave }: {
   )
 }
 
-/// «3 періоди» / «4 періодів»: ціль без правильного відмінка читається як машинний вивід.
+/// "3 періоди" / "4 періодів": a goal in the wrong case reads as machine output.
 function periodsWord(count: number): string {
   const last = count % 10
   const tens = count % 100
@@ -383,10 +387,10 @@ function periodsWord(count: number): string {
   return `${count} періодів`
 }
 
-/// Перейменувати й прибрати — тільки для банки, зробленої руками. І в банки за замовчуванням,
-/// і в банки зі схеми назва — це те, за чим застосунок їх знаходить: перейменування тихо
-/// віддало б баланс банці, яку ніхто не наповнює, а прибирання скасувалось би саме собою при
-/// наступному завантаженні екрана.
+/// Renaming and putting away are for hand-made jars only. For the default jar and for a
+/// scheme's jar alike, the NAME is how the app finds them: a rename would quietly hand the
+/// balance to a jar nobody feeds, and putting one away would undo itself on the next screen
+/// load.
 function EnvelopeSettings({ envelope, currency, onRename, onArchive }: {
   envelope: EnvelopeSummary
   currency: string
@@ -447,8 +451,8 @@ function EnvelopeSettings({ envelope, currency, onRename, onArchive }: {
         Зберегти назву
       </PrimaryButton>
 
-      {/* Тільки порожню: банка, що зникла з грошима всередині, забрала б їх із «Відкладено
-          всього» — тобто з тієї єдиної цифри, якій застосунок просить вірити. */}
+      {/* Empty ones only: a jar that vanished with money inside would take it out of
+          "Відкладено всього" — the one figure this app asks to be trusted. */}
       {empty ? (
         <button
           onClick={() => run(() => onArchive(envelope.id))}
@@ -468,7 +472,7 @@ function EnvelopeSettings({ envelope, currency, onRename, onArchive }: {
   )
 }
 
-/// Одна банка: баланс, історія по періодах і все, що з нею можна зробити.
+/// One jar: its balance, its history period by period, and everything that can be done to it.
 function EnvelopeDetail({ envelope, data, onSavePlan, onAddEntry, onUpdateEntry, onDeleteEntry, onRename, onSetTarget, onTransfer, onArchive, onBack }: {
   envelope: EnvelopeSummary
   data: SavingsData
@@ -518,8 +522,8 @@ function EnvelopeDetail({ envelope, data, onSavePlan, onAddEntry, onUpdateEntry,
         onTransfer={onTransfer}
       />
 
-      {/* Тільки для банки за замовчуванням: решті ціль диктує схема, і форма плану
-          обіцяла б зміну, яка нічого не робить. */}
+      {/* Default jar only: for the rest the scheme dictates the goal, and a plan form would
+          promise a change that does nothing. */}
       {envelope.isDefault && <PlanForm data={data} onSave={onSavePlan} />}
 
       <EnvelopeSettings
@@ -542,7 +546,7 @@ function EnvelopeDetail({ envelope, data, onSavePlan, onAddEntry, onUpdateEntry,
   )
 }
 
-/// Те, заради чого екран переробляли: за кожен період — скільки пішло і скільки стало.
+/// The reason this screen was rebuilt: per period, what moved and what the balance became.
 function PeriodHistory({ periods, currency }: { periods: EnvelopePeriodType[]; currency: string }) {
   if (periods.length === 0) return null
 
@@ -566,9 +570,9 @@ function PeriodHistory({ periods, currency }: { periods: EnvelopePeriodType[]; c
   )
 }
 
-/// Перекинути в іншу банку. Руками це були два рухи — зняти тут, покласти там, — і між ними
-/// гроші не існували ніде; а якщо другий рух забували, вони там і лишались. Тепер це одна дія,
-/// і скасовується вона теж як одна.
+/// Move money to another jar. By hand this was two movements — withdraw here, deposit there —
+/// and in between the money existed nowhere; forget the second one and it stayed that way. Now
+/// it is one act, and it is undone as one.
 function MoveToAnotherJar({ from, jars, currency, onTransfer }: {
   from: EnvelopeSummary
   jars: EnvelopeSummary[]
@@ -582,8 +586,8 @@ function MoveToAnotherJar({ from, jars, currency, onTransfer }: {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Ні порожня банка, ні єдина банка нікуди нічого не перекинуть — не пропонуємо дію,
-  // яка одразу впреться у відмову.
+  // Neither an empty jar nor the only jar can transfer anywhere — an action that would walk
+  // straight into a refusal is not offered.
   if (others.length === 0 || from.balance <= 0) return null
 
   const value = Number(amount.replace(',', '.'))
@@ -661,8 +665,8 @@ function MoveToAnotherJar({ from, jars, currency, onTransfer }: {
   )
 }
 
-/// Рух руками. Схема відкладає сама, тож внесок звідси — це «понад план», і він справді
-/// зменшує «можна витратити сьогодні» на свою суму.
+/// A movement made by hand. The scheme puts money aside on its own, so a deposit from here is
+/// "понад план" — and it really does take its own amount off "можна витратити сьогодні".
 function MoveMoney({ currency, balance, envelopeId, kind, onAdd }: {
   currency: string
   balance: number
@@ -844,7 +848,7 @@ function History({ data, envelopeId, kind, editing, onEdit, onSave, onDelete }: 
   onSave: (id: number, e: SaveSavingsEntry) => Promise<void>
   onDelete: (id: number) => Promise<void>
 }) {
-  // Рухи саме цієї банки: список усіх разом не сходився б із балансом над ним.
+  // This jar's movements only: a combined list would not add up to the balance above it.
   const rows = data.recent.filter((e) => e.envelopeId === envelopeId)
   if (rows.length === 0) return null
 
@@ -861,9 +865,9 @@ function History({ data, envelopeId, kind, editing, onEdit, onSave, onDelete }: 
                 <span className="text-xl" aria-hidden>
                   {e.kind === 'Deposit' ? envelopeIcon(kind) : WITHDRAWAL_ICON}
                 </span>
-                {/* Внесок за схемою не редагується і не видаляється: наступне завантаження
-                    екрана привело б його назад, і дія виглядала б так, ніби скасувалась
-                    сама. Хочеш іншу суму — міняй схему або план. */}
+                {/* A deposit the scheme made is neither editable nor deletable: the next
+                    screen load would bring it back, and the action would look like it undid
+                    itself. For a different amount, change the scheme or the plan. */}
                 <button
                   onClick={() => onEdit(e)}
                   disabled={e.isAuto || e.isTransfer}
@@ -897,12 +901,12 @@ function History({ data, envelopeId, kind, editing, onEdit, onSave, onDelete }: 
   )
 }
 
-/// Підпис руху за видом банки: «Внесок» у заощадження, «Погашення» в борг, «Інвестовано» в
-/// інвестиції. Раніше кожен внесок у будь-яку банку звався «У заощадження», і в банці «Борг»
-/// це читалось як помилка додатка.
+/// A movement's label follows the jar's kind: "Внесок" into savings, "Погашення" into debt,
+/// "Інвестовано" into investments. Every deposit into every jar used to read "У заощадження",
+/// which in a debt jar looked like a bug.
 function label(entry: SavingsEntry, kind: BucketKind): string {
-  // Перекидання називається переміщенням, а не внеском: інакше на двох екранах те саме
-  // перекладання виглядало б як дві незалежні події — тут «внесок», а там «знято».
+  // A transfer is called a move, not a deposit: otherwise the same shuffle would read as two
+  // unrelated events on two screens — a deposit here and a withdrawal there.
   if (entry.isTransfer) return entry.kind === 'Deposit' ? 'Перекинуто сюди' : 'Перекинуто звідси'
   return entry.kind === 'Deposit' ? envelopeWords(kind).deposit : WITHDRAWAL_LABEL
 }

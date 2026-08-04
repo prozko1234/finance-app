@@ -11,8 +11,8 @@ interface Props {
   onBack: () => void
 }
 
-/// Settings are settings only. The screens that used to hang off this page — категорії,
-/// підписки, податковий профіль — live in the menu now, where they read as places rather
+/// Settings are settings only. The screens that used to hang off this page — categories,
+/// subscriptions, the tax profile — live in the menu now, where they read as places rather
 /// than as options of something else.
 ///
 /// The "запасний бюджет" card used to live here: an amount typed once that quietly took
@@ -33,36 +33,36 @@ export function Settings({ settings, onPickCurrency, onPickPeriodStartDay, onBac
   )
 }
 
-/// День, коли приходять гроші. Доти додаток вважав, що місяць починається 1 числа — і в
-/// останні дні місяця обіцяв норму з грошей, яких на рахунку вже не було, а 1-го вона
-/// стрибала, хоча зарплата ще не прийшла.
+/// The day the money arrives. Until this, the app assumed a month starts on the 1st — so in
+/// the last days of the month it promised a norm out of money the account no longer had, and
+/// on the 1st the figure jumped although no salary had landed yet.
 ///
-/// Питаємо не «число від 1 до 28», а дату останнього приходу грошей: її видно в банку і не
-/// треба нічого перекладати в голові. Число дня додаток дістає сам і одразу показує, який
-/// період із цього виходить.
+/// It asks for the DATE money last arrived, not for "a number from 1 to 28": that date is
+/// visible in the banking app and needs no translating in one's head. The app works the day
+/// out itself and immediately shows which period it produces.
 function PaydayCard({ settings, onPick }: {
   settings: AppSettings | null
   onPick: (day: number) => Promise<void>
 }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // Що людина обрала останнім — тільки щоб пояснити розбіжність, не як стан пікера.
+  // What was picked last, only to explain a discrepancy — not as the picker's state.
   const [typed, setTyped] = useState<string | null>(null)
 
   const day = settings?.periodStartDay ?? 1
-  // Пікер показує ту дату, яку додаток справді запамʼятав, а не те, що набрали. Раніше це
-  // був окремий стан, заповнений один раз при першому рендері: коли налаштування ще не
-  // приїхали, у пікері лишалось «сьогодні» назавжди, а період під ним показував інше — два
-  // числа на одному екрані, які не сходяться.
+  // The picker shows the date the app actually remembered, not what was typed. This used to
+  // be its own state, filled in once on the first render: while the settings were still in
+  // flight the picker kept "today" forever, and the period beneath it said something else —
+  // two dates on one screen that did not agree.
   const shown = settings?.periodStart ?? todayIso()
   const value = busy ? typed ?? shown : shown
 
   const typedDay = typed === null ? null : Number(typed.slice(8, 10))
-  // 29–31 є не в кожному місяці: «31 число» тихо означало б чотири різні дати на рік.
-  // Не мовчимо про це і не забороняємо дату — беремо 28-ме і кажемо, що взяли.
+  // 29–31 do not exist in every month: "the 31st" would quietly mean four different dates a
+  // year. Rather than forbidding the date or saying nothing, it takes the 28th and says so.
   const clamped = typedDay !== null && typedDay > 28
-  // Обрали ту саму дату іншого місяця: зберігається лише число, тож пікер стрибне на
-  // останню зарплату за цим числом. Це теж треба сказати, а не молча переставити.
+  // The same date in a different month: only the day is stored, so the picker jumps to the
+  // most recent payday on that day. That is worth saying, not silently doing.
   const moved = typed !== null && !clamped && typed !== shown && !busy
 
   async function pick(iso: string) {
@@ -96,7 +96,7 @@ function PaydayCard({ settings, onPick }: {
 
       <FormError>{error}</FormError>
 
-      {/* Головне: людина бачить не «число 10», а що з цього виходить. */}
+      {/* The point: what is shown is not "day 10" but what that day produces. */}
       {settings && (
         <div className="rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2.5 space-y-1">
           <p className="text-sm font-medium">
@@ -125,8 +125,8 @@ function PaydayCard({ settings, onPick }: {
   )
 }
 
-/// Валюта читання. Один тап = застосовано, як і схеми розподілу: зайвий крок
-/// «обери, потім збережи» — це зайве рішення.
+/// The reading currency. One tap applies it, like the allocation schemes: a "pick, then save"
+/// step is one more decision for nothing.
 function CurrencyCard({ settings, onPick }: {
   settings: AppSettings | null
   onPick: (currency: string) => Promise<void>

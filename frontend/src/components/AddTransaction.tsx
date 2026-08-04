@@ -11,13 +11,14 @@ import { EmojiPicker } from './EmojiPicker'
 
 interface Props {
   categories: Category[]
-  /// Банки з балансом — з них можна заплатити напряму. Порожній список = вибору немає,
-  /// і питання «звідки гроші» не показується взагалі.
+  /// Jars with a balance — money can be paid straight out of them. An empty list means there
+  /// is no choice, and the "звідки гроші" question is not shown at all.
   envelopes: EnvelopeSummary[]
   onSave: (tx: SaveTransaction) => Promise<void>
   onSaveIncome: (income: SaveIncome) => Promise<void>
-  /// Виправлення рахунку. Окремо від onSave: у доході ще є VAT, і звичайне оновлення
-  /// поклало б брутто туди, де лежить przychód — бюджет поїхав би на суму VAT.
+  /// Correcting an invoice. Separate from onSave because income still carries VAT, and an
+  /// ordinary update would put the gross where przychód belongs — moving the budget by the
+  /// whole VAT.
   onUpdateIncome: (id: number, income: SaveIncome) => Promise<void>
   onSaveRecurring: (r: SaveRecurring) => Promise<void>
   onCreateCategory: (c: SaveCategory) => Promise<Category>
@@ -26,7 +27,7 @@ interface Props {
   editing?: Transaction | null
   /// Preselected category from a quick-category tap — only the amount is left to type.
   presetCategoryId?: number | null
-  /// З чого відкрити форму. Головна просить дохід — і форма має відкритись на ньому.
+  /// Which tab the form opens on. The home screen asks for income, so it must open there.
   initialKind?: 'expense' | 'income'
 }
 
@@ -66,8 +67,8 @@ export function AddTransaction({
   const [cadence, setCadence] = useState<Cadence>(DEFAULT_CADENCE)
   const [incomeRepeats, setIncomeRepeats] = useState(false)
   const [envelopeId, setEnvelopeId] = useState<number | null>(editing?.envelopeId ?? null)
-  // Форма відкривається на тому ж перемикачі, з яким рахунок написали: сервер відновлює це
-  // з самого рядка (брутто й нетто різняться на цілий VAT), тож вгадувати нема чого.
+  // The form opens on the same toggle the invoice was written with: the server recovers it
+  // from the row itself (gross and net differ by the whole VAT), so nothing is guessed.
   const [includesVat, setIncludesVat] = useState(editing?.amountIncludesVat ?? true)
   const [note, setNote] = useState(editing?.note ?? '')
   // Remembered once per mount: the list only changes on save, and the form closes then.
@@ -291,9 +292,9 @@ export function AddTransaction({
               )}
             </div>
 
-            {/* Звідки гроші — замість «треба/варто/хочу», яке нічого не міняло на жодному
-                екрані. Дефолт («З основних») уже вибраний, тож звичайна витрата
-                вводиться так само швидко, як і раніше. Для підписки питання не стоїть. */}
+            {/* Where the money comes from — replacing "треба/варто/хочу", which changed
+                nothing on any screen. The default ("З основних") is already selected, so an
+                ordinary expense is entered as fast as before. A subscription is not asked. */}
             {!isSubscription && envelopes.length > 0 && (
               <div>
                 <label className="text-xs text-neutral-400">Звідки гроші</label>
@@ -353,8 +354,9 @@ export function AddTransaction({
           </div>
         )}
 
-        {/* Коли. Дохід теж: зарплата, яку вписали через три дні, має лягти у свій період,
-            а не в той, у якому її нарешті ввели. API поле приймав давно — форма ні. */}
+        {/* When. Income too: a salary typed in three days late has to land in its own period,
+            not in the one it was finally entered in. The API took the field long before the
+            form offered it. */}
         {!isSubscription && !repeats && (
           <div>
             <label className="text-xs text-neutral-400">Коли</label>
@@ -512,8 +514,8 @@ function IncomePreviewBlock({ amount, includesVat, currency }: {
 function SavingsRow({ preview }: { preview: IncomePreview }) {
   const savePlan = useSaveSavingsPlan()
   const [editing, setEditing] = useState(false)
-  // Ціль диктує схема — тоді редактор плану тут був би кнопкою, яка нічого не робить.
-  // Раніше форма ще й показувала суму з плану, якої додаток відкладати не збирався.
+  // The scheme dictates the goal, so a plan editor here would be a control that does nothing.
+  // The form used to show the plan's amount as well — one the app had no intention of saving.
   const fromScheme = preview.savingsFromScheme
   const [mode, setMode] = useState<'Fixed' | 'Percent'>(preview.savingsMode)
   const [value, setValue] = useState(preview.savingsValue > 0 ? String(preview.savingsValue) : '')
@@ -601,10 +603,10 @@ function SavingsRow({ preview }: { preview: IncomePreview }) {
   )
 }
 
-/// Податковий рушій польський: ставки, ZUS і здоровотна визначені в злотих, і саме ці
-/// цифри побачить книгова. Тому розклад лишається в PLN, навіть коли решта застосунку
-/// читається в іншій валюті — мовчазна конвертація дала б число, якого немає в жодному
-/// документі.
+/// The tax engine is Polish: the rates, ZUS and the health contribution are defined in złoty,
+/// and these are the figures the bookkeeper will see. So the split stays in PLN even when the
+/// rest of the app is read in another currency — a silent conversion would produce a number
+/// that appears in no document.
 function TaxCurrencyNote() {
   const { data: settings } = useSettings()
   if (!settings?.taxesInBaseCurrency) return null
@@ -618,8 +620,8 @@ function TaxCurrencyNote() {
   )
 }
 
-/// Одна кнопка вибору джерела. Виглядає як решта вибору у формі, щоб питання читалось
-/// як «звідки», а не як ще одна налаштовувана штука.
+/// One button for picking a source. It looks like the rest of the choices in the form, so the
+/// question reads as "звідки" rather than as one more thing to configure.
 function SourceButton({ label, active, onClick }: {
   label: string
   active: boolean

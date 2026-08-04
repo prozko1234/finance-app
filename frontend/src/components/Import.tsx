@@ -12,10 +12,10 @@ interface Props {
   onBack: () => void
 }
 
-/// Виписка з банку → транзакції, за три екрани: вибрати файл, звірити, підтвердити.
+/// A bank statement → transactions, in three screens: pick the file, check it, confirm.
 ///
-/// Середній крок — увесь сенс. Він показує не 300 рядків, а 25 крамниць: за місяць їх
-/// стільки й буває, і рішення приймається раз на крамницю, а не раз на покупку.
+/// The middle step is the whole point. It shows 25 shops rather than 300 rows: a month has
+/// about that many, and a decision is made per shop, not per purchase.
 export function Import({ categories, onPreview, onCommit, onDone, onBack }: Props) {
   const [preview, setPreview] = useState<ImportPreview | null>(null)
   const [groups, setGroups] = useState<ImportGroup[]>([])
@@ -153,7 +153,7 @@ export function Import({ categories, onPreview, onCommit, onDone, onBack }: Prop
   )
 }
 
-/// Одна крамниця: скільки разів, на скільки грошей, і куди це кладемо.
+/// One shop: how many times, for how much, and where it goes.
 function GroupRow({ group, categories, onChange }: {
   group: ImportGroup
   categories: Category[]
@@ -218,8 +218,8 @@ function GroupRow({ group, categories, onChange }: {
   )
 }
 
-/// Рядки, що вже є в застосунку. Вимкнені за замовчуванням: повторний імпорт того самого
-/// місяця не має подвоїти гроші. Але вибір лишається — збіг дня й суми буває й випадковим.
+/// Rows the app already has. Off by default: re-importing the same month must not double the
+/// money. The choice stays, though — a matching day and amount can be a coincidence.
 function Duplicates({ rows, categories, categoryId, onPick }: {
   rows: ImportRow[]
   categories: Category[]
@@ -296,8 +296,8 @@ function ProblemList({ problems }: { problems: { line: number; reason: string; r
   )
 }
 
-/// Найчастіше «імпорт не працює» означає «вивантажив не той файл». Тому приклад — на екрані,
-/// а не в голові.
+/// Most of the time "the import does not work" means "the wrong file was exported". So the
+/// example is on the screen rather than in one's head.
 function HowToExport() {
   return (
     <Card>

@@ -15,7 +15,7 @@ public static class BuiltInMerchants
     public static IReadOnlyDictionary<string, string> ByKey { get; } =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            // Продукти
+            // Groceries
             ["BIEDRONKA"] = Groceries, ["JMP"] = Groceries, ["LIDL"] = Groceries,
             ["ZABKA"] = Groceries, ["ŻABKA"] = Groceries, ["AUCHAN"] = Groceries,
             ["CARREFOUR"] = Groceries, ["KAUFLAND"] = Groceries, ["NETTO"] = Groceries,
@@ -23,19 +23,19 @@ public static class BuiltInMerchants
             ["FRESHMARKET"] = Groceries, ["DELIKATESY"] = Groceries, ["PIEKARNIA"] = Groceries,
             ["SELGROS"] = Groceries, ["MAKRO"] = Groceries,
 
-            // Доставка — окремо від продуктів навмисно: за рік це виявилось удвічі більшою
-            // статтею, і злите з продуктами воно було б невидимим.
+            // Delivery, deliberately apart from groceries: over a year it turned out to be
+            // twice the line item, and merged into groceries it would have been invisible.
             ["GLOVO"] = Delivery, ["PYSZNE"] = Delivery, ["UBEREATS"] = Delivery,
             ["BOLTFOOD"] = Delivery, ["WOLT"] = Delivery, ["MACZFIT"] = Delivery,
             ["LITEBOX"] = Delivery, ["NICELUNCH"] = Delivery,
 
-            // Кафе й бари
+            // Cafés and bars
             ["MCDONALDS"] = EatingOut, ["KFC"] = EatingOut, ["BURGER"] = EatingOut,
             ["PIZZA"] = EatingOut, ["STARBUCKS"] = EatingOut, ["COSTA"] = EatingOut,
             ["SUBWAY"] = EatingOut, ["PUB"] = EatingOut, ["JAMESON"] = EatingOut,
             ["KAWIARNIA"] = EatingOut, ["RESTAURACJA"] = EatingOut, ["BISTRO"] = EatingOut,
 
-            // Транспорт
+            // Transport
             ["ORLEN"] = Transport, ["SHELL"] = Transport, ["CIRCLE"] = Transport,
             ["LOTOS"] = Transport, ["AMIC"] = Transport, ["MOYA"] = Transport,
             ["MPK"] = Transport, ["ZTM"] = Transport, ["JAKDOJADE"] = Transport,
@@ -44,21 +44,21 @@ public static class BuiltInMerchants
             ["RYANAIR"] = Transport, ["WIZZAIR"] = Transport, ["AUTOPAY"] = Transport,
             ["PARKING"] = Transport,
 
-            // Здоров'я
+            // Health
             ["APTEKA"] = Health, ["ROSSMANN"] = Health, ["HEBE"] = Health,
             ["SUPERPHARM"] = Health, ["DOZ"] = Health, ["GEMINI"] = Health,
             ["LUXMED"] = Health, ["EMARKET"] = Health, ["MEDICOVER"] = Health,
             ["ENELMED"] = Health, ["STOMAT"] = Health, ["DENTAL"] = Health,
             ["MULTISPORT"] = Health, ["MYBENEFIT"] = Health, ["MEDIQ"] = Health,
 
-            // Житло й рахунки
+            // Housing and bills
             ["TAURON"] = Home, ["PGE"] = Home, ["ENEA"] = Home, ["ENERGA"] = Home,
             ["PGNIG"] = Home, ["VEOLIA"] = Home, ["WODOCIAGI"] = Home, ["CZYNSZ"] = Home,
             ["IKEA"] = Home, ["LEROY"] = Home, ["CASTORAMA"] = Home, ["JYSK"] = Home,
             ["OBI"] = Home,
 
-            // Підписки — те, що скасовується одним рухом. Відділено від розваг саме тому:
-            // це різні рішення, і в списку вони мають виглядати по-різному.
+            // Subscriptions — the things cancelled in one move. Kept apart from entertainment
+            // for exactly that reason: they are different decisions and should look different.
             ["NETFLIX"] = Subscriptions, ["SPOTIFY"] = Subscriptions, ["HBO"] = Subscriptions,
             ["DISNEY"] = Subscriptions, ["YOUTUBE"] = Subscriptions, ["ICLOUD"] = Subscriptions,
             ["APPLE"] = Subscriptions, ["GOOGLE"] = Subscriptions, ["MICROSOFT"] = Subscriptions,
@@ -67,25 +67,26 @@ public static class BuiltInMerchants
             ["PLUS"] = Subscriptions, ["TMOBILE"] = Subscriptions, ["UPC"] = Subscriptions,
             ["VECTRA"] = Subscriptions, ["NETIA"] = Subscriptions,
 
-            // Розваги
+            // Entertainment
             ["STEAM"] = Fun, ["STEAMGAMES"] = Fun, ["PLAYSTATION"] = Fun, ["XBOX"] = Fun,
             ["NINTENDO"] = Fun, ["CINEMA"] = Fun, ["MULTIKINO"] = Fun, ["HELIOS"] = Fun,
             ["EMPIK"] = Fun, ["TWITCH"] = Fun,
 
-            // Перекази людям і собі. Не витрата у прямому сенсі — але за рік це 12 866 zł,
-            // і без власної статті вони губились у «Інше», яке тоді нічого не пояснювало.
+            // Transfers to people and to oneself. Not an expense in the strict sense — but
+            // 12,866 zł over a year, and without a line of their own they disappeared into
+            // "Інше", which then explained nothing.
             ["REVOLUT"] = Transfers, ["PRZELEWU"] = Transfers, ["PRZELEW"] = Transfers,
             ["BLIK"] = Transfers, ["PAYPAL"] = Transfers,
 
-            // Дописано з живої річної виписки: те, що трапилось насправді і чого в списку
-            // «перший тиждень у Польщі» не було. Сюди йде лише те, що впізнав би будь-хто —
-            // мережі й родові слова; конкретні люди й місцеві заклади лишаються поза списком,
-            // бо вони факт про одну людину, а не про країну.
+            // Added from a real year of statements: what actually happened and was missing
+            // from a "first week in Poland" list. Only what anyone would recognise goes in —
+            // chains and generic words; specific people and local places stay out, because
+            // they are a fact about one person rather than about the country.
             ["SPOLEM"] = Groceries, ["ELECLERC"] = Groceries, ["KONZUM"] = Groceries,
             ["WYPIEKARNIA"] = Groceries,
 
-            // Родові слова в назві закладу. Мережі тут не допоможуть: «BAR NA RÓWNI» і
-            // «DARA KEBAB» — різні заклади, але однаково не продуктовий магазин.
+            // Generic words in a venue's name. Chains do not help here: "BAR NA RÓWNI" and
+            // "DARA KEBAB" are different places, but neither is a grocery shop.
             ["PIJALNIA"] = EatingOut, ["PIWIARNIA"] = EatingOut, ["KEBAB"] = EatingOut,
             ["RAMEN"] = EatingOut, ["BARISTA"] = EatingOut, ["KONOBA"] = EatingOut,
             ["RESTORAN"] = EatingOut, ["POPEYES"] = EatingOut, ["CAFE"] = EatingOut,
@@ -101,7 +102,7 @@ public static class BuiltInMerchants
             ["BARBERSHOP"] = Health, ["ZDROFIT"] = Health, ["KAFETERIA"] = Health,
             ["SEPHORA"] = Health,
 
-            // Поповнення телефону й хостинг — те саме щомісячне зобов'язання, що й оператор.
+            // Phone top-ups and hosting: the same monthly commitment as a mobile operator.
             ["DOŁADOWANIE"] = Subscriptions, ["DOLADOWANIE"] = Subscriptions,
             ["SCALACUBE"] = Subscriptions,
         };

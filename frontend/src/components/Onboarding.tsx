@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { todayIso } from '../types'
 import { Card, FormError, PrimaryButton } from './Screen'
 
-/// Перший запуск. До цього перший крок питав «скільки в тебе виходить на місяць» — тобто
-/// просив вигадати цифру, яка потім жила в налаштуваннях як «запасний бюджет» і тихо
-/// перебивала реальний дохід. Тепер порядок такий, як гроші й приходять: коли зарплата →
-/// скільки прийшло → чи є податки → скільки зараз на руках.
+/// The first run. The first step used to ask "скільки в тебе виходить на місяць" — that is, to
+/// invent a figure, which then lived in settings as a fallback budget and quietly overrode real
+/// income. The order now follows the way money actually arrives: when payday is → how much
+/// came → whether there are taxes → how much is in hand right now.
 interface Props {
   currency: string
   onFinish: (data: {
@@ -19,8 +19,8 @@ interface Props {
 
 export function Onboarding({ currency, onFinish, onSkip }: Props) {
   const [step, setStep] = useState(0)
-  // Дата останньої зарплати, з якої додаток сам дістає число дня — 29–31 підтягуються до 28-го,
-  // бо їх немає в кожному місяці.
+  // The date of the last payday, from which the app works the day out itself — 29–31 are
+  // pulled back to the 28th, because they do not exist in every month.
   const [payday, setPayday] = useState(todayIso())
   const typedDay = Number(payday.slice(8, 10))
   const day = Math.min(Number.isNaN(typedDay) ? 1 : typedDay, 28)
@@ -57,8 +57,8 @@ export function Onboarding({ currency, onFinish, onSkip }: Props) {
                  додаток рахує, на скільки днів треба розтягнути гроші. Якщо приходить
                  кілька разів — став день основної суми.`}
         >
-          {/* Дата останнього приходу грошей, а не «число від 1 до 28»: її видно в банку і не
-              треба нічого перекладати в голові — той самий пікер, що й у Налаштуваннях. */}
+          {/* The date money last arrived, not "a number from 1 to 28": that date is visible in
+              the banking app and needs no translating — the same picker as in Settings. */}
           <input
             type="date"
             value={payday}
@@ -67,8 +67,8 @@ export function Onboarding({ currency, onFinish, onSkip }: Props) {
             aria-label="Дата останньої зарплати"
             className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-transparent px-3 py-3 text-lg"
           />
-          {/* 29–31 є не в кожному місяці: мовчки взяти 28-ме означало б показати потім період,
-              якого людина не обирала. */}
+          {/* 29–31 do not exist in every month: silently taking the 28th would later show a
+              period nobody chose. */}
           {typedDay > 28 && (
             <p className="text-xs text-amber-600">
               {typedDay} числа немає в кожному місяці, тому рахуватимемо з 28-го.
@@ -148,8 +148,8 @@ function Step({ title, hint, children }: {
   )
 }
 
-/// Відповідь-кнопка: тап = відповів і пішов далі. Питання з двома варіантами не варте
-/// окремого «Далі».
+/// An answer that is a button: a tap answers and moves on. A two-option question is not worth
+/// a separate "next".
 function Choice({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
   return (
     <button
@@ -161,8 +161,8 @@ function Choice({ onClick, children }: { onClick: () => void; children: React.Re
   )
 }
 
-/// Один великий інпут на крок — на телефоні клавіатура з'їдає пів екрана, і два поля
-/// поруч означали б, що друге ніхто не побачить.
+/// One big input per step: on a phone the keyboard eats half the screen, and two fields side
+/// by side would mean nobody sees the second one.
 function Amount({ value, onChange, currency, placeholder }: {
   value: string; onChange: (v: string) => void; currency: string; placeholder: string
 }) {
@@ -197,7 +197,7 @@ function Dots({ count, active }: { count: number; active: number }) {
   )
 }
 
-/// Порожнє поле — це «пропустив», а не нуль: нуль означав би дохід у нуль злотих.
+/// An empty field means "skipped", not zero: zero would mean an income of zero złoty.
 function parse(v: string): number | null {
   const n = Number(v.replace(',', '.'))
   return v.trim() === '' || Number.isNaN(n) || n <= 0 ? null : n

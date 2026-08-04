@@ -9,13 +9,13 @@ describe('router', () => {
     expect(routeOf('/')).toEqual({ view: 'home', param: null })
   })
 
-  /// Відкрита банка теж адреса — інакше «назад» із банки виходило б зі списку банок.
+  /// An opened jar is an address too — otherwise back would leave the jar list entirely.
   it('keeps the open jar in the address', () => {
     expect(pathOf('savings', '3')).toBe('/savings/3')
     expect(routeOf('/savings/3')).toEqual({ view: 'savings', param: '3' })
   })
 
-  /// Помилятись у бік екрана, який завжди має що показати.
+  /// Err towards the screen that always has something to show.
   it('falls back to the home screen for an address it does not know', () => {
     expect(routeOf('/nonsense')).toEqual({ view: 'home', param: null })
     expect(routeOf('')).toEqual({ view: 'home', param: null })

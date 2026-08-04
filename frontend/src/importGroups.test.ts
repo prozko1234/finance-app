@@ -82,8 +82,8 @@ describe('rowsToCommit', () => {
     expect(rowsToCommit(groups)).toHaveLength(1)
   })
 
-  /// Сервер відмовив би такому рядку все одно, а половина імпорту, що мовчки не доїхала,
-  /// виглядає як успіх.
+  /// The server would refuse such a row anyway, and half an import that silently never arrived
+  /// looks like success.
   it('drops groups nobody chose a category for', () => {
     const groups = groupRows([row({ line: 1, suggestedCategoryId: null })])
 

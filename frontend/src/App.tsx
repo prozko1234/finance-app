@@ -37,19 +37,19 @@ import { useRouter } from './router'
 const RECENT_PAGE = 20
 
 function App() {
-  // Екран живе в адресі: «назад» на телефоні, refresh на місці, посилання на екран
-  // ([[router.ts]]).
+  // The screen lives in the address: the phone's back button, refresh staying put, a link to
+  // a screen ([[router.ts]]).
   const { view, param, go } = useRouter()
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   // Set when a quick-category tap opens the form; cleared as soon as the form closes.
   const [presetCategoryId, setPresetCategoryId] = useState<number | null>(null)
-  // Головна просить дохід — форма має відкритись одразу на вкладці «Дохід», інакше
-  // кнопка веде на витрату і питання лишається без відповіді.
+  // The home screen asks for income, so the form must open on the income tab — otherwise the
+  // button leads to an expense and the question goes unanswered.
   const [incomeFirst, setIncomeFirst] = useState(false)
   // null = whichever month the server considers current; set once the user taps a bar.
   const [statsMonth, setStatsMonth] = useState<string | null>(null)
-  // Те саме, що й із онбордингом: питання про день зарплати, на яке вже відповіли —
-  // хоч «так і є» — більше не ставиться.
+  // Same as onboarding: a payday question that has been answered — even with "yes, the 1st" —
+  // is not asked again.
   const [paydayAsked, setPaydayAsked] = useState(() => localStorage.getItem('paydayAsked') === '1')
   const dismissPayday = () => { localStorage.setItem('paydayAsked', '1'); setPaydayAsked(true) }
 
@@ -74,8 +74,8 @@ function App() {
 
   const categories = useCategories()
   const summary = useSafeToSpend()
-  // Скільки останніх записів показуємо. Росте по 20 на «Показати ще»: список на весь екран
-  // щодня не потрібен, а «а де та витрата минулого тижня» трапляється.
+  // How many recent rows we show. Grows by 20 on "Показати ще": a full screen of history is
+  // not wanted every day, but "where was that expense last week" does happen.
   const [recentTake, setRecentTake] = useState(RECENT_PAGE)
   const transactions = useTransactions(recentTake)
   const openingBalance = useOpeningBalance()
@@ -115,8 +115,8 @@ function App() {
   const updateRecurring = useUpdateRecurring()
   const deleteRecurring = useDeleteRecurring()
 
-  // Видалення з відкладеним підтвердженням — по одному на список, бо id з різних таблиць
-  // збігаються, і спільний «сховати id 3» приховав би заодно чужий рядок.
+  // Deferred deletes, one per list: ids from different tables collide, and a shared "hide
+  // id 3" would hide somebody else's row along with it.
   const txUndo = useDeferredDelete()
   const entryUndo = useDeferredDelete()
   const recurringUndo = useDeferredDelete()
@@ -139,12 +139,12 @@ function App() {
     go('add')
   }
 
-  /// Що саме сталося при видаленні. Списання, яке зробила підписка, і звичайна витрата
-  /// зникають однаково, але означають різне: підписка спише знову наступного разу, і про це
-  /// краще сказати одразу, ніж лишити людину гадати, чи вона щойно її скасувала.
+  /// What a delete actually did. A charge a subscription made and an ordinary expense vanish
+  /// the same way but mean different things: the subscription will charge again next time,
+  /// and saying so beats leaving the user to wonder whether they just cancelled it.
   ///
-  /// Сказано тостом, а не питанням: підтверджувати кожне видалення — це зупиняти людину там,
-  /// де вона й так може все повернути ([[undo-instead-of-confirmations]]).
+  /// Said as a toast, not asked as a question: confirming every delete stops people where
+  /// they can already undo everything ([[undo-instead-of-confirmations]]).
   function deletedLabel(id: number): string {
     const tx = (transactions.data ?? []).find((t) => t.id === id)
     if (tx?.source !== 'Recurring') return 'Запис видалено'
@@ -155,10 +155,10 @@ function App() {
   function toggleRecurring(r: RecurringType) {
     updateRecurring.mutate({
       id: r.id,
-      // kind і amountIncludesVat їдуть теж: без них пауза на регулярному доході робила з нього
-      // витрату (сервер добирав вид за замовчуванням), і місяць тихо втрачав дохід і отримував
-      // списання. Сервер тепер теж тримає вид, якщо його не назвали, — але казати правду в
-      // запиті дешевше, ніж покладатись на це.
+      // kind and amountIncludesVat travel too: without them, pausing a recurring INCOME turned
+      // it into an expense (the server filled in the default kind), and the month quietly lost
+      // the income and gained a charge. The server now keeps the kind when it is not named —
+      // but telling the truth in the request is cheaper than relying on that.
       data: {
         amount: r.amountOriginal, currency: r.currencyOriginal, categoryId: r.categoryId,
         startsOn: r.startsOn, unit: r.unit, interval: r.interval,
@@ -191,8 +191,8 @@ function App() {
             onSkip={skipOnboarding}
             onFinish={async ({ periodStartDay, income, balance, setUpTaxes }) => {
               await setPeriodStartDay.mutateAsync(periodStartDay)
-              // Дохід першим: із нього рахується бюджет, і залишок має лягати вже поверх
-              // нього, а не навпаки.
+              // Income first: the budget is computed from it, and the counted balance has to
+              // land on top of that rather than the other way round.
               if (income !== null) {
                 await createIncome.mutateAsync({
                   amount: income, amountIncludesVat: false, currency: settings.data?.displayCurrency ?? 'PLN',
@@ -200,8 +200,8 @@ function App() {
               }
               if (balance !== null) await setOpeningBalance.mutateAsync({ amount: balance })
               skipOnboarding()
-              // Податки — окремий екран, а не ще три кроки в онбордингу: там ставки,
-              // режим і ZUS, і це рішення на пів хвилини, а не на першу мінуту.
+              // Taxes get their own screen instead of three more onboarding steps: rates,
+              // regime and ZUS are half a minute of decisions, not first-minute ones.
               if (setUpTaxes) go('tax')
             }}
           />
@@ -236,7 +236,7 @@ function App() {
           <Home
             summary={summary.data ?? null}
             transactions={(transactions.data ?? []).filter((t) => !txUndo.hidden.includes(t.id))}
-            // Сервер віддав рівно стільки, скільки просили — отже, найімовірніше, є ще.
+            // The server returned exactly as many rows as asked for, so there are probably more.
             canLoadMore={(transactions.data ?? []).length >= recentTake}
             onLoadMore={() => setRecentTake((n) => n + RECENT_PAGE)}
             onDelete={(id) => txUndo.request(id, deletedLabel(id), () => deleteTx.mutate(id))}
@@ -247,8 +247,8 @@ function App() {
             onDecideCarryover={(d) => decideCarryover.mutate(d)}
             onQuickCategory={(categoryId) => { setPresetCategoryId(categoryId); go('add') }}
             onEdit={startEdit}
-            // Онбординг показується лише порожньому застосунку, тож той, хто вже мав дані,
-            // ніколи не бачив питання про день зарплати — і живе з періодом із 1 числа.
+            // Onboarding only shows on an empty app, so anyone who already had data never saw
+            // the payday question — and is still living with a period that starts on the 1st.
             paydayNudge={
               !paydayAsked && settings.data?.periodStartDay === 1 && (transactions.data ?? []).length > 0
                 ? { onGo: () => { dismissPayday(); go('settings') }, onDismiss: dismissPayday }
@@ -259,8 +259,8 @@ function App() {
         {view === 'add' && (
           <AddTransaction
             categories={categories.data ?? []}
-            // Тільки ті, де є що витрачати: банка з нулем як джерело — це вибір,
-            // який нічого не дає.
+            // Only jars with something in them: an empty jar as a source is a choice that
+            // does nothing.
             envelopes={(summary.data?.envelopes ?? []).filter((e) => e.balance > 0)}
             onSave={handleSave}
             onSaveIncome={async (i: SaveIncome) => { await createIncome.mutateAsync(i); go('home') }}
@@ -332,14 +332,14 @@ function App() {
               entryUndo.request(id, 'Рух видалено', () => deleteSavingsEntry.mutate(id))}
             onCreateEnvelope={(e) => createEnvelope.mutateAsync(e).then(() => {})}
             onUpdateEnvelope={(id, e) => updateEnvelope.mutateAsync({ id, data: e }).then(() => {})}
-            // Не через «Повернути»: сервер відмовляє, якщо в банці ще є гроші, і відкладений
-            // запит доносив би цю відмову вже після того, як екран закрився. Прибрати можна
-            // лише порожню банку, а повертається вона тим самим ім'ям.
+            // Not through the undo bar: the server refuses while there is money in the jar,
+            // and a deferred request would deliver that refusal after the screen had closed.
+            // Only an empty jar can be put away, and it comes back under the same name.
             onArchiveEnvelope={(id) => deleteEnvelope.mutateAsync(id).then(() => {})}
             onSetTarget={(id, t) => setEnvelopeTarget.mutateAsync({ id, data: t }).then(() => {})}
             onTransfer={(t) => transferBetweenEnvelopes.mutateAsync(t).then(() => {})}
-            // Відкрита банка — теж адреса (`/savings/3`), інакше «назад» із неї виходило б
-            // зі списку банок замість повернення до нього.
+            // An opened jar is an address too (`/savings/3`); otherwise back would leave the
+            // jar list entirely instead of returning to it.
             openId={param ? Number(param) : null}
             onOpen={(id) => go('savings', id === null ? null : String(id))}
             onBack={() => go('home')}
@@ -387,8 +387,8 @@ function App() {
           <TaxProfile
             profile={taxProfile.data ?? null}
             defaults={taxDefaults.data ?? null}
-            // Розклад податків цього періоду переїхав сюди з головної — там він був
-            // розкривачкою, тут він поруч зі ставками, які його й порахували.
+            // This period's tax split moved here from the home screen: there it was a
+            // disclosure, here it sits beside the rates that produced it.
             month={summary.data?.monthTaxes ?? null}
             onSave={(p) => saveTaxProfile.mutateAsync(p).then(() => {})}
             onBack={() => go('home')}
@@ -399,8 +399,8 @@ function App() {
 
       {undo && <UndoBar label={undo.label!} onUndo={undo.undo} />}
 
-      {/* Десктоп: на телефоні цю роль грає центр нижньої панелі, і дві кнопки «+» на одному
-          екрані були б двома різними відповідями на те саме питання. */}
+      {/* Desktop only: on a phone the centre of the bottom bar plays this role, and two "+"
+          buttons on one screen would be two different answers to the same question. */}
       {view === 'home' && (
         <button
           onClick={() => { setEditingTx(null); go('add') }}

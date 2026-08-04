@@ -1,15 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { View } from './components/Nav'
 
-/// Екран у адресі, а не тільки в пам'яті вкладки.
+/// The screen lives in the address, not only in the tab's memory.
 ///
-/// До цього застосунок тримав відкритий екран у `useState<View>`, і з цього виходило три
-/// щоденні незручності: «назад» на телефоні виходило із застосунку замість повернення на
-/// попередній екран, оновлення сторінки викидало на головну, і на екран не можна було дати
-/// посилання самому собі.
+/// The app used to keep the open screen in `useState<View>`, which cost three annoyances a
+/// day: back on a phone left the app instead of returning to the previous screen, a refresh
+/// dropped you on the home screen, and there was no way to link yourself to a screen.
 ///
-/// History API, не хеш: сервер уже віддає `index.html` на будь-який шлях
-/// (`MapFallbackToFile` у `Program.cs`), тож адреси лишаються чистими.
+/// History API rather than a hash: the server already serves `index.html` for any path
+/// (`MapFallbackToFile` in `Program.cs`), so the addresses stay clean.
 const PATHS: Record<View, string> = {
   home: '/',
   add: '/add',
@@ -30,8 +29,8 @@ const BY_PATH = new Map<string, View>(
   Object.entries(PATHS).map(([view, path]) => [path, view as View]),
 )
 
-/// Екран і, необовʼязково, що саме на ньому відкрито: `/savings/3` — банка 3. Один рівень
-/// углиб, бо саме там «назад» найпотрібніше: банку відкривають із її ж списку.
+/// The screen and, optionally, what is open on it: `/savings/3` is jar 3. One level deep,
+/// because that is where back matters most — a jar is opened from its own list.
 export interface Route {
   view: View
   param: string | null
@@ -46,7 +45,7 @@ export function pathOf(view: View, param?: string | null): string {
 export function routeOf(pathname: string): Route {
   const [first = '', second = ''] = pathname.replace(/^\/+|\/+$/g, '').split('/')
   const view = BY_PATH.get(`/${first}`)
-  // Невідома адреса — головна: помилятись у бік екрана, який завжди має що показати.
+  // An unknown address falls back to home: err towards the screen that always has something.
   if (!view) return { view: 'home', param: null }
   return { view, param: second || null }
 }
@@ -58,8 +57,8 @@ export interface Router extends Route {
 export function useRouter(): Router {
   const [route, setRoute] = useState<Route>(() => routeOf(window.location.pathname))
 
-  // Кнопка «назад» браузера й телефона — це той самий popstate; без цього рядка адреса
-  // мінялась би, а екран лишався б на місці.
+  // The browser's back button and the phone's are the same popstate; without this the address
+  // would change while the screen stayed put.
   useEffect(() => {
     const onPop = () => setRoute(routeOf(window.location.pathname))
     window.addEventListener('popstate', onPop)
@@ -72,8 +71,8 @@ export function useRouter(): Router {
 
     window.history.pushState(null, '', path)
     setRoute({ view, param })
-    // Новий екран починається згори. Назад цього не робить свідомо: там людина повертається
-    // туди, де вже була, і місце в списку — частина того, куди вона повертається.
+    // A new screen starts at the top. Back deliberately does not: there the user is returning
+    // to somewhere they have been, and the place in the list is part of where they return to.
     window.scrollTo(0, 0)
   }, [])
 

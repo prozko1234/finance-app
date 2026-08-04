@@ -109,8 +109,8 @@ export const api = {
     http<void>('/api/auth/email', { method: 'POST', body: JSON.stringify({ password, email }) }),
   signOutEverywhere: () => http<void>('/api/auth/sign-out-everywhere', { method: 'POST' }),
 
-  /// Файл іде як multipart, тож без 'Content-Type': його має проставити браузер разом із
-  /// boundary — заданий вручну заголовок ламає розбір форми на сервері.
+  /// The file goes as multipart, so no 'Content-Type': the browser must set it along with the
+  /// boundary — a hand-written header breaks form parsing on the server.
   previewImport: async (file: File) => {
     const body = new FormData()
     body.append('file', file)
@@ -132,7 +132,7 @@ export const api = {
     http<Transaction>('/api/transactions', { method: 'POST', body: JSON.stringify(tx) }),
   createIncome: (i: SaveIncome) =>
     http<Transaction>('/api/transactions/income', { method: 'POST', body: JSON.stringify(i) }),
-  /// Виправлення рахунку — окремий шлях, бо в доході ще є VAT.
+  /// Correcting an invoice is its own route, because income still carries VAT.
   updateIncome: (id: number, i: SaveIncome) =>
     http<Transaction>(`/api/transactions/${id}/income`, { method: 'PUT', body: JSON.stringify(i) }),
   updateTransaction: (id: number, tx: SaveTransaction) =>
@@ -165,12 +165,12 @@ export const api = {
     http<Envelope>('/api/envelopes', { method: 'POST', body: JSON.stringify(e) }),
   updateEnvelope: (id: number, e: SaveEnvelope) =>
     http<Envelope>(`/api/envelopes/${id}`, { method: 'PUT', body: JSON.stringify(e) }),
-  /// Ціль на банку: сума (в тій валюті, що показуємо) і, необовʼязково, дата.
-  /// `amount: null` знімає ціль.
+  /// A target on a jar: an amount (in the currency being displayed) and, optionally, a date.
+  /// `amount: null` takes the target off.
   setEnvelopeTarget: (id: number, t: SaveEnvelopeTarget) =>
     http<Envelope>(`/api/envelopes/${id}/target`, { method: 'PUT', body: JSON.stringify(t) }),
-  /// Прибирає банку з очей, а не з історії: рухи в ній лишаються, тому це можливо лише
-  /// для порожньої банки — сервер відповість сумою, якщо там ще щось є.
+  /// Takes a jar out of sight, not out of history: its movements stay, so this only works on an
+  /// empty jar — the server answers with the balance if there is anything left in it.
   deleteEnvelope: (id: number) =>
     http<void>(`/api/envelopes/${id}`, { method: 'DELETE' }),
 

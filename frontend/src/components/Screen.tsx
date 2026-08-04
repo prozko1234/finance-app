@@ -71,9 +71,10 @@ export function CardSkeleton() {
   return <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm animate-pulse h-40" />
 }
 
-/// Ставки ZUS, здоровотної й порогів PIT вшиті в код: машинного API на них немає — ZUS і
-/// Ministerstwo Finansów публікують комунікати й PDF. Тому єдиний захист від тихо
-/// застарілих цифр — підписати рік і дати додатку самому помітити, що рік уже інший.
+/// The ZUS rates, the health contribution and the PIT thresholds are baked into the code:
+/// there is no machine-readable API for them — ZUS and the Ministerstwo Finansów publish
+/// announcements and PDFs. So the only guard against quietly stale figures is to label the year
+/// and let the app notice when the year has moved on.
 export function RatesNote({ year }: { year: number }) {
   if (!year) return null
   const now = new Date().getFullYear()
@@ -88,8 +89,8 @@ export function RatesNote({ year }: { year: number }) {
   )
 }
 
-/// Панель «Повернути» — один вигляд на всі видалення в застосунку. Живе над кнопкою «+»,
-/// бо саме там великий палець і саме туди дивишся після тапу.
+/// The undo bar: one appearance for every delete in the app. It sits above the "+" button,
+/// because that is where the thumb is and where the eye goes after a tap.
 export function UndoBar({ label, onUndo }: { label: string; onUndo: () => void }) {
   return (
     <div

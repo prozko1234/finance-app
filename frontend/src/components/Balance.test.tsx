@@ -11,8 +11,8 @@ function data(over: Partial<OpeningBalance> = {}): OpeningBalance {
 const props = { currency: 'PLN', onBack: vi.fn() }
 
 describe('Balance', () => {
-  /// Головна причина існування екрана: цифру, що керує денною нормою, можна було ввести
-  /// лише в онбордингу — тобто один раз у житті застосунку.
+  /// The main reason this screen exists: the figure that drives the daily norm could only be
+  /// entered during onboarding, that is once in the app's lifetime.
   it('says what applies now and offers to count again', () => {
     render(<Balance {...props} data={data()} onSet={vi.fn()} onClear={vi.fn()} />)
 
@@ -31,8 +31,8 @@ describe('Balance', () => {
     await waitFor(() => expect(onClear).toHaveBeenCalledTimes(1))
   })
 
-  /// Порахований минулого періоду залишок уже не керує нормою — і не має пропонувати
-  /// «прибрати», бо прибирати нічого.
+  /// A balance counted in a past period no longer drives the norm — and must not offer to be
+  /// cleared, because there is nothing to clear.
   it('does not offer to clear a count that no longer applies', () => {
     render(<Balance {...props} data={data({ appliesNow: false })} onSet={vi.fn()} onClear={vi.fn()} />)
 
