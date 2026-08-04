@@ -32,6 +32,7 @@ export function Stats({ data, selected, onSelectMonth, onBack }: Props) {
       {!data ? <CardSkeleton /> : (
         <>
           <MonthBars data={data} selected={selected ?? data.selectedMonth} onSelect={onSelectMonth} />
+          <Saved data={data} />
           <Categories data={data} />
         </>
       )}
@@ -91,6 +92,82 @@ function Bar({ value, scale, className }: { value: number; scale: number; classN
       />
     </div>
   )
+}
+
+/// «Скільки я відкладаю» — and, right beside it, the answer to the question that always comes
+/// next: how the allocation scheme and the jars relate to each other.
+///
+/// They are two halves of one number. The scheme moves its share into jars by itself at the
+/// start of every period (that is «за схемою»); anything the user adds on top, takes back out,
+/// or pays straight out of a jar is «руками». Summed, that is what actually stayed put — and
+/// that sum, not the plan, is what the rate is computed from. A scheme promising 20% while
+/// the jars get raided every month should read as a low number, not a high one.
+///
+/// The rate is against income rather than against the budget: income is the figure the user
+/// recognises without having to reconstruct anything.
+function Saved({ data }: { data: StatsData }) {
+  const c = data.currency
+  const months = data.months.filter((m) => m.income > 0 || m.savedByPlan !== 0 || m.savedByHand !== 0)
+  if (months.length === 0) return null
+
+  const total = months.reduce((s, m) => s + m.savedByPlan + m.savedByHand, 0)
+  const income = months.reduce((s, m) => s + m.income, 0)
+  const byPlan = months.reduce((s, m) => s + m.savedByPlan, 0)
+
+  return (
+    <Card>
+      <div className="flex items-baseline justify-between gap-3">
+        <SectionTitle>Скільки лишається в банках</SectionTitle>
+        <span className={`text-sm font-medium tabular-nums ${total < 0 ? 'text-red-600' : ''}`}>
+          {money(total, c)}
+        </span>
+      </div>
+
+      <p className="text-sm text-neutral-500">
+        {income > 0
+          ? `Це ${rate(total, income)} доходу за ${months.length} міс.`
+          : `За ${months.length} міс.`}
+        {byPlan !== 0 && ` · ${money(byPlan, c)} схема відклала сама`}
+      </p>
+
+      <div className="space-y-1.5">
+        {months.map((m) => {
+          const saved = m.savedByPlan + m.savedByHand
+          return (
+            <div key={m.month} className="flex items-baseline justify-between gap-3 text-sm">
+              <span className="text-neutral-500">{monthLabel(m.month)}</span>
+              <span className="tabular-nums text-right">
+                <span className={saved < 0 ? 'text-red-600' : 'text-emerald-600'}>
+                  {saved > 0 ? '+' : ''}{money(saved, c)}
+                </span>
+                {m.income > 0 && <span className="text-neutral-400"> · {rate(saved, m.income)}</span>}
+                {/* Both halves only when they differ — «500 за схемою» under a row that
+                    already says 500 is a line to read for nothing. */}
+                {m.savedByHand !== 0 && m.savedByPlan !== 0 && (
+                  <span className="block text-xs text-neutral-400">
+                    {money(m.savedByPlan, c)} за схемою · {money(m.savedByHand, c)} руками
+                  </span>
+                )}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+
+      <p className="text-xs text-neutral-400">
+        Схема розподілу кладе свою частку в банки сама, на початку кожного періоду — це «за
+        схемою». «Руками» — те, що ти доклав понад план, зняв або заплатив прямо з банки. Разом
+        вони і є те, що справді лишилось: план, з якого щомісяця знімають, тут покаже мало.
+      </p>
+    </Card>
+  )
+}
+
+/// Share as a whole percent. Rounded because a savings rate with a decimal point invites
+/// reading a rounding artefact as a change.
+function rate(part: number, whole: number): string {
+  if (whole <= 0) return '—'
+  return `${Math.round((part / whole) * 100)}%`
 }
 
 function Categories({ data }: { data: StatsData }) {

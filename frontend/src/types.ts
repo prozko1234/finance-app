@@ -429,6 +429,10 @@ export interface MonthStats {
   income: number
   expense: number
   net: number
+  /// Скільки схема розподілу відклала в банки сама.
+  savedByPlan: number
+  /// Що додав або зняв руками, і що заплатив прямо з банки. Може бути від'ємним.
+  savedByHand: number
 }
 
 export interface CategoryStats {

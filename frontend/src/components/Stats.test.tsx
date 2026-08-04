@@ -8,8 +8,8 @@ function data(over: Partial<StatsData> = {}): StatsData {
   return {
     currency: 'PLN',
     months: [
-      { month: '2026-06', income: 8000, expense: 9500, net: -1500 },
-      { month: '2026-07', income: 12000, expense: 4000, net: 8000 },
+      { month: '2026-06', income: 8000, expense: 9500, net: -1500, savedByPlan: 0, savedByHand: -500 },
+      { month: '2026-07', income: 12000, expense: 4000, net: 8000, savedByPlan: 2400, savedByHand: 600 },
     ],
     selectedMonth: '2026-07',
     selectedExpense: 4000,
@@ -43,7 +43,8 @@ describe('Stats', () => {
     const onSelectMonth = vi.fn()
     render(<Stats {...props} data={data()} onSelectMonth={onSelectMonth} />)
 
-    await userEvent.click(screen.getByText(/черв/i))
+    // The month is named twice on this screen now — the bars first, the savings card after.
+    await userEvent.click(screen.getAllByText(/черв/i)[0])
 
     expect(onSelectMonth).toHaveBeenCalledWith('2026-06')
   })
@@ -52,6 +53,17 @@ describe('Stats', () => {
     render(<Stats {...props} data={data({ categories: [], selectedExpense: 0 })} />)
 
     expect(screen.getByText(/витрат ще не було/i)).toBeInTheDocument()
+  })
+
+  /// The question the screen was extended for: how much stays put, and how much of that the
+  /// scheme does on its own versus what still takes a decision.
+  it('reports what stayed in the jars, split into the plan and the rest', () => {
+    render(<Stats {...props} data={data()} />)
+
+    // 2400 + 600 by plan and hand in July, less the 500 taken back out in June.
+    expect(screen.getByText('2500,00 zł')).toBeInTheDocument()
+    expect(screen.getByText(/13% доходу за 2 міс/)).toBeInTheDocument()
+    expect(screen.getByText(/2400,00 zł за схемою · 600,00 zł руками/)).toBeInTheDocument()
   })
 
   it('keeps the way back while the numbers are still loading', () => {

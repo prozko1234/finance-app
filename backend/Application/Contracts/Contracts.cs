@@ -364,7 +364,18 @@ public record StatsResponse(
 
 /// Income is revenue (przychód, VAT excluded) — the same number the budget is built from,
 /// so the bars cannot claim a month earned more than the home screen let the user spend.
-public record MonthStatsResponse(string Month, decimal Income, decimal Expense, decimal Net);
+/// <param name="SavedByPlan">What the allocation scheme moved into jars by itself this month.
+/// This is the scheme's promise actually kept, so it is reported apart from the rest.</param>
+/// <param name="SavedByHand">Movements into and out of jars the user made themselves, net of
+/// withdrawals and of anything paid straight out of a jar. Can be negative: a month where a
+/// jar was raided saved less than nothing, and hiding that would flatter the figure.</param>
+public record MonthStatsResponse(
+    string Month,
+    decimal Income,
+    decimal Expense,
+    decimal Net,
+    decimal SavedByPlan = 0m,
+    decimal SavedByHand = 0m);
 
 public record CategoryStatsResponse(
     int CategoryId, string Name, string? Icon, decimal Amount, decimal Percent, int Count);

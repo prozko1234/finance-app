@@ -2,6 +2,8 @@ using FinanceApp.Application.Display;
 using FinanceApp.Application.Recurring;
 using FinanceApp.Application.Stats;
 using FinanceApp.Domain;
+using FinanceApp.Domain.Budgeting;
+using FinanceApp.Domain.Savings;
 using FinanceApp.Domain.Common;
 using FinanceApp.Domain.Fx;
 using FinanceApp.Api.Tests.Integration;
@@ -35,6 +37,15 @@ public class StatsTests
             CreatedAt = DateTimeOffset.UtcNow,
         };
 
+    private static SavingsEntry Entry(
+        decimal amountBase, DateOnly date, int envelopeId, SavingsEntryKind kind, bool isAuto) =>
+        new()
+        {
+            EnvelopeId = envelopeId, Date = date, Kind = kind,
+            CurrencyOriginal = "PLN", AmountOriginal = amountBase, AmountBase = amountBase,
+            FxRate = 1m, FxDate = date, IsAuto = isAuto, CreatedAt = DateTimeOffset.UtcNow,
+        };
+
     private static DateOnly Today => DateOnly.FromDateTime(DateTime.Now);
 
     [Fact]
@@ -65,6 +76,36 @@ public class StatsTests
         Assert.Equal(-1_000m, r.Months[^2].Net);
         // And a month with nothing in it still gets a column, or the chart would lie by omission.
         Assert.Equal(0m, r.Months[0].Expense);
+    }
+
+    /// «Скільки я відкладаю» is two numbers, not one: what the allocation scheme moves by
+    /// itself, and what the user does on top of it. A month whose jars were raided must read
+    /// as saving less, not as saving the plan.
+    [Fact]
+    public async Task Separates_what_the_scheme_put_aside_from_what_the_user_did()
+    {
+        using var mem = new SqliteInMemory();
+        var cat = await CategoryAsync(mem, "Їжа");
+        var jar = new Envelope { Name = "Подушка", Kind = BucketKind.Savings, CreatedAt = DateTimeOffset.UtcNow };
+        mem.Db.Envelopes.Add(jar);
+        await mem.Db.SaveChangesAsync();
+
+        mem.Db.Transactions.Add(Tx(10_000m, Today, cat, TransactionKind.Income));
+        mem.Db.SavingsEntries.AddRange(
+            Entry(2_000m, Today, jar.Id, SavingsEntryKind.Deposit, isAuto: true),
+            Entry(500m, Today, jar.Id, SavingsEntryKind.Deposit, isAuto: false),
+            Entry(300m, Today, jar.Id, SavingsEntryKind.Withdrawal, isAuto: false));
+
+        // Paid to a shop straight out of the jar: the jar shrank, and the scheme did not do it.
+        var fromJar = Tx(200m, Today, cat, TransactionKind.Expense);
+        fromJar.EnvelopeId = jar.Id;
+        mem.Db.Transactions.Add(fromJar);
+        await mem.Db.SaveChangesAsync();
+
+        var current = (await Sut(mem).GetAsync(months: 2, month: null)).Months[^1];
+
+        Assert.Equal(2_000m, current.SavedByPlan);
+        Assert.Equal(0m, current.SavedByHand); // 500 in, 300 out, 200 spent from the jar
     }
 
     [Fact]

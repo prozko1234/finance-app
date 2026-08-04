@@ -4,6 +4,7 @@ using FinanceApp.Application.Contracts;
 using FinanceApp.Application.Display;
 using FinanceApp.Application.Recurring;
 using FinanceApp.Domain;
+using FinanceApp.Domain.Savings;
 using Microsoft.EntityFrameworkCore;
 
 namespace FinanceApp.Application.Stats;
@@ -62,9 +63,30 @@ public sealed class StatsService(
             .Select(t => new Row(t.Date, t.Kind, t.AmountBase, t.CategoryId, t.Category!.Name, t.Category.Icon))
             .ToListAsync(ct);
 
+        // What went into the jars, and by whose hand. Deposits the scheme made are told apart
+        // from the user's own so the screen can answer the question behind «скільки я
+        // відкладаю» — how much of it happens by itself and how much still takes a decision.
+        var moved = await db.SavingsEntries
+            .Where(x => x.Date >= from && x.Date <= lastDay)
+            .Select(x => new Moved(
+                x.Date,
+                x.Kind == SavingsEntryKind.Deposit ? x.AmountBase : -x.AmountBase,
+                x.IsAuto))
+            .ToListAsync(ct);
+
+        // Money paid to a shop straight out of a jar leaves it the same way a withdrawal does,
+        // and it is never the scheme's doing — so it lands on the by-hand side.
+        var spentFromJars = await db.Transactions
+            .Where(t => t.EnvelopeId != null && t.Kind == TransactionKind.Expense
+                        && t.Date >= from && t.Date <= lastDay)
+            .Select(t => new Moved(t.Date, -t.AmountBase, false))
+            .ToListAsync(ct);
+
         var view = await moneyViews.CurrentAsync(ct);
 
         var byMonth = rows.ToLookup(r => new DateOnly(r.Date.Year, r.Date.Month, 1));
+        var savedByMonth = moved.Concat(spentFromJars)
+            .ToLookup(m => new DateOnly(m.Date.Year, m.Date.Month, 1));
         var monthly = new List<MonthStatsResponse>(months);
 
         for (var m = firstMonth; m <= thisMonth; m = m.AddMonths(1))
@@ -73,11 +95,16 @@ public sealed class StatsService(
             var income = byMonth[m].Where(r => r.Kind == TransactionKind.Income).Sum(r => r.AmountBase);
             var expense = byMonth[m].Where(r => r.Kind == TransactionKind.Expense).Sum(r => r.AmountBase);
 
+            var byPlan = savedByMonth[m].Where(x => x.IsAuto).Sum(x => x.Amount);
+            var byHand = savedByMonth[m].Where(x => !x.IsAuto).Sum(x => x.Amount);
+
             monthly.Add(new MonthStatsResponse(
                 Key(m),
                 await view.FromBaseAsync(income, rate, ct),
                 await view.FromBaseAsync(expense, rate, ct),
-                await view.FromBaseAsync(income - expense, rate, ct)));
+                await view.FromBaseAsync(income - expense, rate, ct),
+                await view.FromBaseAsync(byPlan, rate, ct),
+                await view.FromBaseAsync(byHand, rate, ct)));
         }
 
         var selectedRate = RateDateFor(selected, today);
@@ -126,4 +153,7 @@ public sealed class StatsService(
     private record Row(
         DateOnly Date, TransactionKind Kind, decimal AmountBase,
         int CategoryId, string CategoryName, string? CategoryIcon);
+
+    /// One movement of money into or out of a jar. Negative means the jar shrank.
+    private record Moved(DateOnly Date, decimal Amount, bool IsAuto);
 }
