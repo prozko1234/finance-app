@@ -7,6 +7,7 @@ import type {
 
 export const queryKeys = {
   categories: ['categories'] as const,
+  frequentCategories: ['categories', 'frequent'] as const,
   transactions: ['transactions'] as const,
   openingBalance: ['openingBalance'] as const,
   summary: ['summary'] as const,
@@ -126,6 +127,13 @@ export function useStats(months: number, month: string | null, enabled = true) {
     queryFn: () => api.getStats(months, month),
     // Half a year of totals is not worth fetching on a screen that never shows them.
     enabled,
+  })
+}
+
+export function useFrequentCategories() {
+  return useQuery({
+    queryKey: queryKeys.frequentCategories,
+    queryFn: () => api.getFrequentCategories(),
   })
 }
 

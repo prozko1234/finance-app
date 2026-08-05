@@ -1,5 +1,5 @@
 import type {
-  AuthStatus, AppSettings, CarryoverDecision, Category, Credentials, Envelope, EnvelopePeriod, SaveEnvelope, SaveEnvelopeTarget, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
+  AuthStatus, AppSettings, CarryoverDecision, Category, Credentials, Envelope, FrequentCategory, EnvelopePeriod, SaveEnvelope, SaveEnvelopeTarget, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
   Allocation, SaveAllocation, IncomePreview, OpeningBalance, SaveOpeningBalance, SaveSavingsEntry, SaveSavingsPlan, Savings, SaveTransfer, Stats, TaxDefaults, TaxProfile, Transaction,
   ImportPreview, ImportResult, ImportRowToSave,
 } from './types'
@@ -120,6 +120,10 @@ export const api = {
     http<ImportResult>('/api/import/commit', { method: 'POST', body: JSON.stringify({ rows }) }),
 
   getCategories: () => http<Category[]>('/api/categories'),
+
+  /// The home screen's one-tap shortcuts. Ranked and windowed server-side — see
+  /// CategoryService.GetFrequentAsync for why it is not derived from the recent list.
+  getFrequentCategories: () => http<FrequentCategory[]>('/api/categories/frequent'),
   createCategory: (c: SaveCategory) =>
     http<Category>('/api/categories', { method: 'POST', body: JSON.stringify(c) }),
   updateCategory: (id: number, c: SaveCategory) =>

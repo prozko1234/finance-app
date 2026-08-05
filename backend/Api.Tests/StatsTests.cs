@@ -173,6 +173,68 @@ public class StatsTests
         Assert.Equal(100m, r.Months[^1].Expense);  // 400 / 4, the running month at today's
     }
 
+    /// The figure the whole "куди більше йде" card is built on. Median, not average: with an
+    /// average, 100/200/900 would call 400 normal and this month's 400 unremarkable.
+    [Fact]
+    public async Task Calls_the_median_of_the_three_months_before_it_typical()
+    {
+        using var mem = new SqliteInMemory();
+        var cat = await CategoryAsync(mem, "Їжа");
+
+        mem.Db.Transactions.AddRange(
+            Tx(100m, Today.AddMonths(-3), cat, TransactionKind.Expense),
+            Tx(200m, Today.AddMonths(-2), cat, TransactionKind.Expense),
+            Tx(900m, Today.AddMonths(-1), cat, TransactionKind.Expense),
+            Tx(400m, Today, cat, TransactionKind.Expense));
+        await mem.Db.SaveChangesAsync();
+
+        var r = await Sut(mem).GetAsync(months: 6, month: null);
+
+        Assert.Equal(200m, r.Categories.Single().Typical);
+    }
+
+    /// A month with nothing in it is a month the app went unused, not a month that cost
+    /// nothing. Counting it would tell someone coming back that everything has doubled.
+    [Fact]
+    public async Task Ignores_months_with_no_spending_at_all_when_working_out_the_normal()
+    {
+        using var mem = new SqliteInMemory();
+        var cat = await CategoryAsync(mem, "Їжа");
+
+        mem.Db.Transactions.AddRange(
+            Tx(300m, Today.AddMonths(-3), cat, TransactionKind.Expense),
+            // Nothing at all in the two months between.
+            Tx(500m, Today, cat, TransactionKind.Expense));
+        await mem.Db.SaveChangesAsync();
+
+        var r = await Sut(mem).GetAsync(months: 6, month: null);
+
+        // One observed month is not a normal, so nothing is claimed rather than "+67%".
+        Assert.Null(r.Categories.Single().Typical);
+    }
+
+    /// A category that was never bought before this month has no normal of its own, and
+    /// "вилізло за межу" for something first bought yesterday is noise.
+    [Fact]
+    public async Task Says_nothing_about_a_category_that_is_new_this_month()
+    {
+        using var mem = new SqliteInMemory();
+        var food = await CategoryAsync(mem, "Їжа");
+        var newOne = await CategoryAsync(mem, "Курси");
+
+        mem.Db.Transactions.AddRange(
+            Tx(100m, Today.AddMonths(-2), food, TransactionKind.Expense),
+            Tx(100m, Today.AddMonths(-1), food, TransactionKind.Expense),
+            Tx(100m, Today, food, TransactionKind.Expense),
+            Tx(800m, Today, newOne, TransactionKind.Expense));
+        await mem.Db.SaveChangesAsync();
+
+        var r = await Sut(mem).GetAsync(months: 6, month: null);
+
+        Assert.Null(r.Categories.Single(c => c.CategoryId == newOne).Typical);
+        Assert.Equal(100m, r.Categories.Single(c => c.CategoryId == food).Typical);
+    }
+
     /// Rates that differ by date, so a test can prove WHICH date a column was drawn at.
     private sealed class RateByDateFx(Dictionary<DateOnly, decimal> rates, decimal fallback) : IFxConverter
     {

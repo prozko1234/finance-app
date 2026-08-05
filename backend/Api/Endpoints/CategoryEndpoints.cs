@@ -13,6 +13,9 @@ public static class CategoryEndpoints
         g.MapGet("/", async (ICategoryService svc, CancellationToken ct) =>
             Results.Ok(await svc.GetAllAsync(ct)));
 
+        g.MapGet("/frequent", async (ICategoryService svc, CancellationToken ct) =>
+            Results.Ok(await svc.GetFrequentAsync(ct: ct)));
+
         g.MapPost("/", async (SaveCategoryRequest req, ICategoryService svc, CancellationToken ct) =>
         {
             var r = await svc.CreateAsync(req, ct);

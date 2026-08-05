@@ -1,7 +1,6 @@
-import type { CarryoverDecision, EnvelopeSummary, SafeToSpend, Transaction } from '../types'
+import type { CarryoverDecision, EnvelopeSummary, FrequentCategory, SafeToSpend, Transaction } from '../types'
 import { dayHeading, dayMonth, money, signedMoney, signedMoneyClass } from '../format'
 import { envelopeIcon } from '../envelopeWords'
-import { buildQuickCategories, type QuickCategory } from '../quickCategories'
 
 interface Props {
   summary: SafeToSpend | null
@@ -15,6 +14,8 @@ interface Props {
   onLoadMore: () => void
   onDelete: (id: number) => void
   onAddIncome: () => void
+  /// The shortcut row, already ranked and windowed by the server.
+  frequent: FrequentCategory[]
   onQuickCategory: (categoryId: number) => void
   onEdit: (t: Transaction) => void
   onGoSavings: () => void
@@ -25,11 +26,9 @@ interface Props {
 }
 
 export function Home({
-  summary, transactions, paydayNudge, canLoadMore, onLoadMore, onDelete, onAddIncome, onQuickCategory, onEdit, onGoSavings, onGoAllocation,
+  summary, transactions, paydayNudge, canLoadMore, onLoadMore, onDelete, onAddIncome, frequent, onQuickCategory, onEdit, onGoSavings, onGoAllocation,
   onGoBalance, onDecideCarryover,
 }: Props) {
-  const quick = buildQuickCategories(transactions)
-
   return (
     <div className="space-y-6">
       <SafeToSpendCard summary={summary} onAddIncome={onAddIncome} />
@@ -47,7 +46,7 @@ export function Home({
       {summary && (
         <EnvelopesCard envelopes={summary.envelopes} currency={summary.currency} onOpen={onGoSavings} />
       )}
-      {quick.length > 0 && <QuickRow categories={quick} onPick={onQuickCategory} />}
+      {frequent.length > 0 && <QuickRow categories={frequent} onPick={onQuickCategory} />}
       <RecentList
         transactions={transactions}
         canLoadMore={canLoadMore}
@@ -140,12 +139,18 @@ function PaydayNudge({ onGo, onDismiss }: { onGo: () => void; onDismiss: () => v
 
 /// A tap opens the form with the category already chosen — only the amount is left.
 /// The amount is deliberately not guessed: the category repeats, the exact sum does not.
+///
+/// The heading names the window the server counted over. "Часті категорії" on its own is a
+/// claim with no period behind it — the user cannot tell whether it means this week or the
+/// whole history, and so cannot tell whether the row is wrong.
 function QuickRow({ categories, onPick }: {
-  categories: QuickCategory[]; onPick: (categoryId: number) => void
+  categories: FrequentCategory[]; onPick: (categoryId: number) => void
 }) {
   return (
     <div>
-      <h2 className="text-sm font-medium text-neutral-400 mb-2 px-1">Часті категорії</h2>
+      <h2 className="text-sm font-medium text-neutral-400 mb-2 px-1">
+        Часто за {categories[0].days} днів
+      </h2>
       <div className="flex gap-2 flex-wrap">
         {categories.map((c) => (
           <button
@@ -154,7 +159,7 @@ function QuickRow({ categories, onPick }: {
             className="flex-1 min-w-[30%] rounded-xl bg-white dark:bg-neutral-900 px-3 py-3 shadow-sm text-left"
           >
             <span className="text-lg">{c.icon}</span>
-            <p className="text-sm font-medium truncate">{c.categoryName}</p>
+            <p className="text-sm font-medium truncate">{c.name}</p>
           </button>
         ))}
       </div>

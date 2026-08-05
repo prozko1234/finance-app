@@ -1,4 +1,4 @@
-import type { RecurrenceUnit } from './types'
+import type { Recurring, RecurrenceUnit } from './types'
 
 /// The model takes any "every N units"; the screen offers the seven that people actually
 /// have. A free number box plus a unit dropdown would be more powerful and worse: nobody
@@ -32,6 +32,35 @@ export function perMonth(amount: number, unit: RecurrenceUnit, interval: number)
   if (unit === 'Week') return (amount * 365.25) / 7 / 12 / safe
   if (unit === 'Year') return amount / 12 / safe
   return amount / safe
+}
+
+export interface MonthlyTotal {
+  currency: string
+  expense: number
+  income: number
+}
+
+/// What a set of standing charges comes to in a month, one entry per currency they were
+/// entered in. NOT converted to a single currency: a rate would have to be fetched, and a
+/// total in a currency none of the rows are in reads as an app's opinion rather than an
+/// answer. Paused rows are left out — they cost nothing while paused.
+///
+/// Lives here rather than in either screen that shows it, because both the subscription list
+/// and the statistics screen answer "скільки в мене йде на підписки" and two copies of this
+/// arithmetic would eventually disagree.
+export function monthlyTotals(items: Recurring[]): MonthlyTotal[] {
+  const totals = new Map<string, MonthlyTotal>()
+
+  for (const r of items.filter((x) => x.active)) {
+    const row = totals.get(r.currencyOriginal)
+      ?? { currency: r.currencyOriginal, expense: 0, income: 0 }
+    const share = perMonth(r.amountOriginal, r.unit, r.interval)
+    if (r.kind === 'Income') row.income += share
+    else row.expense += share
+    totals.set(r.currencyOriginal, row)
+  }
+
+  return [...totals.values()]
 }
 
 export function sameCadence(a: { unit: RecurrenceUnit; interval: number }, b: Cadence): boolean {

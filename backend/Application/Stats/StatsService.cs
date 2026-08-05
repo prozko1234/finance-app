@@ -40,6 +40,10 @@ public sealed class StatsService(
 {
     public const int MaxMonths = 24;
 
+    /// How many months back a category's "typical" is taken from. Three is the smallest number
+    /// a median can throw out an outlier from — with two, one holiday month IS the normal.
+    public const int TypicalMonths = 3;
+
     public async Task<StatsResponse> GetAsync(int months, string? month, CancellationToken ct = default)
     {
         // Same as the summary: a subscription that is due today is part of this month's
@@ -54,8 +58,11 @@ public sealed class StatsService(
         var selected = ParseMonth(month) ?? thisMonth;
 
         // The category breakdown may be asked for a month outside the drawn window (a
-        // deep link, a narrower chart later), so the query covers both.
-        var from = selected < firstMonth ? selected : firstMonth;
+        // deep link, a narrower chart later), so the query covers both — and it reaches
+        // TypicalMonths further back still, because a category's own normal is worked out
+        // from the months before whichever one is being broken down.
+        var earliest = selected.AddMonths(-TypicalMonths);
+        var from = earliest < firstMonth ? earliest : firstMonth;
         var lastDay = LastDayOf(thisMonth);
 
         var rows = await db.Transactions
@@ -111,6 +118,8 @@ public sealed class StatsService(
         var expenses = byMonth[selected].Where(r => r.Kind == TransactionKind.Expense).ToList();
         var total = expenses.Sum(r => r.AmountBase);
 
+        var typical = TypicalByCategory(byMonth, selected, thisMonth);
+
         var categories = new List<CategoryStatsResponse>();
         foreach (var g in expenses.GroupBy(r => (r.CategoryId, r.CategoryName, r.CategoryIcon))
                                   .OrderByDescending(g => g.Sum(r => r.AmountBase)))
@@ -122,7 +131,13 @@ public sealed class StatsService(
                 // Share is computed on the stored amounts, so it is unaffected by rounding
                 // in the display currency and the slices still add up to 100%.
                 total == 0 ? 0m : Math.Round(amount / total * 100m, 1, MidpointRounding.AwayFromZero),
-                g.Count()));
+                g.Count(),
+                // Converted at the SELECTED month's rate, not each source month's own: the
+                // number exists to be subtracted from Amount, and two rates would turn a
+                // steady category into a phantom overrun every time the zloty moved.
+                typical.TryGetValue(g.Key.CategoryId, out var usual)
+                    ? await view.FromBaseAsync(usual, selectedRate, ct)
+                    : null));
         }
 
         return new StatsResponse(
@@ -131,6 +146,58 @@ public sealed class StatsService(
             Key(selected),
             await view.FromBaseAsync(total, selectedRate, ct),
             categories);
+    }
+
+    /// What each category usually costs in a month, in base currency: the median of its totals
+    /// over the <see cref="TypicalMonths"/> calendar months before the selected one.
+    ///
+    /// Median rather than average, because the whole point is to notice an unusual month, and an
+    /// average has last month's unusual month baked into it — one 2 000 zł flight makes the next
+    /// four months of travel look thrifty.
+    ///
+    /// A month with no expenses at all is not counted as a cheap month: it is a month the app
+    /// went unused, and letting it in would tell a returning user that everything has doubled.
+    /// Under two such months there is no history worth the name and nothing is returned, so a
+    /// new user is never told their first month is an overrun. The month still running is left
+    /// out for the same reason — half a month is not a month.
+    ///
+    /// A category with a typical of zero is dropped: it is new this month, and "+100% проти
+    /// звичайного" for a category first used yesterday is noise, not a finding.
+    private static Dictionary<int, decimal> TypicalByCategory(
+        ILookup<DateOnly, Row> byMonth, DateOnly selected, DateOnly thisMonth)
+    {
+        var history = Enumerable.Range(1, TypicalMonths)
+            .Select(back => selected.AddMonths(-back))
+            .Where(m => m < thisMonth)
+            .Select(m => byMonth[m].Where(r => r.Kind == TransactionKind.Expense).ToList())
+            .Where(rows => rows.Count > 0)
+            .ToList();
+
+        if (history.Count < 2) return [];
+
+        var perMonth = history
+            .Select(rows => rows.GroupBy(r => r.CategoryId)
+                                .ToDictionary(g => g.Key, g => g.Sum(r => r.AmountBase)))
+            .ToList();
+
+        var typical = new Dictionary<int, decimal>();
+        foreach (var categoryId in perMonth.SelectMany(m => m.Keys).Distinct())
+        {
+            // A category missing from an observed month really was zero that month, and that
+            // zero has to weigh on the median — otherwise a category bought once a quarter
+            // reads as a monthly habit.
+            var median = Median(perMonth.Select(m => m.GetValueOrDefault(categoryId)));
+            if (median > 0) typical[categoryId] = median;
+        }
+
+        return typical;
+    }
+
+    private static decimal Median(IEnumerable<decimal> values)
+    {
+        var sorted = values.Order().ToList();
+        var mid = sorted.Count / 2;
+        return sorted.Count % 2 == 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2m;
     }
 
     /// The rate a whole month is drawn at: its last day, or today for the month still

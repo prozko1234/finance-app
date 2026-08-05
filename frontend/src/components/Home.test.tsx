@@ -21,7 +21,7 @@ function summary(over: Partial<SafeToSpend> = {}): SafeToSpend {
 }
 
 const props = {
-  transactions: [], canLoadMore: false, onLoadMore: vi.fn(), paydayNudge: null,
+  transactions: [], canLoadMore: false, onLoadMore: vi.fn(), paydayNudge: null, frequent: [],
   onDelete: vi.fn(), onAddIncome: vi.fn(), onQuickCategory: vi.fn(), onEdit: vi.fn(),
   onGoSavings: vi.fn(), onGoAllocation: vi.fn(), onGoBalance: vi.fn(),
   onDecideCarryover: vi.fn(),
@@ -124,25 +124,25 @@ describe('Home', () => {
     expect(screen.getByText('Можна витратити сьогодні')).toBeInTheDocument()
   })
 
-  it('offers frequent categories without guessing an amount', () => {
-    const expense = (id: number, categoryId: number, categoryName: string, amount: number): Transaction => ({
-      id, kind: 'Expense', amountOriginal: amount, currencyOriginal: 'PLN', amountBase: amount,
-      amountDisplay: amount, displayCurrency: 'PLN', fxRate: 1, fxDate: '2026-07-24', categoryId, categoryName,
-      frequency: 'OneOff', source: 'Manual', amountIncludesVat: false, date: '2026-07-24', createdAt: '',
-    })
-
+  /// The heading names the window, because "часті" with no period behind it is a claim the
+  /// user cannot check — and this row used to be ranked over whatever page of transactions
+  /// happened to be loaded, which is exactly the bug the naming makes visible.
+  it('offers frequent categories over a named window, without guessing an amount', () => {
     render(
       <Home
         {...props}
         summary={summary()}
-        transactions={[expense(1, 1, 'Їжа', 25), expense(2, 1, 'Їжа', 12), expense(3, 2, 'Транспорт', 8)]}
+        frequent={[
+          { categoryId: 1, name: 'Їжа', icon: '🍎', uses: 6, days: 14 },
+          { categoryId: 2, name: 'Транспорт', icon: '🚌', uses: 2, days: 14 },
+        ]}
       />,
     )
 
-    expect(screen.getByText('Часті категорії')).toBeInTheDocument()
-    // The category is offered; the past amounts are not proposed as buttons.
-    expect(screen.getAllByText('Їжа').length).toBeGreaterThan(0)
-    expect(screen.queryByRole('button', { name: /25,00/ })).not.toBeInTheDocument()
+    expect(screen.getByText('Часто за 14 днів')).toBeInTheDocument()
+    // The category is offered; no past amount is proposed as a button.
+    expect(screen.getByRole('button', { name: /Їжа/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /,00/ })).not.toBeInTheDocument()
   })
 
   it('hides the period line until there is income to explain', () => {

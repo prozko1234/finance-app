@@ -392,8 +392,22 @@ public record DecideCarryoverRequest(string Decision, int? EnvelopeId = null);
 public record CarryoverResponse(
     decimal Amount, DateOnly FromStart, DateOnly FromEnd, string EnvelopeName);
 
+/// <param name="Count">How many purchases made up <paramref name="Amount"/>. Together the two
+/// separate "ходжу часто" from "ходжу дорого", which are optimised in opposite ways.</param>
+/// <param name="Typical">What this category usually costs in a month — the median of the three
+/// calendar months before the selected one, at the same rate as <paramref name="Amount"/> so the
+/// two can be subtracted. Null when there is no history to call anything typical yet (see
+/// <see cref="Stats.StatsService"/>), and the UI must then show no comparison at all rather
+/// than compare against a zero.</param>
 public record CategoryStatsResponse(
-    int CategoryId, string Name, string? Icon, decimal Amount, decimal Percent, int Count);
+    int CategoryId, string Name, string? Icon, decimal Amount, decimal Percent, int Count,
+    decimal? Typical = null);
+
+/// A one-tap shortcut on the home screen: a category the user has actually been using lately.
+/// <param name="Days">The window it was counted over, so the screen can say so out loud —
+/// "часті" with no period behind it is a claim the user cannot check.</param>
+public record FrequentCategoryResponse(
+    int CategoryId, string Name, string? Icon, int Uses, int Days);
 
 public record AppSettingsResponse(
     string DisplayCurrency,

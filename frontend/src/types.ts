@@ -459,7 +459,21 @@ export interface CategoryStats {
   icon: string | null
   amount: number
   percent: number
+  /// How many purchases the amount is made of — "часто" and "дорого" are fixed differently.
   count: number
+  /// The median of the three months before this one, at this month's rate. Null — not enough
+  /// history to call anything typical, and nothing may be compared.
+  typical: number | null
+}
+
+/// A one-tap shortcut on the home screen. days is the window it was counted over, so the
+/// screen can name the period instead of just claiming "часті".
+export interface FrequentCategory {
+  categoryId: number
+  name: string
+  icon: string | null
+  uses: number
+  days: number
 }
 
 export interface Stats {

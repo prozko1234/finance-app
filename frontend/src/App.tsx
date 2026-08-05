@@ -7,7 +7,7 @@ import { Login } from './components/Login'
 import type { Recurring as RecurringType, SaveCategory, SaveIncome, SaveTransaction, Transaction } from './types'
 import {
   useCategories, useCreateRecurring, useCreateTransaction, useDeleteRecurring,
-  useCreateCategory, useCreateIncome, useUpdateTransaction, useUpdateIncome, useDeleteCategory, useDeleteTransaction, useRecurring, useUpdateCategory, useSafeToSpend, useTransactions,
+  useCreateCategory, useCreateIncome, useUpdateTransaction, useUpdateIncome, useDeleteCategory, useDeleteTransaction, useFrequentCategories, useRecurring, useUpdateCategory, useSafeToSpend, useTransactions,
   useUpdateRecurring, useTaxProfile, useTaxDefaults, useSaveTaxProfile,
   useAllocations, useSaveAllocation, useSettings, useSetDisplayCurrency, useSetPeriodStartDay,
   useSavings, useSaveSavingsPlan, useAddSavingsEntry, useUpdateSavingsEntry, useDeleteSavingsEntry,
@@ -83,6 +83,7 @@ function App() {
   const clearOpeningBalance = useClearOpeningBalance()
   const decideCarryover = useDecideCarryover()
   const recurring = useRecurring()
+  const frequentCategories = useFrequentCategories()
   const savings = useSavings()
   const allocations = useAllocations()
   const saveAllocation = useSaveAllocation()
@@ -245,6 +246,7 @@ function App() {
             onGoAllocation={() => go('allocation')}
             onGoBalance={() => go('balance')}
             onDecideCarryover={(d) => decideCarryover.mutate(d)}
+            frequent={frequentCategories.data ?? []}
             onQuickCategory={(categoryId) => { setPresetCategoryId(categoryId); go('add') }}
             onEdit={startEdit}
             // Onboarding only shows on an empty app, so anyone who already had data never saw
@@ -357,6 +359,7 @@ function App() {
         {view === 'stats' && (
           <Stats
             data={stats.data ?? null}
+            recurring={recurring.data ?? []}
             selected={statsMonth}
             onSelectMonth={setStatsMonth}
             onBack={() => go('home')}

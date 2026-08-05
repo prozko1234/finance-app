@@ -26,6 +26,77 @@ public class CategoryServiceTests
         Assert.Equal("Інше", all[^1].Name); // system fallback stays last
     }
 
+    /// The home screen's shortcut row. It used to be ranked on the client over whatever page
+    /// of recent transactions was loaded, so a category abandoned months ago outranked one
+    /// used daily this week — these tests pin the window that replaced that.
+    [Fact]
+    public async Task Ranks_shortcuts_by_use_inside_the_recent_window()
+    {
+        using var mem = new SqliteInMemory();
+        var today = DateOnly.FromDateTime(DateTime.Now);
+
+        // Транспорт is used more, but all of it is outside the fortnight AND the month.
+        mem.Db.Transactions.AddRange(
+            Expense(today.AddDays(-1), 1), Expense(today.AddDays(-2), 1), Expense(today.AddDays(-3), 1),
+            Expense(today.AddDays(-4), 2), Expense(today.AddDays(-5), 3),
+            Expense(today.AddDays(-90), 4), Expense(today.AddDays(-91), 4),
+            Expense(today.AddDays(-92), 4), Expense(today.AddDays(-93), 4));
+        await mem.Db.SaveChangesAsync();
+
+        var r = await new CategoryService(mem.Db).GetFrequentAsync();
+
+        Assert.Equal([1, 2, 3], r.Select(x => x.CategoryId));
+        Assert.Equal(3, r[0].Uses);
+        Assert.All(r, x => Assert.Equal(14, x.Days));
+    }
+
+    /// A row of one button is not worth the space, so a thin fortnight falls through to the
+    /// month — and says which window it ended up using, because the screen prints it.
+    [Fact]
+    public async Task Widens_to_a_month_when_the_fortnight_is_too_thin()
+    {
+        using var mem = new SqliteInMemory();
+        var today = DateOnly.FromDateTime(DateTime.Now);
+
+        mem.Db.Transactions.AddRange(
+            Expense(today.AddDays(-1), 1),
+            Expense(today.AddDays(-20), 2), Expense(today.AddDays(-21), 3));
+        await mem.Db.SaveChangesAsync();
+
+        var r = await new CategoryService(mem.Db).GetFrequentAsync();
+
+        Assert.Equal(3, r.Count);
+        Assert.All(r, x => Assert.Equal(30, x.Days));
+    }
+
+    /// Income is entered a few times a month through its own flow; a shortcut for it would
+    /// take a slot from something tapped daily.
+    [Fact]
+    public async Task Leaves_income_out_of_the_shortcuts()
+    {
+        using var mem = new SqliteInMemory();
+        var today = DateOnly.FromDateTime(DateTime.Now);
+
+        mem.Db.Transactions.AddRange(
+            Expense(today.AddDays(-1), 1),
+            Expense(today.AddDays(-2), 2, TransactionKind.Income),
+            Expense(today.AddDays(-3), 2, TransactionKind.Income));
+        await mem.Db.SaveChangesAsync();
+
+        var r = await new CategoryService(mem.Db).GetFrequentAsync();
+
+        Assert.Equal([1], r.Select(x => x.CategoryId));
+    }
+
+    private static Transaction Expense(
+        DateOnly date, int categoryId, TransactionKind kind = TransactionKind.Expense) =>
+        new()
+        {
+            Kind = kind, CurrencyOriginal = "PLN", AmountOriginal = 25m, AmountBase = 25m,
+            FxRate = 1m, FxDate = date, Date = date, CategoryId = categoryId,
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+
     [Fact]
     public async Task Rejects_duplicate_name()
     {

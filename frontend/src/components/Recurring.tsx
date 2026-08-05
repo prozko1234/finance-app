@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Category, Recurring as RecurringType, SaveRecurring } from '../types'
 import { CURRENCIES, todayIso } from '../types'
-import { CADENCES, DEFAULT_CADENCE, perMonth, sameCadence, scheduleSummary, type Cadence } from '../cadence'
+import { CADENCES, DEFAULT_CADENCE, monthlyTotals, sameCadence, scheduleSummary, type Cadence } from '../cadence'
 import { daysUntil, dayMonth, money, signedMoney, signedMoneyClass } from '../format'
 import { Screen } from './Screen'
 
@@ -343,26 +343,16 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
 /// A list of seven rows on four different rhythms does not add up in anyone's head, and the
 /// question behind "підписок забагато" is always the total, never the rows.
 ///
-/// Grouped by the currency each was entered in, and NOT converted: a rate would have to be
-/// fetched, and a total in a currency none of the rows are in reads as an app's opinion
-/// rather than an answer. Paused rows are left out — they cost nothing while paused.
+/// Grouped by currency and left unconverted — see monthlyTotals, which does the arithmetic
+/// for this card and for the statistics screen alike.
 function MonthlyCost({ items }: { items: RecurringType[] }) {
   const live = items.filter((r) => r.active)
   if (live.length === 0) return null
 
-  const totals = new Map<string, { expense: number; income: number }>()
-  for (const r of live) {
-    const row = totals.get(r.currencyOriginal) ?? { expense: 0, income: 0 }
-    const share = perMonth(r.amountOriginal, r.unit, r.interval)
-    if (r.kind === 'Income') row.income += share
-    else row.expense += share
-    totals.set(r.currencyOriginal, row)
-  }
-
   return (
     <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm">
       <p className="text-sm text-neutral-400">На місяць</p>
-      {[...totals.entries()].map(([currency, { expense, income }]) => (
+      {monthlyTotals(live).map(({ currency, expense, income }) => (
         <p key={currency} className="text-sm tabular-nums">
           {expense > 0 && (
             <span className="text-2xl font-bold">−{money(expense, currency)}</span>
