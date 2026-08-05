@@ -51,8 +51,15 @@ public sealed class SummaryService(
             .Where(t => t.Kind == TransactionKind.Expense && t.EnvelopeId == null)
             .SumAsync(t => (decimal?)t.AmountBase, ct) ?? 0m;
 
+        // A recurring charge that fell due today is NOT today's spending. Its money was set
+        // aside at the start of the period and has been missing from the daily norm ever
+        // since; counting it again on the day it lands takes the same money twice and hands
+        // the user a minus for a decision they never made. It stays in `spent` above — the
+        // period figure is right either way, because the reserve drops it the moment it
+        // materializes — but the norm is about choices, and this was not one.
         var spentToday = await monthRows
-            .Where(t => t.Kind == TransactionKind.Expense && t.EnvelopeId == null && t.Date == today)
+            .Where(t => t.Kind == TransactionKind.Expense && t.EnvelopeId == null && t.Date == today
+                        && t.RecurringExpenseId == null)
             .SumAsync(t => (decimal?)t.AmountBase, ct) ?? 0m;
 
         var recurring = await ReservedRecurringAsync(today, period, ct);
@@ -121,12 +128,28 @@ public sealed class SummaryService(
     /// spent. Recurring income is excluded: it raises the budget when it lands, and
     /// reserving it here would subtract the salary from what the user may spend.
     /// Converted at today's rate (an estimate; the real rate is locked when it materializes).
+    ///
+    /// Occurrences the user has deleted are left out, exactly as
+    /// <see cref="Recurring.RecurringMaterializer"/> leaves them out. The two have to agree:
+    /// the reserve is a promise that a transaction is coming, and for a skipped date no
+    /// transaction ever comes. Holding the money anyway lowers the daily norm for the rest of
+    /// the period with nothing on screen to explain where it went.
     private async Task<decimal> ReservedRecurringAsync(
         DateOnly today, BudgetPeriod period, CancellationToken ct)
     {
         var recurring = await db.RecurringExpenses
             .Where(r => r.Active && r.Kind == TransactionKind.Expense)
             .ToListAsync(ct);
+
+        // Loaded once for the whole period: the set is tiny, and asking per date would be a
+        // query per charge per load.
+        var skipped = (await db.RecurringSkips
+                .Where(s => s.Date >= period.Start && s.Date <= period.End)
+                .Select(s => new { s.RecurringExpenseId, s.Date })
+                .ToListAsync(ct))
+            .Select(s => (s.RecurringExpenseId, s.Date))
+            .ToHashSet();
+
         var reserved = 0m;
 
         foreach (var r in recurring)
@@ -135,6 +158,7 @@ public sealed class SummaryService(
                          r.StartsOn, r.Unit, r.Interval, period.Start, period.End))
             {
                 if (occ <= today) continue; // already charged (materialized into spent)
+                if (skipped.Contains((r.Id, occ))) continue;
 
                 var conv = await fx.ConvertToBaseAsync(r.AmountOriginal, r.CurrencyOriginal, today, ct);
                 if (conv.IsSuccess) reserved += conv.Value!.AmountBase;
