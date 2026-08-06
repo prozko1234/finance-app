@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Device } from '../api'
+import type { Invite, NewInvite } from '../types'
 import { dayMonth } from '../format'
 import { Card, FormError, PrimaryButton, Screen, SectionTitle } from './Screen'
 
@@ -16,6 +17,11 @@ interface Props {
   /// Devices that sign in with a token. Empty until there is a native app.
   devices: Device[]
   onRevokeDevice: (id: number) => Promise<void>
+  /// Only the owner of the instance may invite, and only then is any of this passed in.
+  isOwner: boolean
+  invites: Invite[]
+  onCreateInvite: (note: string) => Promise<NewInvite>
+  onRevokeInvite: (id: number) => Promise<void>
   onBack: () => void
 }
 
@@ -24,7 +30,7 @@ interface Props {
 /// somebody else's device could not be closed at all.
 export function Account({
   email, onChangePassword, onChangeEmail, onSignOutEverywhere, onLogout,
-  devices, onRevokeDevice, onBack,
+  devices, onRevokeDevice, isOwner, invites, onCreateInvite, onRevokeInvite, onBack,
 }: Props) {
   return (
     <Screen
@@ -37,6 +43,9 @@ export function Account({
       <EmailCard email={email} onSave={onChangeEmail} />
       <SessionsCard onSignOutEverywhere={onSignOutEverywhere} onLogout={onLogout} />
       {devices.length > 0 && <DevicesCard devices={devices} onRevoke={onRevokeDevice} />}
+      {isOwner && (
+        <InvitesCard invites={invites} onCreate={onCreateInvite} onRevoke={onRevokeInvite} />
+      )}
     </Screen>
   )
 }
@@ -221,5 +230,132 @@ function Field({ label, type, value, autoComplete, onChange }: {
         className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-transparent px-3 py-2.5"
       />
     </label>
+  )
+}
+
+/// Letting somebody else onto this instance. Shown to the owner only — and refused by the
+/// server for anyone else regardless, because a screen deciding who may do what is a screen
+/// that can be lied to.
+///
+/// The link is readable exactly once, here, right after it is made: the server keeps only a
+/// hash of the code, the same way it treats a device token. A lost link is replaced, not
+/// looked up — which is why the copy button is large and the list below never shows a code.
+function InvitesCard({ invites, onCreate, onRevoke }: {
+  invites: Invite[]
+  onCreate: (note: string) => Promise<NewInvite>
+  onRevoke: (id: number) => Promise<void>
+}) {
+  const [note, setNote] = useState('')
+  const [fresh, setFresh] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const link = fresh ? `${window.location.origin}/?invite=${fresh}` : null
+
+  async function create() {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const made = await onCreate(note.trim())
+      setFresh(made.code)
+      setCopied(false)
+      setNote('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не вдалося створити запрошення')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function copy() {
+    if (!link) return
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopied(true)
+    } catch {
+      // Clipboard access can be refused; the link is on screen and selectable either way.
+      setCopied(false)
+    }
+  }
+
+  return (
+    <Card>
+      <SectionTitle>Запросити людину</SectionTitle>
+      <p className="text-sm text-neutral-500">
+        Той, хто перейде за посиланням, заведе собі окремий акаунт. Ваші гроші не
+        перетинаються: ти не бачиш його записів, він не бачить твоїх.
+      </p>
+
+      {link ? (
+        <div className="space-y-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 p-3">
+          <p className="text-xs text-neutral-500">
+            Скопіюй зараз — після виходу з екрана посилання не показати повторно.
+          </p>
+          <p className="break-all text-xs font-mono">{link}</p>
+          <div className="flex gap-2">
+            <PrimaryButton onClick={() => void copy()}>
+              {copied ? 'Скопійовано' : 'Скопіювати посилання'}
+            </PrimaryButton>
+            <button
+              onClick={() => setFresh(null)}
+              className="rounded-xl bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-neutral-500"
+            >
+              Готово
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          <input
+            value={note}
+            placeholder="Кого запрошуєш — «Оля»"
+            maxLength={60}
+            onChange={(e) => setNote(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') void create() }}
+            className="flex-1 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-transparent px-3 py-2.5"
+          />
+          <PrimaryButton onClick={() => void create()} disabled={busy}>
+            {busy ? 'Роблю…' : 'Створити'}
+          </PrimaryButton>
+        </div>
+      )}
+
+      <FormError>{error}</FormError>
+
+      {invites.length > 0 && (
+        <ul className="space-y-2">
+          {invites.map((i) => (
+            <li key={i.id} className="flex items-baseline justify-between gap-3 text-sm">
+              <span>
+                {i.note || 'Без імені'}
+                <span className="block text-xs text-neutral-400">
+                  {i.usedByEmail
+                    ? `Прийняв ${i.usedByEmail}`
+                    : i.expired
+                      ? 'Протерміноване'
+                      : `Діє до ${dayMonth(i.expiresAt)}`}
+                </span>
+              </span>
+              {/* A used invite stays: it is the only record of who was let in. */}
+              {!i.usedByEmail && (
+                <button
+                  onClick={() => void onRevoke(i.id)}
+                  className="text-xs text-red-600 shrink-0"
+                >
+                  Відкликати
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <p className="text-xs text-neutral-400">
+        Посилання одноразове й діє два тижні. Запрошувати може лише власник — той, кого ти
+        запросиш, далі нікого покликати не зможе.
+      </p>
+    </Card>
   )
 }

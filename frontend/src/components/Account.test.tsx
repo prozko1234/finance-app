@@ -16,6 +16,10 @@ function props(over: { onChangePassword?: Mock; onChangeEmail?: Mock; onSignOutE
     onBack: vi.fn(),
     devices: [],
     onRevokeDevice: vi.fn().mockResolvedValue(undefined),
+    isOwner: false,
+    invites: [],
+    onCreateInvite: vi.fn().mockResolvedValue({ id: 1, code: 'code' }),
+    onRevokeInvite: vi.fn().mockResolvedValue(undefined),
   }
 }
 

@@ -31,6 +31,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
     public DbSet<AppSettings> AppSettings => Set<AppSettings>();
     public DbSet<User> Users => Set<User>();
     public DbSet<DeviceToken> DeviceTokens => Set<DeviceToken>();
+    public DbSet<Invite> Invites => Set<Invite>();
     public DbSet<MerchantRule> MerchantRules => Set<MerchantRule>();
     public DbSet<RecurringSkip> RecurringSkips => Set<RecurringSkip>();
 
@@ -181,6 +182,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
             // has to be an index rather than a scan. Unique because two rows for one secret
             // could only ever be a bug.
             e.HasIndex(x => x.TokenHash).IsUnique();
+        });
+
+        b.Entity<Invite>(e =>
+        {
+            e.Property(x => x.CodeHash).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Note).HasMaxLength(60);
+            // Redeeming is a lookup by this column and nothing else, and two rows for one
+            // code could only ever be a bug.
+            e.HasIndex(x => x.CodeHash).IsUnique();
         });
 
         b.Entity<MerchantRule>(e =>

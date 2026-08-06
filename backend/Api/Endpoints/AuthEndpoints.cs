@@ -12,15 +12,15 @@ namespace FinanceApp.Api.Endpoints;
 /// The door. Signing in is an Api-layer concern (a cookie); who the user is and whether the
 /// password fits lives in <see cref="IAccountService"/>.
 ///
-/// One account, by design — see <see cref="User"/>. There is no registration endpoint: the
-/// owner is created from configuration on first start, and after that the only way in is the
-/// password.
+/// Several accounts are possible — see <see cref="User"/>. The owner is created from
+/// configuration on first start; everybody else arrives through an <see cref="Invite"/> the
+/// owner handed out. There is no open registration: this is one person's server.
 public static class AuthEndpoints
 {
     /// Identifies the session's user. Read back on every request to check the stamp.
     public const string StampClaim = "stamp";
 
-    /// Named so Program.cs can put a limiter on the one endpoint worth brute-forcing.
+    /// Named so Program.cs can put a limiter on the endpoints worth brute-forcing.
     public const string LoginRateLimit = "login";
 
     public static IEndpointRouteBuilder MapAuthEndpoints(this IEndpointRouteBuilder app, bool required)
@@ -28,10 +28,19 @@ public static class AuthEndpoints
         // Anonymous by definition: these are the endpoints called BEFORE being let in.
         var group = app.MapGroup("/api/auth").WithTags("Auth").AllowAnonymous();
 
-        group.MapGet("/me", (HttpContext ctx) => Results.Ok(new AuthStatus(
-            required,
-            ctx.User.Identity?.IsAuthenticated == true,
-            ctx.User.FindFirstValue(ClaimTypes.Name))));
+        group.MapGet("/me", async (HttpContext ctx, IAccountService accounts, CancellationToken ct) =>
+        {
+            var id = CurrentUserId(ctx);
+            // Read from the database rather than carried in the cookie: ownership is not
+            // something a session should be able to assert after the fact.
+            var isOwner = id is not null && await accounts.IsOwnerAsync(id.Value, ct);
+
+            return Results.Ok(new AuthStatus(
+                required,
+                ctx.User.Identity?.IsAuthenticated == true,
+                ctx.User.FindFirstValue(ClaimTypes.Name),
+                isOwner));
+        });
 
         group.MapPost("/login", async (LoginRequest req, HttpContext ctx, IAccountService accounts, CancellationToken ct) =>
         {
@@ -45,6 +54,19 @@ public static class AuthEndpoints
                 return Results.Problem(
                     title: result.Error.Message, statusCode: StatusCodes.Status401Unauthorized);
             }
+
+            await SignInAsync(ctx, result.Value!);
+            return Results.NoContent();
+        }).RequireRateLimiting(LoginRateLimit);
+
+        // Anonymous because the person registering has no session yet — the invite code IS
+        // the proof. Rate-limited alongside login: a register endpoint that answers quickly
+        // is a way to test codes, and it creates rows besides.
+        group.MapPost("/register", async (
+            RegisterRequest req, HttpContext ctx, IInviteService invites, CancellationToken ct) =>
+        {
+            var result = await invites.RedeemAsync(req.Code, req.Email, req.Password, ct);
+            if (!result.IsSuccess) return result.Error.ToProblem();
 
             await SignInAsync(ctx, result.Value!);
             return Results.NoContent();
@@ -153,6 +175,40 @@ public static class AuthEndpoints
             return Results.NoContent();
         });
 
+        // The owner's side of invites. Everything here is refused for anyone else, in the
+        // service rather than here, so the rule holds however it is called.
+        account.MapPost("/invites", async (
+            CreateInviteRequest req, HttpContext ctx, IInviteService invites, CancellationToken ct) =>
+        {
+            var id = CurrentUserId(ctx);
+            if (id is null) return Results.Unauthorized();
+
+            var result = await invites.CreateAsync(id.Value, req.Note, ct);
+            // The code travels in this one response and is never readable again — the row
+            // holds only its hash.
+            return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblem();
+        });
+
+        account.MapGet("/invites", async (
+            HttpContext ctx, IInviteService invites, CancellationToken ct) =>
+        {
+            var id = CurrentUserId(ctx);
+            if (id is null) return Results.Unauthorized();
+
+            var result = await invites.ListAsync(id.Value, ct);
+            return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblem();
+        });
+
+        account.MapDelete("/invites/{id:int}", async (
+            int id, HttpContext ctx, IInviteService invites, CancellationToken ct) =>
+        {
+            var me = CurrentUserId(ctx);
+            if (me is null) return Results.Unauthorized();
+
+            var result = await invites.RevokeAsync(me.Value, id, ct);
+            return result.IsSuccess ? Results.NoContent() : result.Error.ToProblem();
+        });
+
         return app;
     }
 
@@ -182,6 +238,11 @@ public static class AuthEndpoints
 /// has a door.
 public record LoginRequest(string Email, string Password);
 
+/// <param name="Code">The invite code from the link. The whole authorization to exist here.</param>
+public record RegisterRequest(string Code, string Email, string Password);
+
+public record CreateInviteRequest(string Note);
+
 public record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 
 public record ChangeEmailRequest(string Password, string Email);
@@ -193,4 +254,6 @@ public record IssueDeviceTokenRequest(string Email, string Password, string Name
 /// <paramref name="Required"/> is false in local development, where no account is set up —
 /// then the UI must not show a login screen that cannot be passed.
 /// <paramref name="Email"/> is null until signed in; the UI shows it in settings.
-public record AuthStatus(bool Required, bool Authenticated, string? Email);
+/// <param name="IsOwner">Whether this account may hand out invites. The frontend shows the
+/// invite section on it, and the server refuses regardless of what the frontend decided.</param>
+public record AuthStatus(bool Required, bool Authenticated, string? Email, bool IsOwner = false);

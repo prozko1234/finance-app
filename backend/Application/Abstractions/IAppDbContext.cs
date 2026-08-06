@@ -26,6 +26,7 @@ public interface IAppDbContext
     DbSet<AppSettings> AppSettings { get; }
     DbSet<User> Users { get; }
     DbSet<DeviceToken> DeviceTokens { get; }
+    DbSet<Invite> Invites { get; }
     DbSet<MerchantRule> MerchantRules { get; }
     DbSet<RecurringSkip> RecurringSkips { get; }
 

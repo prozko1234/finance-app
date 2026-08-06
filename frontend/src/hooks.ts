@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api'
 import type {
-  CarryoverDecision, Credentials, SaveAllocation, SaveCategory, SaveEnvelope, SaveEnvelopeTarget, SaveIncome, SaveOpeningBalance, SaveRecurring, SaveSavingsEntry, SaveSavingsPlan, SaveTaxProfile, SaveTransaction, SaveTransfer,
+  CarryoverDecision, Credentials, Registration, SaveAllocation, SaveCategory, SaveEnvelope, SaveEnvelopeTarget, SaveIncome, SaveOpeningBalance, SaveRecurring, SaveSavingsEntry, SaveSavingsPlan, SaveTaxProfile, SaveTransaction, SaveTransfer,
 } from './types'
 
 export const queryKeys = {
@@ -20,6 +20,7 @@ export const queryKeys = {
   settings: ['settings'] as const,
   stats: ['stats'] as const,
   auth: ['auth'] as const,
+  invites: ['invites'] as const,
   devices: ['devices'] as const,
 }
 
@@ -127,6 +128,38 @@ export function useStats(months: number, month: string | null, enabled = true) {
     queryFn: () => api.getStats(months, month),
     // Half a year of totals is not worth fetching on a screen that never shows them.
     enabled,
+  })
+}
+
+export function useInvites(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.invites,
+    queryFn: () => api.getInvites(),
+    enabled,
+  })
+}
+
+export function useCreateInvite() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (note: string) => api.createInvite(note),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.invites }),
+  })
+}
+
+export function useRevokeInvite() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => api.revokeInvite(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.invites }),
+  })
+}
+
+export function useRegister() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (r: Registration) => api.register(r),
+    onSuccess: () => qc.invalidateQueries(),
   })
 }
 

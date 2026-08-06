@@ -490,6 +490,34 @@ export interface AuthStatus {
   authenticated: boolean
   /// The account's email; null until signed in.
   email: string | null
+  /// Whether this account may hand out invites. The server refuses regardless of what the
+  /// screen decided to show, so this only controls whether the section appears.
+  isOwner: boolean
+}
+
+/// An invite as the owner sees it in the list. The code is absent on purpose: it exists in
+/// readable form for exactly one response, the one that created it.
+export interface Invite {
+  id: number
+  note: string
+  createdAt: string
+  expiresAt: string
+  /// Who used it, or null while it is still open.
+  usedByEmail: string | null
+  usedAt: string | null
+  expired: boolean
+}
+
+/// The one response that carries a usable code.
+export interface NewInvite {
+  id: number
+  code: string
+}
+
+export interface Registration {
+  code: string
+  email: string
+  password: string
 }
 
 export interface Credentials {

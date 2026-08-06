@@ -35,6 +35,9 @@ public class OwnershipTests
             // Looked up by its hash to discover WHO is asking, before there is anyone to
             // filter by. Scoped by DeviceTokenService instead.
             typeof(DeviceToken),
+            // Redeemed with nobody signed in — a filter on the current account would hide
+            // the very row being redeemed. Scoped by CreatedByUserId in InviteService.
+            typeof(Invite),
         };
 
         var unowned = mem.Db.Model.GetEntityTypes()

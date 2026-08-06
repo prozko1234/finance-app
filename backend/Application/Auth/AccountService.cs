@@ -37,6 +37,9 @@ public interface IAccountService
     Task<Result<Account>> ChangeEmailAsync(
         int userId, string password, string newEmail, CancellationToken ct = default);
 
+    /// Whether this account owns the instance — the only one that may hand out invites.
+    Task<bool> IsOwnerAsync(int userId, CancellationToken ct = default);
+
     /// Ends every session, including the one asking. The way back in is the password.
     Task<Result<Account>> SignOutEverywhereAsync(int userId, CancellationToken ct = default);
 }
@@ -62,6 +65,8 @@ public sealed class AccountService(
             PasswordHash = hasher.Hash(password),
             SecurityStamp = User.NewStamp(),
             CreatedAt = DateTimeOffset.UtcNow,
+            // Whoever is first owns the instance, and is the only one who may invite.
+            IsOwner = true,
         };
         db.Users.Add(user);
 
@@ -143,6 +148,9 @@ public sealed class AccountService(
 
         return Result<Account>.Ok(ToAccount(user));
     }
+
+    public Task<bool> IsOwnerAsync(int userId, CancellationToken ct = default) =>
+        db.Users.AnyAsync(u => u.Id == userId && u.IsOwner, ct);
 
     public async Task<Result<Account>> SignOutEverywhereAsync(int userId, CancellationToken ct = default)
     {

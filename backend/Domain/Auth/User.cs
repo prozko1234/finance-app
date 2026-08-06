@@ -4,9 +4,10 @@ namespace FinanceApp.Domain.Auth;
 /// environment variable cannot be changed without a redeploy, is readable by anyone who can
 /// see the deployment config, and gives no way to end a session that was opened elsewhere.
 ///
-/// There is deliberately one user. The data tables carry no owner column, so a second
-/// account would see the first one's money — registration is therefore closed once this
-/// user exists. Turning the app multi-tenant is a separate change, not a flag.
+/// There may be several. Every data table carries a UserId and the database context filters
+/// on it (see <see cref="IOwnedByUser"/>), so accounts cannot see each other's money.
+/// Registration is still closed to the open internet: the only way to make an account is an
+/// <see cref="Invite"/> the owner handed out.
 public class User
 {
     public int Id { get; set; }
@@ -21,6 +22,12 @@ public class User
     /// explicit "sign out everywhere". Cookies carry the stamp they were issued with, so a
     /// session whose stamp no longer matches is refused on its next request.
     public string SecurityStamp { get; set; } = "";
+
+    /// The one account that may hand out invites — whoever registered first, and on an
+    /// existing database whoever was already there. Deliberately not a role system: there are
+    /// two kinds of person on this instance, the one whose server it is and everybody else,
+    /// and inventing permissions for a household of five would be ceremony.
+    public bool IsOwner { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }
 

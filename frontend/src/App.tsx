@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { setOnUnauthorized } from './api'
 import { useDeferredDelete } from './undo'
 import { UndoBar } from './components/Screen'
-import { Login } from './components/Login'
+import { Login, inviteCodeFromUrl } from './components/Login'
 import type { Recurring as RecurringType, SaveCategory, SaveIncome, SaveTransaction, Transaction } from './types'
 import {
   useCategories, useCreateRecurring, useCreateTransaction, useDeleteRecurring,
@@ -12,8 +12,9 @@ import {
   useAllocations, useSaveAllocation, useSettings, useSetDisplayCurrency, useSetPeriodStartDay,
   useSavings, useSaveSavingsPlan, useAddSavingsEntry, useUpdateSavingsEntry, useDeleteSavingsEntry,
   useCreateEnvelope, useUpdateEnvelope, useDeleteEnvelope, useSetEnvelopeTarget, useTransferBetweenEnvelopes,
-  useStats, useAuthStatus, useLogin, useLogout, queryKeys,
+  useStats, useAuthStatus, useLogin, useLogout, useRegister, queryKeys,
   useChangePassword, useChangeEmail, useSignOutEverywhere, useDevices, useRevokeDevice,
+  useInvites, useCreateInvite, useRevokeInvite,
   useImportPreview, useCommitImport,
   useOpeningBalance, useSetOpeningBalance, useClearOpeningBalance, useDecideCarryover,
 } from './hooks'
@@ -60,12 +61,18 @@ function App() {
   const qc = useQueryClient()
   const auth = useAuthStatus()
   const login = useLogin()
+  const register = useRegister()
   const logout = useLogout()
   const changePassword = useChangePassword()
   const changeEmail = useChangeEmail()
   const signOutEverywhere = useSignOutEverywhere()
   const devices = useDevices()
   const revokeDevice = useRevokeDevice()
+  // Only fetched for the owner: for anyone else the endpoint refuses, and asking would be a
+  // guaranteed error in the console on every visit to the account screen.
+  const invites = useInvites(auth.data?.isOwner === true && view === 'account')
+  const createInvite = useCreateInvite()
+  const revokeInvite = useRevokeInvite()
   const importPreview = useImportPreview()
   const commitImport = useCommitImport()
 
@@ -172,8 +179,19 @@ function App() {
   // Nothing is rendered before we know whether a password is wanted — a flash of the
   // dashboard would show the balance to someone who has not passed the door yet.
   if (auth.isPending) return null
-  if (auth.data?.required && !auth.data.authenticated)
-    return <Login onSubmit={(c) => login.mutateAsync(c).then(() => {})} />
+  if (auth.data?.required && !auth.data.authenticated) {
+    return (
+      <Login
+        invite={inviteCodeFromUrl()}
+        onSubmit={(c) => login.mutateAsync(c).then(() => {})}
+        onRegister={(r) => register.mutateAsync(r).then(() => {
+          // The code is spent, and a reload that replayed it would only fail. Dropping it
+          // also keeps a working credential out of the address bar and the history.
+          window.history.replaceState({}, '', window.location.pathname)
+        })}
+      />
+    )
+  }
 
   // An empty app is indistinguishable from a broken one, so the first run walks through
   // setup instead of showing an empty screen. Derived from the data rather than from a
@@ -309,6 +327,10 @@ function App() {
             onLogout={() => logout.mutate()}
             devices={devices.data ?? []}
             onRevokeDevice={(id) => revokeDevice.mutateAsync(id).then(() => {})}
+            isOwner={auth.data?.isOwner ?? false}
+            invites={invites.data ?? []}
+            onCreateInvite={(note) => createInvite.mutateAsync(note)}
+            onRevokeInvite={(id) => revokeInvite.mutateAsync(id).then(() => {})}
             onBack={() => go('home')}
           />
         )}

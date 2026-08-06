@@ -1,5 +1,5 @@
 import type {
-  AuthStatus, AppSettings, CarryoverDecision, Category, Credentials, Envelope, FrequentCategory, EnvelopePeriod, SaveEnvelope, SaveEnvelopeTarget, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
+  AuthStatus, AppSettings, CarryoverDecision, Category, Credentials, Envelope, FrequentCategory, Invite, NewInvite, Registration, EnvelopePeriod, SaveEnvelope, SaveEnvelopeTarget, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
   Allocation, SaveAllocation, IncomePreview, OpeningBalance, SaveOpeningBalance, SaveSavingsEntry, SaveSavingsPlan, Savings, SaveTransfer, Stats, TaxDefaults, TaxProfile, Transaction,
   ImportPreview, ImportResult, ImportRowToSave,
 } from './types'
@@ -118,6 +118,18 @@ export const api = {
   },
   commitImport: (rows: ImportRowToSave[]) =>
     http<ImportResult>('/api/import/commit', { method: 'POST', body: JSON.stringify({ rows }) }),
+
+  register: (r: Registration) =>
+    http<void>('/api/auth/register', { method: 'POST', body: JSON.stringify(r) }),
+
+  getInvites: () => http<Invite[]>('/api/auth/invites'),
+
+  /// The response carries the only readable copy of the code — it is hashed on the server.
+  createInvite: (note: string) =>
+    http<NewInvite>('/api/auth/invites', { method: 'POST', body: JSON.stringify({ note }) }),
+
+  revokeInvite: (id: number) =>
+    http<void>(`/api/auth/invites/${id}`, { method: 'DELETE' }),
 
   getCategories: () => http<Category[]>('/api/categories'),
 

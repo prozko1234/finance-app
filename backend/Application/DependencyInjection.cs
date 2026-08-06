@@ -26,6 +26,7 @@ public static class DependencyInjection
     {
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<IUserProvisioning, UserProvisioningService>();
+        services.AddScoped<IInviteService, InviteService>();
         services.AddScoped<IDeviceTokenService, DeviceTokenService>();
         services.AddScoped<IBudgetPeriods, BudgetPeriodResolver>();
         services.AddScoped<ITransactionService, TransactionService>();
