@@ -3,9 +3,12 @@ namespace FinanceApp.Domain;
 /// A fixed expense that repeats on a schedule (subscription, rent, insurance, ...).
 /// It is materialized into a Transaction on its due day, and reserved in
 /// safe-to-spend until then — so the headline number never jumps when it charges.
-public class RecurringExpense
+public class RecurringExpense : IOwnedByUser
 {
     public int Id { get; set; }
+
+    /// The account this row belongs to. Set by the context, never by a service.
+    public int UserId { get; set; }
     /// Expense (subscription) or Income (a stable monthly salary/contract).
     public TransactionKind Kind { get; set; } = TransactionKind.Expense;
     /// Income only: whether AmountOriginal already contains VAT. Ignored for expenses.

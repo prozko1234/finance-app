@@ -12,9 +12,12 @@ namespace FinanceApp.Domain.Savings;
 /// Identified by name rather than by bucket id on purpose: saving a scheme deletes and
 /// recreates its buckets, so bucket ids do not survive an edit — a balance hanging off one
 /// would vanish the first time the user changed a percentage.
-public class Envelope
+public class Envelope : IOwnedByUser
 {
     public int Id { get; set; }
+
+    /// The account this row belongs to. Set by the context, never by a service.
+    public int UserId { get; set; }
 
     public string Name { get; set; } = "";
     public BucketKind Kind { get; set; } = BucketKind.Savings;

@@ -1,9 +1,12 @@
 namespace FinanceApp.Domain;
 
 /// App-wide preferences. MVP — a single row, like Budget.
-public class AppSettings
+public class AppSettings : IOwnedByUser
 {
     public int Id { get; set; }
+
+    /// The account this row belongs to. Set by the context, never by a service.
+    public int UserId { get; set; }
 
     /// The currency the user reads everything in. Storage never leaves
     /// <see cref="Money.BaseCurrency"/>: this decides how stored amounts are shown, not

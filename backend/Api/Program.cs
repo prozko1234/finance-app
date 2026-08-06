@@ -5,6 +5,7 @@ using FinanceApp.Api.Auth;
 using FinanceApp.Api.Common;
 using FinanceApp.Api.Endpoints;
 using FinanceApp.Application;
+using FinanceApp.Application.Abstractions;
 using FinanceApp.Application.Auth;
 using Microsoft.AspNetCore.Authentication;
 using FinanceApp.Infrastructure;
@@ -36,6 +37,12 @@ var authRequired = !builder.Environment.IsDevelopment() || hasBootstrap;
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(connectionString);
+
+// Who the request belongs to. Every owned table is filtered by this, so it has to be in
+// place before the database context is resolved for the first time.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<OpenModeOwner>();
+builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 builder.Services.AddOpenApi();
 
 // Unified error model (RFC 7807) + catching of unhandled exceptions.
@@ -197,6 +204,18 @@ using (var scope = app.Services.CreateScope())
                 "No account exists and Auth__Password is not set. A deployed build refuses to " +
                 "run without a way in — set Auth__Password (and optionally Auth__Email) once.");
         }
+    }
+    else
+    {
+        // Open mode still needs an account to own the data. The password is random and
+        // discarded: nothing signs in here, and leaving a known one lying about would turn
+        // "open on localhost" into a usable credential the day this build is deployed.
+        var accounts = scope.ServiceProvider.GetRequiredService<IAccountService>();
+        await accounts.EnsureOwnerAsync("local@finance.local", Guid.NewGuid().ToString("N"));
+
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        scope.ServiceProvider.GetRequiredService<OpenModeOwner>().UserId =
+            db.Users.OrderBy(u => u.Id).Select(u => u.Id).First();
     }
 }
 

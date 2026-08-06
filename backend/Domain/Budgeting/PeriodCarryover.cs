@@ -10,9 +10,12 @@ namespace FinanceApp.Domain.Budgeting;
 /// One row per period start, whatever the answer was, so the question is asked exactly once.
 /// A recorded <see cref="CarryoverDecision.Ignore"/> is not "nothing happened" — it is "asked
 /// and answered", and it is the only thing that stops the card coming back.
-public class PeriodCarryover
+public class PeriodCarryover : IOwnedByUser
 {
     public int Id { get; set; }
+
+    /// The account this row belongs to. Set by the context, never by a service.
+    public int UserId { get; set; }
 
     /// First day of the period that INHERITS the money — the one running when the question is
     /// asked, not the one the money is left over from. Unique: the decision is per period.

@@ -50,7 +50,10 @@ public class RecurringCadenceMigrationTests : IDisposable
         await using var migrated = NewContext();
         await migrated.Database.MigrateAsync();
 
-        return (await migrated.RecurringExpenses.SingleAsync()).StartsOn;
+        // Inserted by raw SQL from a schema that predates accounts, so the row belongs to
+        // nobody and the ownership filter would hide it. This test is about the migration,
+        // not about tenancy.
+        return (await migrated.RecurringExpenses.IgnoreQueryFilters().SingleAsync()).StartsOn;
     }
 
     [Fact]
@@ -104,7 +107,8 @@ public class RecurringCadenceMigrationTests : IDisposable
         await MigrateRowAsync(dayOfMonth: 10, createdAt: "2026-07-01 09:00:00+00:00");
 
         await using var db = NewContext();
-        var row = await db.RecurringExpenses.SingleAsync();
+        // Unowned, like the row above: written by raw SQL from a schema that predates accounts.
+        var row = await db.RecurringExpenses.IgnoreQueryFilters().SingleAsync();
 
         Assert.Equal(Domain.RecurrenceUnit.Month, row.Unit);
         Assert.Equal(1, row.Interval);

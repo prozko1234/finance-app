@@ -8,9 +8,12 @@ namespace FinanceApp.Domain.Budgeting;
 /// looked like the app arguing with the user.
 ///
 /// So the fact that it was deleted has to be stored somewhere the deletion cannot erase.
-public class RecurringSkip
+public class RecurringSkip : IOwnedByUser
 {
     public int Id { get; set; }
+
+    /// The account this row belongs to. Set by the context, never by a service.
+    public int UserId { get; set; }
 
     public int RecurringExpenseId { get; set; }
     public RecurringExpense? RecurringExpense { get; set; }

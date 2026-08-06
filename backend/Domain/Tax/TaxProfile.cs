@@ -5,9 +5,12 @@ using FinanceApp.Domain.Tax;
 /// User's taxation setup. Rates and contribution amounts are DATA, never hardcoded in
 /// the calculator — Polish rates change every year, so the user (or a new profile row
 /// with a later ValidFrom) can update them without a code change.
-public class TaxProfile
+public class TaxProfile : IOwnedByUser
 {
     public int Id { get; set; }
+
+    /// The account this row belongs to. Set by the context, never by a service.
+    public int UserId { get; set; }
 
     /// None by default: a new user is not assumed to be a B2B contractor. The remaining
     /// defaults below are prefills for the form once a business regime is chosen.

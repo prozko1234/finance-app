@@ -8,9 +8,12 @@ namespace FinanceApp.Domain;
 ///
 /// Learned rules outrank the built-in merchant list on purpose — the list is a guess about
 /// people in general, this is a fact about this person.
-public class MerchantRule
+public class MerchantRule : IOwnedByUser
 {
     public int Id { get; set; }
+
+    /// The account this row belongs to. Set by the context, never by a service.
+    public int UserId { get; set; }
 
     /// The normalized shop name (see <see cref="Import.MerchantKey"/>), not the raw
     /// description: the raw text carries a branch number that changes every visit.

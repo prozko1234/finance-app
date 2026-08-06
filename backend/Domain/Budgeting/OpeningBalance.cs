@@ -10,9 +10,12 @@ namespace FinanceApp.Domain.Budgeting;
 ///
 /// Only a row dated inside the CURRENT month counts. Next month the ordinary budget takes
 /// over on its own — this expires instead of needing to be cleared.
-public class OpeningBalance
+public class OpeningBalance : IOwnedByUser
 {
     public int Id { get; set; }
+
+    /// The account this row belongs to. Set by the context, never by a service.
+    public int UserId { get; set; }
 
     /// The day the balance was counted. Spending is measured from this day, inclusive.
     public DateOnly Date { get; set; }

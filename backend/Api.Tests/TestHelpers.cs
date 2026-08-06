@@ -1,3 +1,5 @@
+using FinanceApp.Application.Abstractions;
+using FinanceApp.Application.Auth;
 using FinanceApp.Domain;
 using FinanceApp.Domain.Fx;
 using FinanceApp.Infrastructure;
@@ -17,9 +19,25 @@ public sealed class SqliteInMemory : IDisposable
         _conn = new SqliteConnection("DataSource=:memory:");
         _conn.Open();
         var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlite(_conn).Options;
-        Db = new AppDbContext(options);
+        Db = new AppDbContext(options, new FixedCurrentUser(UserId));
         Db.Database.EnsureCreated();
+
+        // The starting categories and allocation scheme used to arrive with the schema, as
+        // model seed data. They are per-account now, so a test database is provisioned the
+        // same way a real account is — otherwise every test would have to invent its own
+        // "Інше" before it could delete a category.
+        new UserProvisioningService(Db).ProvisionAsync(UserId).GetAwaiter().GetResult();
     }
+
+    /// The account every test writes as unless it says otherwise.
+    public const int UserId = 1;
+
+    /// A second view of the SAME database, read as somebody else. The connection is shared,
+    /// so this is one database with two accounts looking at it — which is the only way to
+    /// prove that what keeps them apart is the filter and not the storage.
+    public AppDbContext As(int? userId) =>
+        new(new DbContextOptionsBuilder<AppDbContext>().UseSqlite(_conn).Options,
+            new FixedCurrentUser(userId));
 
     public void Dispose()
     {

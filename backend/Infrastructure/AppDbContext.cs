@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using FinanceApp.Application.Abstractions;
 using FinanceApp.Domain;
 using FinanceApp.Domain.Auth;
@@ -7,8 +8,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FinanceApp.Infrastructure;
 
-public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options), IAppDbContext
+public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? currentUser = null)
+    : DbContext(options), IAppDbContext
 {
+    /// Read by the query filters below. A property rather than a captured local because EF
+    /// treats member access on the context as a query parameter: the filter is compiled once
+    /// and re-evaluated per request, instead of baking one user id into the query cache.
+    public int? CurrentUserId => currentUser?.UserId;
+
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<FxRate> FxRates => Set<FxRate>();
@@ -34,7 +41,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(c => c.Name).HasMaxLength(60).IsRequired();
             e.Property(c => c.Icon).HasMaxLength(16);
             e.Property(c => c.Color).HasMaxLength(9);
-            e.HasData(SeedCategories);
         });
 
         b.Entity<Transaction>(e =>
@@ -114,8 +120,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.TargetAmount).HasPrecision(18, 2);
             // The name is the identity a scheme's bucket is matched against, so two
-            // envelopes called the same thing would split one balance in two.
-            e.HasIndex(x => x.Name).IsUnique();
+            // envelopes called the same thing would split one balance in two. Scoped to the
+            // account: "Подушка" is one jar per person, not one jar in the world.
+            e.HasIndex(x => new { x.UserId, x.Name }).IsUnique();
         });
 
         b.Entity<RecurringExpense>(e =>
@@ -180,8 +187,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             e.Property(x => x.Key).HasMaxLength(MerchantRule.MaxKeyLength).IsRequired();
             // One rule per shop: a second row for the same key could only ever be two
-            // different answers to the same question.
-            e.HasIndex(x => x.Key).IsUnique();
+            // different answers to the same question. Per account — two people may well
+            // file the same shop under different categories.
+            e.HasIndex(x => new { x.UserId, x.Key }).IsUnique();
             // Restrict: losing a category must not silently take its rules with it —
             // CategoryService moves transactions to "Інше", and rules follow the same way.
             e.HasOne(x => x.Category)
@@ -202,8 +210,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.AmountBase).HasPrecision(18, 2);
             e.Property(x => x.Decision).HasConversion<string>().HasMaxLength(20);
             // Asked once per period, enforced here and not only in the service: two answers
-            // for one period would mean the leftover was moved twice.
-            e.HasIndex(x => x.PeriodStart).IsUnique();
+            // for one period would mean the leftover was moved twice. Per account, or one
+            // person answering would answer for everyone whose period starts that day.
+            e.HasIndex(x => new { x.UserId, x.PeriodStart }).IsUnique();
             e.HasOne<Envelope>()
                 .WithMany()
                 .HasForeignKey(x => x.EnvelopeId)
@@ -214,13 +223,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             e.Property(x => x.Name).HasMaxLength(60).IsRequired();
             e.Property(x => x.Preset).HasMaxLength(40);
-            // Exactly one scheme may be active; the DB enforces it, not just the service.
-            e.HasIndex(x => x.IsActive).IsUnique().HasFilter("\"IsActive\" = 1");
+            // Exactly one scheme may be active PER ACCOUNT; the DB enforces it, not just the
+            // service. Without the UserId in front, the first account to activate a scheme
+            // would be the only account in the database allowed to have one — and the second
+            // would meet a unique-constraint violation with nothing to explain it.
+            e.HasIndex(x => new { x.UserId, x.IsActive }).IsUnique().HasFilter("\"IsActive\" = 1");
             e.HasMany(x => x.Buckets)
                 .WithOne(x => x.Scheme!)
                 .HasForeignKey(x => x.SchemeId)
                 .OnDelete(DeleteBehavior.Cascade);
-            e.HasData(DefaultScheme);
         });
 
         b.Entity<AllocationBucket>(e =>
@@ -228,48 +239,63 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Name).HasMaxLength(60).IsRequired();
             e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.Percent).HasPrecision(5, 2);
-            e.HasData(DefaultBuckets);
         });
+
+        ApplyOwnershipFilters(b);
     }
 
-    // Every database starts with the app's pre-schemes behaviour expressed as a scheme:
-    // one Spending bucket at 100%. Seeded rather than created on demand so existing
-    // databases get an active scheme from the migration alone.
-    private static readonly AllocationScheme DefaultScheme = new()
-    {
-        Id = 1,
-        Name = AllocationPresets.Find(AllocationPresets.DailyNormOnly)!.Name,
-        Preset = AllocationPresets.DailyNormOnly,
-        IsActive = true,
-        // Fixed, not UtcNow: seed data must be deterministic or every migration differs.
-        UpdatedAt = new DateTimeOffset(2026, 7, 27, 0, 0, 0, TimeSpan.Zero),
-    };
-
-    private static readonly AllocationBucket[] DefaultBuckets =
-    [
-        new() { Id = 1, SchemeId = 1, Name = "На витрати", Kind = BucketKind.Spending, Percent = 100m, SortOrder = 0 },
-    ];
-
-    /// Named after where the money actually goes, from a year of real statements rather than
-    /// from a tidy-looking list. Two splits earn their place: delivery is not groceries (in
-    /// that year, 22 765 zł against 11 127 zł — one category would have hidden the bigger
-    /// half), and subscriptions are not games, which is the difference between a charge you
-    /// can cancel in one move and one you chose to make.
+    /// One filter per owned entity, built by walking the model rather than written out by
+    /// hand. An entity added later is covered the moment it implements the marker, and there
+    /// is no line for a future change to forget — the failure being prevented here is silent
+    /// and shows one person another person's money.
     ///
-    /// Transfers to people are a category because they were 12 866 zł with nowhere to go, and
-    /// "Інше" that large answers nothing.
-    private static readonly Category[] SeedCategories =
-    [
-        new() { Id = 1, Name = "Продукти", Icon = "🛒", SortOrder = 1 },
-        new() { Id = 2, Name = "Транспорт", Icon = "🚌", SortOrder = 2 },
-        new() { Id = 3, Name = "Житло", Icon = "🏠", SortOrder = 3 },
-        new() { Id = 4, Name = "Здоров'я", Icon = "💊", SortOrder = 4 },
-        new() { Id = 5, Name = "Розваги", Icon = "🎮", SortOrder = 5 },
-        // Fallback category: orphaned transactions land here, so it cannot be deleted.
-        new() { Id = 6, Name = "Інше", Icon = "📦", SortOrder = 99, IsSystem = true },
-        new() { Id = 7, Name = "Доставка", Icon = "🛵", SortOrder = 6 },
-        new() { Id = 8, Name = "Кафе й бари", Icon = "☕", SortOrder = 7 },
-        new() { Id = 9, Name = "Підписки", Icon = "🔁", SortOrder = 8 },
-        new() { Id = 10, Name = "Перекази", Icon = "👤", SortOrder = 9 },
-    ];
+    /// Note what is deliberately NOT filtered: <see cref="User"/> is the tenant itself, and
+    /// <see cref="DeviceToken"/> is looked up by its hash to discover WHO is asking, before
+    /// there is a current user to filter by. Both are scoped by their own services instead.
+    private void ApplyOwnershipFilters(ModelBuilder b)
+    {
+        foreach (var entity in b.Model.GetEntityTypes())
+        {
+            if (!typeof(IOwnedByUser).IsAssignableFrom(entity.ClrType)) continue;
+
+            entity.AddIndex(entity.FindProperty(nameof(IOwnedByUser.UserId))!);
+
+            // e => e.UserId == this.CurrentUserId
+            var row = Expression.Parameter(entity.ClrType, "e");
+            var owner = Expression.Property(row, nameof(IOwnedByUser.UserId));
+            var current = Expression.Property(Expression.Constant(this), nameof(CurrentUserId));
+
+            b.Entity(entity.ClrType).HasQueryFilter(
+                Expression.Lambda(
+                    Expression.Equal(Expression.Convert(owner, typeof(int?)), current), row));
+        }
+    }
+
+    /// New rows are stamped with the signed-in account here, so no service ever has to
+    /// remember to. A write with nobody signed in is a bug rather than a public row, and
+    /// says so loudly instead of landing somewhere unowned.
+    public override Task<int> SaveChangesAsync(CancellationToken ct = default)
+    {
+        StampOwner();
+        return base.SaveChangesAsync(ct);
+    }
+
+    public override int SaveChanges()
+    {
+        StampOwner();
+        return base.SaveChanges();
+    }
+
+    private void StampOwner()
+    {
+        foreach (var entry in ChangeTracker.Entries<IOwnedByUser>())
+        {
+            if (entry.State != EntityState.Added || entry.Entity.UserId != 0) continue;
+
+            entry.Entity.UserId = CurrentUserId
+                ?? throw new InvalidOperationException(
+                    $"Cannot save {entry.Entity.GetType().Name} with no signed-in account.");
+        }
+    }
+
 }

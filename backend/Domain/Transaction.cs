@@ -1,8 +1,11 @@
 namespace FinanceApp.Domain;
 
-public class Transaction
+public class Transaction : IOwnedByUser
 {
     public int Id { get; set; }
+
+    /// The account this row belongs to. Set by the context, never by a service.
+    public int UserId { get; set; }
 
     public TransactionKind Kind { get; set; } = TransactionKind.Expense;
 

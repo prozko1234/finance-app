@@ -41,7 +41,8 @@ public interface IAccountService
     Task<Result<Account>> SignOutEverywhereAsync(int userId, CancellationToken ct = default);
 }
 
-public sealed class AccountService(IAppDbContext db, IPasswordHasher hasher) : IAccountService
+public sealed class AccountService(
+    IAppDbContext db, IPasswordHasher hasher, IUserProvisioning provisioning) : IAccountService
 {
     /// Long enough that guessing is hopeless, short enough to be typed on a phone. No
     /// character-class rules: they push people towards Password1! and are worth less than
@@ -55,15 +56,20 @@ public sealed class AccountService(IAppDbContext db, IPasswordHasher hasher) : I
     {
         if (await db.Users.AnyAsync(ct)) return false;
 
-        db.Users.Add(new User
+        var user = new User
         {
             Email = User.NormalizeEmail(email),
             PasswordHash = hasher.Hash(password),
             SecurityStamp = User.NewStamp(),
             CreatedAt = DateTimeOffset.UtcNow,
-        });
+        };
+        db.Users.Add(user);
 
         await db.SaveChangesAsync(ct);
+
+        // An account with no categories and no allocation scheme cannot record a single
+        // expense, so the two are created together or the app opens broken.
+        await provisioning.ProvisionAsync(user.Id, ct);
         return true;
     }
 

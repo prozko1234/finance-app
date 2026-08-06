@@ -13,9 +13,12 @@ public enum SavingsEntryKind { Deposit, Withdrawal }
 /// Money is stored exactly as on a transaction: what the user typed, plus the base amount
 /// and the rate it was converted at. Someone saving in USD wants to see the USD they put
 /// in, while the balance and the monthly goal can only work in one currency.
-public class SavingsEntry
+public class SavingsEntry : IOwnedByUser
 {
     public int Id { get; set; }
+
+    /// The account this row belongs to. Set by the context, never by a service.
+    public int UserId { get; set; }
 
     /// Which pot this movement belongs to.
     public int EnvelopeId { get; set; }
