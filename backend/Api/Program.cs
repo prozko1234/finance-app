@@ -40,6 +40,31 @@ builder.Services.AddInfrastructure(connectionString);
 
 // Who the request belongs to. Every owned table is filtered by this, so it has to be in
 // place before the database context is resolved for the first time.
+// Behind Coolify's proxy the app sees plain HTTP; without this it would think the request
+// was insecure and refuse to set a Secure cookie.
+//
+// The two Clear() calls are the whole point. By default forwarded headers are trusted only
+// from loopback, and the proxy is a different container on the docker network — so every
+// header was quietly dropped and every request looked like it came from Traefik. The visible
+// damage was not the scheme but the rate limiter, which partitions by remote address: one
+// bucket for the entire world, meaning ten wrong passwords from anybody locked everyone out
+// of the door for five minutes.
+//
+// Trusting any proxy is safe here precisely because there is only one way in: the container's
+// port is not published, so nothing but Traefik can open a connection to it. If that ever
+// changes — a published port, a second ingress — this has to become an explicit KnownProxies
+// list, or the address becomes something the caller can simply claim.
+//
+// Configured here rather than passed to UseForwardedHeaders() inline so that it is part of
+// the container and can be asserted on: the failure this fixes was invisible in every
+// environment except the deployed one.
+builder.Services.Configure<ForwardedHeadersOptions>(o =>
+{
+    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    o.KnownNetworks.Clear();
+    o.KnownProxies.Clear();
+});
+
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<OpenModeOwner>();
 builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
@@ -163,12 +188,7 @@ builder.Services.AddAuthorization(o =>
 
 var app = builder.Build();
 
-// Behind Coolify's proxy the app sees plain HTTP; without this it would think the request
-// was insecure and refuse to set a Secure cookie.
-app.UseForwardedHeaders(new ForwardedHeadersOptions
-{
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
-});
+app.UseForwardedHeaders();
 
 app.UseExceptionHandler();
 
