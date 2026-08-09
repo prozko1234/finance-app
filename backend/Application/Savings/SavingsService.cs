@@ -130,9 +130,15 @@ public sealed class SavingsService(
         var conv = await fx.ConvertToBaseAsync(req.Amount, currency, date, ct);
         if (!conv.IsSuccess) return conv.Error;
 
+        // Checked against the jar's whole balance, which counts the two ways money leaves it
+        // without being a withdrawal: an expense paid straight out of it, and a debt repaid
+        // from it. This used to count deposits minus withdrawals here, and a jar with 1 000
+        // put in and 800 already spent from it let another 500 be taken out — then showed the
+        // balance it really had, in minus.
+        //
         // Only what this same entry already contributes to THIS envelope can be replaced;
         // moving an entry to another pot has to earn its room in the new one.
-        var available = await BalanceAsync(envelopeId, ct)
+        var available = await envelopes.BalanceAsync(envelopeId, ct)
             - (entry.EnvelopeId == envelopeId ? replacing : 0m);
         if (kind == SavingsEntryKind.Withdrawal && conv.Value!.AmountBase > available)
             return Error.Validation($"У банці лише {available:0.00}. Стільки зняти не вийде.");
@@ -176,7 +182,7 @@ public sealed class SavingsService(
         var conv = await fx.ConvertToBaseAsync(req.Amount, currency, date, ct);
         if (!conv.IsSuccess) return conv.Error;
 
-        var available = await BalanceAsync(from.Id, ct);
+        var available = await envelopes.BalanceAsync(from.Id, ct);
         if (conv.Value!.AmountBase > available)
             return Error.Validation($"У банці «{from.Name}» лише {available:0.00}. Стільки перекинути не вийде.");
 
@@ -324,20 +330,4 @@ public sealed class SavingsService(
     private async Task<int> DefaultEnvelopeIdAsync(CancellationToken ct) =>
         (await DefaultStatusAsync(await MonthAsync(ct), ct)).Id;
 
-    /// Balance of ONE envelope. Withdrawing is checked against the pot the money is being
-    /// taken from, never against the total — otherwise a full pension envelope would let
-    /// someone empty a savings envelope that has nothing in it.
-    private async Task<decimal> BalanceAsync(int envelopeId, CancellationToken ct)
-    {
-        var rows = db.SavingsEntries.Where(x => x.EnvelopeId == envelopeId);
-
-        var deposits = await rows
-            .Where(x => x.Kind == SavingsEntryKind.Deposit)
-            .SumAsync(x => (decimal?)x.AmountBase, ct) ?? 0m;
-        var withdrawals = await rows
-            .Where(x => x.Kind == SavingsEntryKind.Withdrawal)
-            .SumAsync(x => (decimal?)x.AmountBase, ct) ?? 0m;
-
-        return deposits - withdrawals;
-    }
 }

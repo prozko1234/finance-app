@@ -16,6 +16,7 @@ function summary(over: Partial<SafeToSpend> = {}): SafeToSpend {
     windowStart: '2026-07-01', fromOpeningBalance: false,
     periodStart: '2026-07-01', periodEnd: '2026-07-31',
     carryover: null,
+    reservedDebts: 0,
     ...over,
   }
 }
@@ -326,5 +327,13 @@ describe('Home — the payday question', () => {
   it('says nothing about a leftover when there is none to place', () => {
     render(<Home {...props} summary={summary()} />)
     expect(screen.queryByText(/Минулого періоду лишилось/)).not.toBeInTheDocument()
+  })
+
+  /// Money held back for a debt is missing from the daily norm, and the reason has to be on
+  /// the same screen as the figure — named separately from the jars, because a debt is not
+  /// money the user still has.
+  it('names what debts are holding back', () => {
+    render(<Home {...props} summary={summary({ reservedDebts: 250 })} />)
+    expect(screen.getByText(/на борги 250,00/)).toBeInTheDocument()
   })
 })

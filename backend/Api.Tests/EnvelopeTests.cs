@@ -1,3 +1,4 @@
+using FinanceApp.Application.Debts;
 using static FinanceApp.Api.Tests.TestIncome;
 using FinanceApp.Application.Common;
 using FinanceApp.Api.Tests.Integration;
@@ -23,7 +24,7 @@ public class EnvelopeTests
 
     private static EnvelopeService Sut(SqliteInMemory mem) =>
         new(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db),
-            new FakeFxConverter(), NullLogger<EnvelopeService>.Instance);
+            new FakeFxConverter(), new DebtLedger(mem.Db, new BudgetPeriodResolver(mem.Db)), NullLogger<EnvelopeService>.Instance);
 
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.Now);
 
@@ -38,7 +39,7 @@ public class EnvelopeTests
     {
         var fx = new FakeFxConverter();
         return new SavingsService(
-            mem.Db, new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db)), fx, new AllocationService(mem.Db),
+            mem.Db, new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db), new DebtLedger(mem.Db, new BudgetPeriodResolver(mem.Db))), fx, new AllocationService(mem.Db),
             Sut(mem), new MoneyViewFactory(mem.Db, fx), NullLogger<SavingsService>.Instance);
     }
 

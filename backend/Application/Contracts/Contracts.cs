@@ -112,7 +112,11 @@ public record SafeToSpendResponse(
     DateOnly PeriodEnd = default,
     /// Last period's leftover, when it is still waiting to be told where to go. Null once the
     /// question has been answered — including when the answer was "не рахувати".
-    CarryoverResponse? Carryover = null);
+    CarryoverResponse? Carryover = null,
+    /// What debts are holding back from this period, for the debts the user asked to reserve
+    /// for. Sent separately from the recurring reserve so the screen can say which is which:
+    /// money missing with nothing to explain it is the whole complaint being answered here.
+    decimal ReservedDebts = 0m);
 
 /// Where the month's budget went before the daily norm was computed — the "куди пішов
 /// бюджет" row. Null-ish case (the default one-bucket scheme) still comes through, so the
@@ -501,3 +505,72 @@ public record ImportResultResponse(
     int Created,
     int Failed,
     IReadOnlyList<ImportProblemResponse> Problems);
+
+// --- Debts, both ways round ---
+
+public record SaveDebtRequest(
+    string Direction,
+    string Person,
+    decimal Amount,
+    string? Currency,
+    DateOnly? Date,
+    DateOnly? Deadline,
+    bool ReserveFromBudget,
+    string? Note);
+
+public record SaveDebtPaymentRequest(
+    decimal Amount,
+    string? Currency,
+    DateOnly? Date,
+    string Source,
+    int? EnvelopeId,
+    string? Note);
+
+public record DebtPaymentResponse(
+    int Id,
+    DateOnly Date,
+    decimal Amount,
+    decimal AmountOriginal,
+    string CurrencyOriginal,
+    string Source,
+    int? EnvelopeId,
+    string? EnvelopeName,
+    string? Note);
+
+/// One debt as the screen reads it.
+/// <param name="Outstanding">What is still owed — the figure the screen leads with, because
+/// it is the one that goes DOWN as the debt is paid. A jar's balance goes up; a debt's does
+/// not, and showing the total paid instead was what made the old screen read backwards.</param>
+/// <param name="PerPeriod">What this period has to hold back to arrive by the deadline, or 0
+/// when the user did not ask the app to reserve for this debt.</param>
+public record DebtResponse(
+    int Id,
+    string Direction,
+    string Person,
+    decimal Amount,
+    decimal AmountOriginal,
+    string CurrencyOriginal,
+    DateOnly Date,
+    DateOnly? Deadline,
+    bool ReserveFromBudget,
+    decimal Paid,
+    decimal Outstanding,
+    decimal PerPeriod,
+    int PeriodsLeft,
+    bool Overdue,
+    DateOnly? ClosedOn,
+    string? Note,
+    IReadOnlyList<DebtPaymentResponse> Payments);
+
+/// <param name="ReservedThisPeriod">What debts are taking out of the daily norm right now.
+/// Reported so the home screen can name it: money missing with nothing to explain it is the
+/// complaint this whole area of the app exists to answer.</param>
+public record DebtsResponse(
+    string Currency,
+    decimal IOweTotal,
+    decimal TheyOweMeTotal,
+    decimal ReservedThisPeriod,
+    IReadOnlyList<DebtResponse> IOwe,
+    IReadOnlyList<DebtResponse> TheyOweMe);
+
+public record CloseDebtRequest(bool Closed);

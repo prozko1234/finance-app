@@ -14,6 +14,7 @@ const PATHS: Record<View, string> = {
   add: '/add',
   balance: '/balance',
   savings: '/savings',
+  debts: '/debts',
   allocation: '/allocation',
   recurring: '/recurring',
   stats: '/stats',

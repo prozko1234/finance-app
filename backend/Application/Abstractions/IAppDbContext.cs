@@ -1,6 +1,7 @@
 using FinanceApp.Domain;
 using FinanceApp.Domain.Auth;
 using FinanceApp.Domain.Budgeting;
+using FinanceApp.Domain.Debts;
 using FinanceApp.Domain.Savings;
 using Microsoft.EntityFrameworkCore;
 
@@ -29,6 +30,8 @@ public interface IAppDbContext
     DbSet<Invite> Invites { get; }
     DbSet<MerchantRule> MerchantRules { get; }
     DbSet<RecurringSkip> RecurringSkips { get; }
+    DbSet<Debt> Debts { get; }
+    DbSet<DebtPayment> DebtPayments { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

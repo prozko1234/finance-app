@@ -1,3 +1,4 @@
+using FinanceApp.Application.Debts;
 using static FinanceApp.Api.Tests.TestIncome;
 using FinanceApp.Application.Common;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -28,15 +29,15 @@ public class AllocationSummaryTests
         return new SummaryService(
             mem.Db, fx,
             new RecurringMaterializer(mem.Db, fx),
-            new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db)),
-            new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db), fx, NullLogger<EnvelopeService>.Instance),
+            new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db), new DebtLedger(mem.Db, new BudgetPeriodResolver(mem.Db))),
+            new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db), fx, new DebtLedger(mem.Db, new BudgetPeriodResolver(mem.Db)), NullLogger<EnvelopeService>.Instance),
             new AllocationService(mem.Db),
             new MoneyViewFactory(mem.Db, fx),
             new BudgetPeriodResolver(mem.Db),
             new CarryoverService(
                 mem.Db, new BudgetPeriodResolver(mem.Db),
-                new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db)),
-                NullLogger<CarryoverService>.Instance));
+                new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db), new DebtLedger(mem.Db, new BudgetPeriodResolver(mem.Db))),
+                NullLogger<CarryoverService>.Instance), new DebtLedger(mem.Db, new BudgetPeriodResolver(mem.Db)));
     }
 
     /// The default envelope is what the savings plan feeds and what these tests are about.
@@ -107,8 +108,8 @@ public class AllocationSummaryTests
 
         var fx = new FakeFxConverter();
         var savings = new SavingsService(
-            mem.Db, new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db)), fx, new AllocationService(mem.Db),
-            new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db), fx, NullLogger<EnvelopeService>.Instance), new MoneyViewFactory(mem.Db, fx), NullLogger<SavingsService>.Instance);
+            mem.Db, new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db), new DebtLedger(mem.Db, new BudgetPeriodResolver(mem.Db))), fx, new AllocationService(mem.Db),
+            new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db), fx, new DebtLedger(mem.Db, new BudgetPeriodResolver(mem.Db)), NullLogger<EnvelopeService>.Instance), new MoneyViewFactory(mem.Db, fx), NullLogger<SavingsService>.Instance);
         await savings.AddEntryAsync(new("Deposit", 500m, null, null, null));
 
         var r = await Sut(mem).GetSafeToSpendAsync();

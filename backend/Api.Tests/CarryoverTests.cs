@@ -1,3 +1,4 @@
+using FinanceApp.Application.Debts;
 using FinanceApp.Application.Budgets;
 using FinanceApp.Application.Common;
 using FinanceApp.Application.Summaries;
@@ -19,7 +20,7 @@ public class CarryoverTests
     {
         var periods = new BudgetPeriodResolver(mem.Db);
         return new CarryoverService(
-            mem.Db, periods, new MonthlyBudget(mem.Db, periods), NullLogger<CarryoverService>.Instance);
+            mem.Db, periods, new MonthlyBudget(mem.Db, periods, new DebtLedger(mem.Db, periods)), NullLogger<CarryoverService>.Instance);
     }
 
     /// Everything is dated in the PREVIOUS calendar month, with the period running from the
@@ -134,7 +135,7 @@ public class CarryoverTests
         using var mem = new SqliteInMemory();
         var category = await SetUpAsync(mem, income: 8_000m, spent: 6_500m);
         var periods = new BudgetPeriodResolver(mem.Db);
-        var budget = new MonthlyBudget(mem.Db, periods);
+        var budget = new MonthlyBudget(mem.Db, periods, new DebtLedger(mem.Db, periods));
 
         // This period has an income of its own, so the leftover has to be visible on top of it.
         mem.Db.Transactions.Add(Tx(

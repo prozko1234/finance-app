@@ -274,6 +274,7 @@ app.MapImportEndpoints();
 app.MapAppBundleEndpoints();
 app.MapTaxEndpoints();
 app.MapSavingsEndpoints();
+app.MapDebtEndpoints();
 app.MapEnvelopeEndpoints();
 app.MapAllocationEndpoints();
 app.MapSettingsEndpoints();

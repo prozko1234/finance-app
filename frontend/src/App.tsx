@@ -11,6 +11,7 @@ import {
   useUpdateRecurring, useTaxProfile, useTaxDefaults, useSaveTaxProfile,
   useAllocations, useSaveAllocation, useSettings, useSetDisplayCurrency, useSetPeriodStartDay,
   useSavings, useSaveSavingsPlan, useAddSavingsEntry, useUpdateSavingsEntry, useDeleteSavingsEntry,
+  useDebts, useCreateDebt, useDeleteDebt, useSetDebtClosed, useAddDebtPayment,
   useCreateEnvelope, useUpdateEnvelope, useDeleteEnvelope, useSetEnvelopeTarget, useTransferBetweenEnvelopes,
   useStats, useAuthStatus, useLogin, useLogout, useRegister, queryKeys,
   useChangePassword, useChangeEmail, useSignOutEverywhere, useDevices, useRevokeDevice,
@@ -29,6 +30,7 @@ import { TaxProfile } from './components/TaxProfile'
 import { Categories } from './components/Categories'
 import { Import } from './components/Import'
 import { Savings } from './components/Savings'
+import { Debts } from './components/Debts'
 import { Allocation } from './components/Allocation'
 import { Stats, MONTHS_BACK } from './components/Stats'
 import { DevTools } from './components/DevTools'
@@ -92,6 +94,11 @@ function App() {
   const recurring = useRecurring()
   const frequentCategories = useFrequentCategories()
   const savings = useSavings()
+  const debts = useDebts()
+  const createDebt = useCreateDebt()
+  const deleteDebt = useDeleteDebt()
+  const setDebtClosed = useSetDebtClosed()
+  const addDebtPayment = useAddDebtPayment()
   const allocations = useAllocations()
   const saveAllocation = useSaveAllocation()
   const saveSavingsPlan = useSaveSavingsPlan()
@@ -366,6 +373,19 @@ function App() {
             // jar list entirely instead of returning to it.
             openId={param ? Number(param) : null}
             onOpen={(id) => go('savings', id === null ? null : String(id))}
+            onBack={() => go('home')}
+          />
+        )}
+        {view === 'debts' && (
+          <Debts
+            data={debts.data ?? null}
+            // The jars come from the savings query, which is already loaded for the home
+            // screen: a debt paid out of a jar has to name one that really exists.
+            envelopes={savings.data?.envelopes ?? []}
+            onCreate={(d) => createDebt.mutateAsync(d).then(() => {})}
+            onDelete={(id) => deleteDebt.mutateAsync(id).then(() => {})}
+            onSetClosed={(id, closed) => setDebtClosed.mutateAsync({ id, closed }).then(() => {})}
+            onPay={(id, p) => addDebtPayment.mutateAsync({ id, data: p }).then(() => {})}
             onBack={() => go('home')}
           />
         )}

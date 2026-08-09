@@ -1,3 +1,4 @@
+using FinanceApp.Application.Debts;
 using FinanceApp.Application.Common;
 using FinanceApp.Application.Summaries;
 using FinanceApp.Domain;
@@ -26,7 +27,7 @@ public class OpeningBalanceTests
         sut.Db.Transactions.Add(Income(6000m, Today));
         await sut.Db.SaveChangesAsync();
 
-        var r = await new MonthlyBudget(sut.Db, new BudgetPeriodResolver(sut.Db)).ResolveAsync();
+        var r = await new MonthlyBudget(sut.Db, new BudgetPeriodResolver(sut.Db), new DebtLedger(sut.Db, new BudgetPeriodResolver(sut.Db))).ResolveAsync();
 
         Assert.Equal(6000m, r.Budget);
         Assert.Equal(First, r.WindowStart);
@@ -46,7 +47,7 @@ public class OpeningBalanceTests
         });
         await sut.Db.SaveChangesAsync();
 
-        var r = await new MonthlyBudget(sut.Db, new BudgetPeriodResolver(sut.Db)).ResolveAsync();
+        var r = await new MonthlyBudget(sut.Db, new BudgetPeriodResolver(sut.Db), new DebtLedger(sut.Db, new BudgetPeriodResolver(sut.Db))).ResolveAsync();
 
         Assert.Equal(1800m, r.Budget);
         Assert.Equal(Today, r.WindowStart);
@@ -65,7 +66,7 @@ public class OpeningBalanceTests
         sut.Db.Transactions.Add(Income(5000m, First.AddDays(1)));
         await sut.Db.SaveChangesAsync();
 
-        var r = await new MonthlyBudget(sut.Db, new BudgetPeriodResolver(sut.Db)).ResolveAsync();
+        var r = await new MonthlyBudget(sut.Db, new BudgetPeriodResolver(sut.Db), new DebtLedger(sut.Db, new BudgetPeriodResolver(sut.Db))).ResolveAsync();
 
         Assert.Equal(6000m, r.Budget);
     }
@@ -81,7 +82,7 @@ public class OpeningBalanceTests
         sut.Db.Transactions.Add(Income(5000m, First)); // same day as the count
         await sut.Db.SaveChangesAsync();
 
-        var r = await new MonthlyBudget(sut.Db, new BudgetPeriodResolver(sut.Db)).ResolveAsync();
+        var r = await new MonthlyBudget(sut.Db, new BudgetPeriodResolver(sut.Db), new DebtLedger(sut.Db, new BudgetPeriodResolver(sut.Db))).ResolveAsync();
 
         Assert.Equal(1000m, r.Budget);
     }
@@ -103,7 +104,7 @@ public class OpeningBalanceTests
         sut.Db.Transactions.Add(salary);
         await sut.Db.SaveChangesAsync();
 
-        var r = await new MonthlyBudget(sut.Db, new BudgetPeriodResolver(sut.Db)).ResolveAsync();
+        var r = await new MonthlyBudget(sut.Db, new BudgetPeriodResolver(sut.Db), new DebtLedger(sut.Db, new BudgetPeriodResolver(sut.Db))).ResolveAsync();
 
         Assert.Equal(26_741.69m, r.Budget);
     }
@@ -124,7 +125,7 @@ public class OpeningBalanceTests
         });
         await sut.Db.SaveChangesAsync();
 
-        var r = await new MonthlyBudget(sut.Db, new BudgetPeriodResolver(sut.Db)).ResolveAsync();
+        var r = await new MonthlyBudget(sut.Db, new BudgetPeriodResolver(sut.Db), new DebtLedger(sut.Db, new BudgetPeriodResolver(sut.Db))).ResolveAsync();
 
         Assert.Equal(741.69m, r.Budget);
     }
@@ -140,7 +141,7 @@ public class OpeningBalanceTests
         });
         await sut.Db.SaveChangesAsync();
 
-        var r = await new MonthlyBudget(sut.Db, new BudgetPeriodResolver(sut.Db)).ResolveAsync();
+        var r = await new MonthlyBudget(sut.Db, new BudgetPeriodResolver(sut.Db), new DebtLedger(sut.Db, new BudgetPeriodResolver(sut.Db))).ResolveAsync();
 
         Assert.Equal(6000m, r.Budget); // not 200 — the ordinary month is back
         Assert.Equal(First, r.WindowStart);
@@ -158,7 +159,7 @@ public class OpeningBalanceTests
         });
         await sut.Db.SaveChangesAsync();
 
-        var r = await new MonthlyBudget(sut.Db, new BudgetPeriodResolver(sut.Db)).ResolveAsync();
+        var r = await new MonthlyBudget(sut.Db, new BudgetPeriodResolver(sut.Db), new DebtLedger(sut.Db, new BudgetPeriodResolver(sut.Db))).ResolveAsync();
 
         Assert.Equal(6000m, r.Budget);
     }

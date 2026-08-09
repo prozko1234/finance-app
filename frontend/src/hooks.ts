@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api'
 import type {
-  CarryoverDecision, Credentials, Registration, SaveAllocation, SaveCategory, SaveEnvelope, SaveEnvelopeTarget, SaveIncome, SaveOpeningBalance, SaveRecurring, SaveSavingsEntry, SaveSavingsPlan, SaveTaxProfile, SaveTransaction, SaveTransfer,
+  CarryoverDecision, Credentials, Registration, SaveAllocation, SaveCategory, SaveDebt, SaveDebtPayment, SaveEnvelope, SaveEnvelopeTarget, SaveIncome, SaveOpeningBalance, SaveRecurring, SaveSavingsEntry, SaveSavingsPlan, SaveTaxProfile, SaveTransaction, SaveTransfer,
 } from './types'
 
 export const queryKeys = {
@@ -15,6 +15,7 @@ export const queryKeys = {
   taxProfile: ['taxProfile'] as const,
   taxDefaults: ['taxDefaults'] as const,
   savings: ['savings'] as const,
+  debts: ['debts'] as const,
   allocations: ['allocations'] as const,
   incomePreview: ['incomePreview'] as const,
   settings: ['settings'] as const,
@@ -409,6 +410,44 @@ export function useSetEnvelopeTarget() {
 
 export function useDeleteEnvelope() {
   return useSavingsMutation((id: number) => api.deleteEnvelope(id))
+}
+
+export function useDebts() {
+  return useQuery({ queryKey: queryKeys.debts, queryFn: api.getDebts })
+}
+
+/// Every debt write re-reads everything, like every other money decision: a repayment out of
+/// spendable money moves the daily norm, one out of a jar moves that jar, and money coming
+/// back moves the budget itself.
+function useDebtMutation<T>(fn: (v: T) => Promise<unknown>) {
+  const invalidate = useInvalidateEverything()
+  return useMutation({ mutationFn: fn, onSuccess: invalidate })
+}
+
+export function useCreateDebt() {
+  return useDebtMutation((d: SaveDebt) => api.createDebt(d))
+}
+
+export function useUpdateDebt() {
+  return useDebtMutation(({ id, data }: { id: number; data: SaveDebt }) => api.updateDebt(id, data))
+}
+
+export function useDeleteDebt() {
+  return useDebtMutation((id: number) => api.deleteDebt(id))
+}
+
+export function useSetDebtClosed() {
+  return useDebtMutation(({ id, closed }: { id: number; closed: boolean }) =>
+    api.setDebtClosed(id, closed))
+}
+
+export function useAddDebtPayment() {
+  return useDebtMutation(({ id, data }: { id: number; data: SaveDebtPayment }) =>
+    api.addDebtPayment(id, data))
+}
+
+export function useDeleteDebtPayment() {
+  return useDebtMutation((paymentId: number) => api.deleteDebtPayment(paymentId))
 }
 
 /// Dev-only helpers. The endpoints exist only when the API runs in Development;

@@ -1,6 +1,7 @@
 using FinanceApp.Application.Abstractions;
 using FinanceApp.Application.Allocations;
 using FinanceApp.Application.Common;
+using FinanceApp.Application.Debts;
 using FinanceApp.Domain;
 using FinanceApp.Domain.Budgeting;
 using FinanceApp.Domain.Common;
@@ -92,6 +93,11 @@ public interface IEnvelopeService
     /// the same way a movement into a jar is. Null means base currency.</param>
     Task<Result<Envelope>> SetTargetAsync(
         int id, decimal? amount, string? currency, DateOnly? date, CancellationToken ct = default);
+
+    /// What is in one jar right now. Public because taking money out of a jar happens in more
+    /// than one place — a withdrawal, an expense, a debt repayment — and every one of them has
+    /// to be checked against the same figure, or a jar can be emptied twice.
+    Task<decimal> BalanceAsync(int envelopeId, CancellationToken ct = default);
 }
 
 /// <param name="Moved">Net movement over the period: deposits minus withdrawals minus
@@ -102,7 +108,7 @@ public record EnvelopePeriod(DateOnly Start, DateOnly End, decimal Moved, decima
 
 public sealed class EnvelopeService(
     IAppDbContext db, IAllocationService allocations, IBudgetPeriods periods,
-    IFxConverter fx, ILogger<EnvelopeService> log) : IEnvelopeService
+    IFxConverter fx, IDebtLedger debts, ILogger<EnvelopeService> log) : IEnvelopeService
 {
     public async Task<IReadOnlyList<EnvelopeStatus>> StatusAsync(
         MonthlyBudgetResult month, CancellationToken ct = default)
@@ -155,6 +161,15 @@ public sealed class EnvelopeService(
             .Where(t => t.EnvelopeId != null && t.Kind == TransactionKind.Expense)
             .Select(t => new { EnvelopeId = t.EnvelopeId!.Value, t.Date, t.AmountBase })
             .ToListAsync(ct);
+
+        // A debt repaid out of a jar leaves it exactly like an expense does. It is not a
+        // transaction — debts are kept out of categories and statistics on purpose — so it
+        // has to be added here by name, or the jar would go on showing money already handed
+        // back to whoever was owed it.
+        spentFrom = spentFrom
+            .Concat((await debts.FromEnvelopesAsync(ct))
+                .Select(p => new { p.EnvelopeId, p.Date, p.AmountBase }))
+            .ToList();
 
         foreach (var group in spentFrom.GroupBy(t => t.EnvelopeId))
         {
@@ -213,7 +228,11 @@ public sealed class EnvelopeService(
             .Select(t => new { t.Date, Amount = -t.AmountBase })
             .ToListAsync(ct);
 
-        var movements = entries.Concat(spent).ToList();
+        var repaid = (await debts.FromEnvelopesAsync(ct))
+            .Where(p => p.EnvelopeId == envelopeId)
+            .Select(p => new { p.Date, Amount = -p.AmountBase });
+
+        var movements = entries.Concat(spent).Concat(repaid).ToList();
 
         // Walked forwards from the oldest period so the running balance is a sum, not a
         // series of subtractions from today — the same money counted the other way round
@@ -393,39 +412,17 @@ public sealed class EnvelopeService(
     {
         if (envelope.TargetAmount is not { } target) return null;
 
-        var pace = EnvelopeTargets.Pace(target, balance, await PeriodsLeftAsync(envelope.TargetDate, current, ct));
+        var pace = EnvelopeTargets.Pace(
+            target, balance, await periods.CountUntilAsync(envelope.TargetDate, current, ct));
 
         return new EnvelopeTargetStatus(
             target, envelope.TargetDate,
             pace.Remaining, pace.PeriodsLeft, pace.PerPeriod, pace.Reached, pace.Overdue);
     }
 
-    /// Periods from the one being lived in up to and including the one the date falls in.
-    /// Walked rather than divided by 30: the period start day can be the 31st, and the months
-    /// it produces are not the same length.
-    private async Task<int?> PeriodsLeftAsync(DateOnly? date, BudgetPeriod current, CancellationToken ct)
-    {
-        if (date is not { } target) return null;
-        if (target <= current.End) return target < current.Start ? 0 : 1;
-
-        var count = 1;
-        var end = current.End;
-
-        // 600 periods is fifty years — past that the figure is noise anyway, and the loop must
-        // not be able to hang on a date somebody typed with four extra digits.
-        while (end < target && count < 600)
-        {
-            var next = await periods.ForAsync(end.AddDays(1), ct);
-            end = next.End;
-            count++;
-        }
-
-        return count;
-    }
-
     /// What is in one envelope right now: movements in and out, less anything paid straight
     /// out of it. The same arithmetic StatusAsync does for the list, for a single pot.
-    private async Task<decimal> BalanceAsync(int envelopeId, CancellationToken ct)
+    public async Task<decimal> BalanceAsync(int envelopeId, CancellationToken ct = default)
     {
         var moved = await db.SavingsEntries
             .Where(x => x.EnvelopeId == envelopeId)
@@ -435,7 +432,11 @@ public sealed class EnvelopeService(
             .Where(t => t.EnvelopeId == envelopeId && t.Kind == TransactionKind.Expense)
             .SumAsync(t => (decimal?)t.AmountBase, ct) ?? 0m;
 
-        return moved - spent;
+        var repaid = (await debts.FromEnvelopesAsync(ct))
+            .Where(p => p.EnvelopeId == envelopeId)
+            .Sum(p => p.AmountBase);
+
+        return moved - spent - repaid;
     }
 
     /// Carries out the scheme instead of asking the user to. Choosing «20% у заощадження»

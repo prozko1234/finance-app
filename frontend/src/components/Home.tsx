@@ -286,11 +286,14 @@ function PeriodCard({ summary, onGoAllocation, onGoBalance }: {
         <span className="font-semibold">{money(summary.remainingThisPeriod ?? 0, c)}</span>
       </p>
 
-      {(held > 0 || summary.reservedRecurring > 0) && (
+      {(held > 0 || summary.reservedRecurring > 0 || summary.reservedDebts > 0) && (
         <p className="text-xs text-neutral-400 tabular-nums">
           {[
             held > 0 ? `у банках ${money(held, c)}` : null,
             summary.reservedRecurring > 0 ? `на підписки ${money(summary.reservedRecurring, c)}` : null,
+            // Named separately from the jars: a debt is not money the user still has, and
+            // seeing it inside «у банках» would be one more figure with no home.
+            summary.reservedDebts > 0 ? `на борги ${money(summary.reservedDebts, c)}` : null,
           ].filter(Boolean).join(' · ')}
           {' — уже відкладено з бюджету'}
         </p>

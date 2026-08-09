@@ -4,6 +4,7 @@ using FinanceApp.Application.Budgets;
 using FinanceApp.Application.Envelopes;
 using FinanceApp.Application.Common;
 using FinanceApp.Application.Contracts;
+using FinanceApp.Application.Debts;
 using FinanceApp.Application.Display;
 using FinanceApp.Application.Mapping;
 using FinanceApp.Application.Recurring;
@@ -25,7 +26,7 @@ public sealed class SummaryService(
     IAppDbContext db, IFxConverter fx, IRecurringMaterializer materializer,
     IMonthlyBudget monthlyBudget, IEnvelopeService envelopeService,
     IAllocationService allocations, IMoneyViewFactory moneyViews,
-    IBudgetPeriods periods, ICarryoverService carryover) : ISummaryService
+    IBudgetPeriods periods, ICarryoverService carryover, IDebtLedger debts) : ISummaryService
 {
     public async Task<SafeToSpendResponse> GetSafeToSpendAsync(CancellationToken ct = default)
     {
@@ -62,7 +63,16 @@ public sealed class SummaryService(
                         && t.RecurringExpenseId == null)
             .SumAsync(t => (decimal?)t.AmountBase, ct) ?? 0m;
 
+        // Paying somebody back is spending: the money is gone, and a daily norm that did not
+        // feel it would be describing an account the user no longer has. Only repayments made
+        // out of spendable money count — one taken from a jar was already held back, and one
+        // that merely got written down today never left this period at all.
+        var repaid = await debts.PaidFromSpendableAsync(month.WindowStart, last, ct);
+        spent += repaid;
+        spentToday += await debts.PaidFromSpendableAsync(today, today, ct);
+
         var recurring = await ReservedRecurringAsync(today, period, ct);
+        var debtsReserved = await debts.ReservedAsync(period, ct);
         var allocation = await allocations.BreakdownAsync(budget ?? 0m, ct);
 
         // Everything the scheme does NOT hand to spending is an envelope, and every envelope
@@ -74,7 +84,7 @@ public sealed class SummaryService(
         var heldBack = envelopes.Sum(e => e.HeldBack);
 
         var r = SafeToSpendCalculator.Calculate(
-            budget, spent, spentToday, recurring + heldBack, today, period);
+            budget, spent, spentToday, recurring + heldBack + debtsReserved, today, period);
 
         // Reported separately from the recurring reserve: the month summary shows them as
         // two different rows, and lumping them together would make the column unreadable.
@@ -121,7 +131,8 @@ public sealed class SummaryService(
             // user is about to make a decision about, and a figure in a currency they are not
             // reading in is not one they can decide with.
             left is null ? null : new CarryoverResponse(
-                await show(left.Amount), left.FromStart, left.FromEnd, left.EnvelopeName));
+                await show(left.Amount), left.FromStart, left.FromEnd, left.EnvelopeName),
+            await show(debtsReserved));
     }
 
     /// Active recurring EXPENSES whose charge in THIS PERIOD is still in the future = not yet

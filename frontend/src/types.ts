@@ -327,6 +327,9 @@ export interface SafeToSpend {
   periodEnd: string
   /// Last period's leftover, while it is still waiting to be placed. Null — already answered.
   carryover: Carryover | null
+  /// What debts are holding back from this period. Separate from the recurring reserve so the
+  /// home screen can name it: money missing with nothing explaining it is the whole complaint.
+  reservedDebts: number
 }
 
 export interface Carryover {
@@ -599,4 +602,77 @@ export interface ImportResult {
   created: number
   failed: number
   problems: ImportProblem[]
+}
+
+// --- Debts, both ways round ---
+
+export type DebtDirection = 'IOwe' | 'TheyOweMe'
+
+/// Where the money came from — or, for money coming back, where it went. This is the whole
+/// feature: a payment on a debt is an ordinary movement with a source, and all three sources
+/// already existed in the app before debts had a screen of their own.
+export type DebtPaymentSource = 'Spendable' | 'Envelope' | 'AlreadyHappened'
+
+export interface DebtPayment {
+  id: number
+  date: string
+  amount: number
+  amountOriginal: number
+  currencyOriginal: string
+  source: DebtPaymentSource
+  envelopeId: number | null
+  envelopeName: string | null
+  note: string | null
+}
+
+export interface Debt {
+  id: number
+  direction: DebtDirection
+  person: string
+  amount: number
+  amountOriginal: number
+  currencyOriginal: string
+  date: string
+  deadline: string | null
+  reserveFromBudget: boolean
+  paid: number
+  /// What is still owed. The figure the card leads with, because it is the one that goes DOWN
+  /// as the debt is paid — a balance that grew was what made the old jar read backwards.
+  outstanding: number
+  /// What this period is holding back for it, or 0 when nothing was asked for.
+  perPeriod: number
+  periodsLeft: number
+  overdue: boolean
+  closedOn: string | null
+  note: string | null
+  payments: DebtPayment[]
+}
+
+export interface Debts {
+  currency: string
+  iOweTotal: number
+  theyOweMeTotal: number
+  reservedThisPeriod: number
+  iOwe: Debt[]
+  theyOweMe: Debt[]
+}
+
+export interface SaveDebt {
+  direction: DebtDirection
+  person: string
+  amount: number
+  currency: string | null
+  date: string | null
+  deadline: string | null
+  reserveFromBudget: boolean
+  note: string | null
+}
+
+export interface SaveDebtPayment {
+  amount: number
+  currency: string | null
+  date: string | null
+  source: DebtPaymentSource
+  envelopeId: number | null
+  note: string | null
 }

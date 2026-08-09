@@ -1,3 +1,4 @@
+using FinanceApp.Application.Debts;
 using FinanceApp.Api.Tests.Integration;
 using FinanceApp.Application.Allocations;
 using FinanceApp.Application.Budgets;
@@ -51,15 +52,15 @@ public class AlreadySetAsideTests
         return new SummaryService(
             mem.Db, fx,
             new RecurringMaterializer(mem.Db, fx),
-            new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db)),
-            new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db), fx, NullLogger<EnvelopeService>.Instance),
+            new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db), new DebtLedger(mem.Db, new BudgetPeriodResolver(mem.Db))),
+            new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db), fx, new DebtLedger(mem.Db, new BudgetPeriodResolver(mem.Db)), NullLogger<EnvelopeService>.Instance),
             new AllocationService(mem.Db),
             new MoneyViewFactory(mem.Db, fx),
             new BudgetPeriodResolver(mem.Db),
             new CarryoverService(
                 mem.Db, new BudgetPeriodResolver(mem.Db),
-                new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db)),
-                NullLogger<CarryoverService>.Instance));
+                new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db), new DebtLedger(mem.Db, new BudgetPeriodResolver(mem.Db))),
+                NullLogger<CarryoverService>.Instance), new DebtLedger(mem.Db, new BudgetPeriodResolver(mem.Db)));
     }
 
     /// The reported case, in numbers: a jar holding a year of savings is written down, and the
@@ -115,10 +116,10 @@ public class AlreadySetAsideTests
         var fx = new FakeFxConverter();
         var savings = new SavingsService(
             mem.Db,
-            new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db)),
+            new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db), new DebtLedger(mem.Db, new BudgetPeriodResolver(mem.Db))),
             fx,
             new AllocationService(mem.Db),
-            new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db), fx, NullLogger<EnvelopeService>.Instance),
+            new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db), fx, new DebtLedger(mem.Db, new BudgetPeriodResolver(mem.Db)), NullLogger<EnvelopeService>.Instance),
             new MoneyViewFactory(mem.Db, fx),
             NullLogger<SavingsService>.Instance);
 

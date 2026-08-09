@@ -1,3 +1,7 @@
+using FinanceApp.Domain;
+using FinanceApp.Domain.Budgeting;
+using FinanceApp.Domain.Debts;
+using FinanceApp.Application.Debts;
 using FinanceApp.Application.Common;
 using Microsoft.Extensions.Logging.Abstractions;
 using FinanceApp.Application.Allocations;
@@ -20,8 +24,8 @@ public class SavingsEntryTests
     {
         var fx = new FakeFxConverter();
         return new SavingsService(
-            mem.Db, new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db)), fx, new AllocationService(mem.Db),
-            new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db), fx, NullLogger<EnvelopeService>.Instance), new MoneyViewFactory(mem.Db, fx), NullLogger<SavingsService>.Instance);
+            mem.Db, new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db), new DebtLedger(mem.Db, new BudgetPeriodResolver(mem.Db))), fx, new AllocationService(mem.Db),
+            new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db), fx, new DebtLedger(mem.Db, new BudgetPeriodResolver(mem.Db)), NullLogger<EnvelopeService>.Instance), new MoneyViewFactory(mem.Db, fx), NullLogger<SavingsService>.Instance);
     }
 
     private static SaveSavingsEntryRequest Deposit(decimal amount, string? currency = null) =>
@@ -109,6 +113,98 @@ public class SavingsEntryTests
         Assert.False(r.IsSuccess);
         Assert.Equal(ErrorType.Validation, r.Error.Type);
     }
+
+    /// Money leaves a jar in three ways, and only one of them is a withdrawal. This check used
+    /// to count deposits minus withdrawals alone, so a jar that had already been spent from
+    /// still offered that money to be taken out — and then showed the balance it really had,
+    /// in minus. The screen was right and the check was wrong, which is the worst way round.
+    [Fact]
+    public async Task What_was_already_spent_out_of_the_jar_cannot_be_withdrawn_again()
+    {
+        using var mem = new SqliteInMemory();
+        var sut = Sut(mem);
+        var jar = (await sut.AddEntryAsync(Deposit(1_000m))).Value!.Envelopes[0];
+
+        mem.Db.Transactions.Add(new Transaction
+        {
+            Kind = TransactionKind.Expense, EnvelopeId = jar.Id,
+            CategoryId = mem.Db.Categories.OrderBy(c => c.Id).First().Id,
+            CurrencyOriginal = "PLN", AmountOriginal = 800m, AmountBase = 800m,
+            FxRate = 1m, FxDate = Today, Date = Today, CreatedAt = DateTimeOffset.UtcNow,
+        });
+        await mem.Db.SaveChangesAsync();
+
+        var r = await sut.AddEntryAsync(
+            new SaveSavingsEntryRequest("Withdrawal", 500m, null, null, EnvelopeId: jar.Id));
+
+        Assert.False(r.IsSuccess);
+        Assert.Equal(ErrorType.Validation, r.Error.Type);
+        // The 200 that really is in there still comes out.
+        Assert.True((await sut.AddEntryAsync(
+            new SaveSavingsEntryRequest("Withdrawal", 200m, null, null, EnvelopeId: jar.Id))).IsSuccess);
+    }
+
+    /// The same hole, through the other door: a debt repaid out of the jar is not a withdrawal
+    /// either, and the money is just as gone.
+    [Fact]
+    public async Task What_a_debt_took_out_of_the_jar_cannot_be_withdrawn_again()
+    {
+        using var mem = new SqliteInMemory();
+        var sut = Sut(mem);
+        var jar = (await sut.AddEntryAsync(Deposit(1_000m))).Value!.Envelopes[0];
+
+        var debt = new Debt
+        {
+            Direction = DebtDirection.IOwe, Person = "Сергій",
+            CurrencyOriginal = "PLN", AmountOriginal = 800m, AmountBase = 800m,
+            FxRate = 1m, FxDate = Today, Date = Today, CreatedAt = DateTimeOffset.UtcNow,
+        };
+        mem.Db.Debts.Add(debt);
+        await mem.Db.SaveChangesAsync();
+
+        mem.Db.DebtPayments.Add(new DebtPayment
+        {
+            DebtId = debt.Id, Date = Today, Source = DebtPaymentSource.Envelope, EnvelopeId = jar.Id,
+            CurrencyOriginal = "PLN", AmountOriginal = 800m, AmountBase = 800m,
+            FxRate = 1m, FxDate = Today, CreatedAt = DateTimeOffset.UtcNow,
+        });
+        await mem.Db.SaveChangesAsync();
+
+        var r = await sut.AddEntryAsync(
+            new SaveSavingsEntryRequest("Withdrawal", 500m, null, null, EnvelopeId: jar.Id));
+
+        Assert.False(r.IsSuccess);
+    }
+
+    /// A transfer empties a jar exactly as a withdrawal does, so it is checked against the same
+    /// figure — otherwise the money that could not be withdrawn could still be moved next door.
+    [Fact]
+    public async Task A_transfer_cannot_move_money_the_jar_no_longer_has()
+    {
+        using var mem = new SqliteInMemory();
+        var sut = Sut(mem);
+        var jar = (await sut.AddEntryAsync(Deposit(1_000m))).Value!.Envelopes[0];
+
+        var other = await new EnvelopeService(
+            mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db),
+            new FakeFxConverter(), new DebtLedger(mem.Db, new BudgetPeriodResolver(mem.Db)),
+            NullLogger<EnvelopeService>.Instance).CreateAsync("Відпустка", BucketKind.Savings);
+
+        mem.Db.Transactions.Add(new Transaction
+        {
+            Kind = TransactionKind.Expense, EnvelopeId = jar.Id,
+            CategoryId = mem.Db.Categories.OrderBy(c => c.Id).First().Id,
+            CurrencyOriginal = "PLN", AmountOriginal = 800m, AmountBase = 800m,
+            FxRate = 1m, FxDate = Today, Date = Today, CreatedAt = DateTimeOffset.UtcNow,
+        });
+        await mem.Db.SaveChangesAsync();
+
+        var r = await sut.TransferAsync(new TransferRequest(jar.Id, other.Value!.Id, 500m, null, null, null));
+
+        Assert.False(r.IsSuccess);
+    }
+
+    private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.Now);
 
     [Fact]
     public async Task Editing_a_missing_entry_is_a_not_found()

@@ -3,6 +3,7 @@ using FinanceApp.Application.Abstractions;
 using FinanceApp.Domain;
 using FinanceApp.Domain.Auth;
 using FinanceApp.Domain.Budgeting;
+using FinanceApp.Domain.Debts;
 using FinanceApp.Domain.Savings;
 using Microsoft.EntityFrameworkCore;
 
@@ -34,6 +35,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
     public DbSet<Invite> Invites => Set<Invite>();
     public DbSet<MerchantRule> MerchantRules => Set<MerchantRule>();
     public DbSet<RecurringSkip> RecurringSkips => Set<RecurringSkip>();
+    public DbSet<Debt> Debts => Set<Debt>();
+    public DbSet<DebtPayment> DebtPayments => Set<DebtPayment>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -149,6 +152,42 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
                 .WithMany()
                 .HasForeignKey(x => x.RecurringExpenseId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<Debt>(e =>
+        {
+            e.Property(x => x.Person).HasMaxLength(60).IsRequired();
+            e.Property(x => x.AmountOriginal).HasPrecision(18, 2);
+            e.Property(x => x.AmountBase).HasPrecision(18, 2);
+            e.Property(x => x.FxRate).HasPrecision(18, 6);
+            e.Property(x => x.CurrencyOriginal).HasMaxLength(3).IsRequired();
+            e.Property(x => x.Direction).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.Note).HasMaxLength(500);
+            e.HasIndex(x => x.Date);
+        });
+
+        b.Entity<DebtPayment>(e =>
+        {
+            e.Property(x => x.AmountOriginal).HasPrecision(18, 2);
+            e.Property(x => x.AmountBase).HasPrecision(18, 2);
+            e.Property(x => x.FxRate).HasPrecision(18, 6);
+            e.Property(x => x.CurrencyOriginal).HasMaxLength(3).IsRequired();
+            e.Property(x => x.Source).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.Note).HasMaxLength(500);
+            e.HasIndex(x => x.Date);
+            // Cascade: payments are part of the debt, not records of their own. Deleting the
+            // debt has to take them, or the sums that read them would keep charging the daily
+            // norm for repayments on something that no longer exists.
+            e.HasOne(x => x.Debt)
+                .WithMany()
+                .HasForeignKey(x => x.DebtId)
+                .OnDelete(DeleteBehavior.Cascade);
+            // SetNull, like an expense paid from a jar: losing the envelope must not lose the
+            // payment. The row falls back to having come out of ordinary money.
+            e.HasOne(x => x.Envelope)
+                .WithMany()
+                .HasForeignKey(x => x.EnvelopeId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         b.Entity<FxRate>(e =>

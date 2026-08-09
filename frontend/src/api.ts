@@ -2,6 +2,7 @@ import type {
   AuthStatus, AppSettings, CarryoverDecision, Category, Credentials, Envelope, FrequentCategory, Invite, NewInvite, Registration, EnvelopePeriod, SaveEnvelope, SaveEnvelopeTarget, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
   Allocation, SaveAllocation, IncomePreview, OpeningBalance, SaveOpeningBalance, SaveSavingsEntry, SaveSavingsPlan, Savings, SaveTransfer, Stats, TaxDefaults, TaxProfile, Transaction,
   ImportPreview, ImportResult, ImportRowToSave,
+  Debts, SaveDebt, SaveDebtPayment,
 } from './types'
 import {
   apiBase, deviceName, forgetDeviceToken, isNative, readDeviceToken, readDeviceTokenId, saveDeviceToken,
@@ -213,6 +214,22 @@ export const api = {
     http<Savings>(`/api/savings/entries/${id}`, { method: 'DELETE' }),
   updateSavingsEntry: (id: number, e: SaveSavingsEntry) =>
     http<Savings>(`/api/savings/entries/${id}`, { method: 'PUT', body: JSON.stringify(e) }),
+
+  /// Every debt write answers with the whole picture, like savings does: the totals, the
+  /// reserve and each debt's remainder all move together, and a partial answer would let the
+  /// screen show a paid-off debt beside a total that still counts it.
+  getDebts: () => http<Debts>('/api/debts'),
+  createDebt: (d: SaveDebt) =>
+    http<Debts>('/api/debts', { method: 'POST', body: JSON.stringify(d) }),
+  updateDebt: (id: number, d: SaveDebt) =>
+    http<Debts>(`/api/debts/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
+  deleteDebt: (id: number) => http<Debts>(`/api/debts/${id}`, { method: 'DELETE' }),
+  setDebtClosed: (id: number, closed: boolean) =>
+    http<Debts>(`/api/debts/${id}/closed`, { method: 'POST', body: JSON.stringify({ closed }) }),
+  addDebtPayment: (id: number, p: SaveDebtPayment) =>
+    http<Debts>(`/api/debts/${id}/payments`, { method: 'POST', body: JSON.stringify(p) }),
+  deleteDebtPayment: (paymentId: number) =>
+    http<Debts>(`/api/debts/payments/${paymentId}`, { method: 'DELETE' }),
 
   getAllocations: () => http<Allocation>('/api/allocations'),
   saveAllocation: (a: SaveAllocation) =>
