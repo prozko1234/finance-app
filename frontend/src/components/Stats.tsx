@@ -229,15 +229,29 @@ function Saved({ data }: { data: StatsData }) {
     <Card>
       <div className="flex items-baseline justify-between gap-3">
         <SectionTitle>Скільки лишається в банках</SectionTitle>
-        <span className={`text-sm font-medium tabular-nums ${total < 0 ? 'text-red-600' : ''}`}>
-          {money(total, c)}
+        <span className="text-sm font-medium tabular-nums">
+          {money(data.savedBalance, c)}
         </span>
       </div>
 
+      {/* Kept in the currency it was put in. A single converted figure hides both what is
+          actually held and the fact that half of it moves with the rate — which is the whole
+          point for someone living between currencies. Shown only when there IS more than one. */}
+      {data.savedByCurrency && (
+        <p className="text-sm tabular-nums">
+          {data.savedByCurrency.map((x) => money(x.amount, x.currency)).join(' · ')}
+          <span className="block text-xs text-neutral-400">
+            У валютах, у яких відкладав — без перерахунку.
+          </span>
+        </p>
+      )}
+
       <p className="text-sm text-neutral-500">
-        {income > 0
-          ? `Це ${rate(total, income)} доходу за ${months.length} міс.`
-          : `За ${months.length} міс.`}
+        {/* The months below are what MOVED — the balance above is what is there. The two
+            differ by anything set aside before the app was told about it, and saying so is
+            cheaper than letting the arithmetic look broken. */}
+        Відкладено за {months.length} міс.: {money(total, c)}
+        {income > 0 && ` · ${rate(total, income)} доходу`}
         {byPlan !== 0 && ` · ${money(byPlan, c)} схема відклала сама`}
       </p>
 

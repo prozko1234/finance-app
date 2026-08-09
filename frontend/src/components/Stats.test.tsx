@@ -17,6 +17,8 @@ function data(over: Partial<StatsData> = {}): StatsData {
       { categoryId: 1, name: 'Їжа', icon: '🍕', amount: 3000, percent: 75, count: 12, typical: 2500 },
       { categoryId: 2, name: 'Розваги', icon: null, amount: 1000, percent: 25, count: 3, typical: 1000 },
     ],
+    savedBalance: 2500,
+    savedByCurrency: null,
     ...over,
   }
 }
@@ -69,9 +71,39 @@ describe('Stats', () => {
     render(<Stats {...props} data={data()} />)
 
     // 2400 + 600 by plan and hand in July, less the 500 taken back out in June.
-    expect(screen.getByText('2500,00 zł')).toBeInTheDocument()
-    expect(screen.getByText(/13% доходу за 2 міс/)).toBeInTheDocument()
+    expect(screen.getByText(/Відкладено за 2 міс.: 2500,00 zł/)).toBeInTheDocument()
+    expect(screen.getByText(/13% доходу/)).toBeInTheDocument()
     expect(screen.getByText(/2400,00 zł за схемою · 600,00 zł руками/)).toBeInTheDocument()
+  })
+
+  /// Flow and stock are different questions. The months say what MOVED, and money recorded as
+  /// already set aside is deliberately not movement — so without the balance beside them the
+  /// screen adds up to less than the jars hold and reads as though something went missing.
+  it('shows what the jars hold now, not only what moved', () => {
+    render(<Stats {...props} data={data({ savedBalance: 9500 })} />)
+
+    expect(screen.getByText('9500,00 zł')).toBeInTheDocument()
+    expect(screen.getByText(/Відкладено за 2 міс.: 2500,00 zł/)).toBeInTheDocument()
+  })
+
+  /// The niche the whole app exists for: money living in more than one currency. One converted
+  /// figure hides both what is held and the fact that half of it moves with the rate.
+  it('keeps each currency separate when the jars are not all in one', () => {
+    render(<Stats {...props} data={data({
+      savedByCurrency: [
+        { currency: 'PLN', amount: 7000 },
+        { currency: 'USD', amount: 500 },
+      ],
+    })} />)
+
+    expect(screen.getByText(/7000,00 zł · 500,00/)).toBeInTheDocument()
+    expect(screen.getByText(/без перерахунку/)).toBeInTheDocument()
+  })
+
+  it('says nothing about currencies when there is only one', () => {
+    render(<Stats {...props} data={data()} />)
+
+    expect(screen.queryByText(/без перерахунку/)).not.toBeInTheDocument()
   })
 
   /// The reason the screen exists: the largest category is rent every month and says nothing.

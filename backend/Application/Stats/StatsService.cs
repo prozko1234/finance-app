@@ -143,12 +143,52 @@ public sealed class StatsService(
                     : null));
         }
 
+        // Stock, not flow: everything the jars hold today, whenever it went in and whether or
+        // not the app was there to see it. The monthly figures above deliberately leave out
+        // money recorded as already set aside, so without this the screen would add up to less
+        // than the jars actually hold and read as though something had gone missing.
+        var savedBalance = await db.SavingsEntries
+            .SumAsync(x => (decimal?)(x.Kind == SavingsEntryKind.Deposit
+                ? x.AmountBase
+                : -x.AmountBase), ct) ?? 0m;
+        savedBalance -= await db.Transactions
+            .Where(t => t.EnvelopeId != null && t.Kind == TransactionKind.Expense)
+            .SumAsync(t => (decimal?)t.AmountBase, ct) ?? 0m;
+
         return new StatsResponse(
             view.Currency,
             monthly,
             Key(selected),
             await view.FromBaseAsync(total, selectedRate, ct),
-            categories);
+            categories,
+            await view.FromBaseAsync(savedBalance, today, ct),
+            await SavedByCurrencyAsync(ct));
+    }
+
+    /// What went into the jars, kept in the currency it was put in.
+    ///
+    /// The rest of this screen converts everything to one currency at one rate, which is right
+    /// for comparing months. It is wrong for answering "скільки я відклав" when the answer is
+    /// partly in złoty and partly in dollars: a single converted figure hides both what is
+    /// actually held and the fact that half of it moves with the rate — which is the whole
+    /// reason this app exists for people living between currencies.
+    ///
+    /// Returns nothing when it was all one currency; the total already said it, and a
+    /// one-line breakdown of one thing is noise.
+    private async Task<IReadOnlyList<CurrencyAmountResponse>?> SavedByCurrencyAsync(
+        CancellationToken ct)
+    {
+        var byCurrency = await db.SavingsEntries
+            .GroupBy(x => x.CurrencyOriginal)
+            .Select(g => new CurrencyAmountResponse(
+                g.Key,
+                g.Sum(x => x.Kind == SavingsEntryKind.Deposit
+                    ? x.AmountOriginal
+                    : -x.AmountOriginal)))
+            .ToListAsync(ct);
+
+        var real = byCurrency.Where(x => x.Amount != 0m).OrderByDescending(x => x.Amount).ToList();
+        return real.Count > 1 ? real : null;
     }
 
     /// What each category usually costs in a month, in base currency: the median of its totals

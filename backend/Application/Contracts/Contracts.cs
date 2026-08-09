@@ -368,12 +368,26 @@ public record RecurringResponse(
 /// The statistics screen in one response: the bars, and the breakdown of one month.
 /// <paramref name="SelectedMonth"/> is echoed back ("yyyy-MM") because an out-of-range or
 /// unparsable request falls back to the current month, and the UI must label what it shows.
+/// <param name="SavedBalance">What is actually IN the jars right now, all of it — including
+/// money that was put away before this app knew about it. The per-month figures beside it are
+/// flow (what moved), and flow deliberately leaves that money out; without a stock figure the
+/// screen would total up to less than the jars hold and read as though something was lost.
+/// </param>
+/// <param name="SavedByCurrency">What went in, kept in the currency it was put in and NOT
+/// converted. Someone saving złoty and dollars is told "12 500 zł" by a converted total, and
+/// that number hides both what they have and the fact that half of it moves with the rate.
+/// Empty when everything was in one currency — then the total already says it.</param>
 public record StatsResponse(
     string Currency,
     IReadOnlyList<MonthStatsResponse> Months,
     string SelectedMonth,
     decimal SelectedExpense,
-    IReadOnlyList<CategoryStatsResponse> Categories);
+    IReadOnlyList<CategoryStatsResponse> Categories,
+    decimal SavedBalance = 0m,
+    IReadOnlyList<CurrencyAmountResponse>? SavedByCurrency = null);
+
+/// An amount left in the currency it was entered in.
+public record CurrencyAmountResponse(string Currency, decimal Amount);
 
 /// Income is revenue (przychód, VAT excluded) — the same number the budget is built from,
 /// so the bars cannot claim a month earned more than the home screen let the user spend.

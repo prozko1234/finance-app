@@ -487,6 +487,18 @@ export interface Stats {
   selectedMonth: string
   selectedExpense: number
   categories: CategoryStats[]
+  /// What the jars hold RIGHT NOW — stock, not flow. The monthly figures leave out money
+  /// recorded as already set aside, so without this the screen would add up to less than the
+  /// jars actually hold.
+  savedBalance: number
+  /// What went in, in the currency it was put in and not converted. Null when it was all one
+  /// currency — the total already says it.
+  savedByCurrency: CurrencyAmount[] | null
+}
+
+export interface CurrencyAmount {
+  currency: string
+  amount: number
 }
 
 /// required=false — running locally with no account; then no login screen is shown at all.
