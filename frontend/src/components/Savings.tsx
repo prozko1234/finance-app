@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { BucketKind, EnvelopePeriod as EnvelopePeriodType, EnvelopeSummary, SaveEnvelope, SaveEnvelopeTarget, SaveTransfer, Savings as SavingsData, SaveSavingsEntry, SavingsEntry, SaveSavingsPlan } from '../types'
 import { BASE_CURRENCY, CURRENCIES, todayIso } from '../types'
-import { dayMonth, money } from '../format'
+import { dayMonth, money, parseAmount } from '../format'
 import { useEnvelopeHistory } from '../hooks'
 import { WITHDRAWAL_ACTION, WITHDRAWAL_ICON, WITHDRAWAL_LABEL, envelopeIcon, envelopeWords } from '../envelopeWords'
 import { Card, CardSkeleton, FormError, PrimaryButton, Screen, SectionTitle } from './Screen'
@@ -253,7 +253,7 @@ function TargetCard({ envelope, currency, onSave }: {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const value = Number(amount.replace(',', '.'))
+  const value = parseAmount(amount)
 
   async function run(payload: SaveEnvelopeTarget) {
     if (busy) return
@@ -590,7 +590,7 @@ function MoveToAnotherJar({ from, jars, currency, onTransfer }: {
   // straight into a refusal is not offered.
   if (others.length === 0 || from.balance <= 0) return null
 
-  const value = Number(amount.replace(',', '.'))
+  const value = parseAmount(amount)
   const valid = value > 0 && value <= from.balance && toId !== null
 
   if (!open) {
@@ -684,7 +684,7 @@ function MoveMoney({ currency, balance, envelopeId, kind, onAdd }: {
   // used to read as spending all of it today.
   const [alreadySetAside, setAlreadySetAside] = useState(false)
 
-  const value = Number(amount.replace(',', '.'))
+  const value = parseAmount(amount)
   const valid = value > 0
   const isBase = entryCurrency === BASE_CURRENCY
 
@@ -795,7 +795,9 @@ function PlanForm({ data, onSave }: { data: SavingsData; onSave: (p: SaveSavings
   // Any edit invalidates the "Збережено ✓" the button is still showing.
   useEffect(() => setSaved(false), [mode, value, active])
 
-  const num = Number(value.replace(',', '.'))
+  // An empty field means "нічого не відкладати", which is a real answer here and saves as 0 —
+  // unlike everywhere else, where an empty amount is nothing to act on at all.
+  const num = value.trim() === '' ? 0 : parseAmount(value)
   const valid = num >= 0 && (mode !== 'Percent' || num <= 100)
 
   async function save() {
@@ -951,7 +953,7 @@ function EditEntry({ entry, onSave, onCancel }: {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const value = Number(amount.replace(',', '.'))
+  const value = parseAmount(amount)
 
   async function save() {
     if (!(value > 0) || busy) return

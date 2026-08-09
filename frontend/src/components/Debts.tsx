@@ -3,7 +3,7 @@ import type {
   Debt, DebtDirection, DebtPaymentSource, Debts as DebtsData, EnvelopeSummary, SaveDebt, SaveDebtPayment,
 } from '../types'
 import { BASE_CURRENCY, CURRENCIES, todayIso } from '../types'
-import { dayMonth, money } from '../format'
+import { dayMonth, money, parseAmount } from '../format'
 import { Card, CardSkeleton, FormError, PrimaryButton, Screen, SectionTitle } from './Screen'
 
 interface Props {
@@ -290,7 +290,7 @@ function PaymentForm({ debt, envelopes, onPay, onDone }: {
     ]
 
   async function save() {
-    const value = Number(amount.replace(',', '.'))
+    const value = parseAmount(amount)
     if (!Number.isFinite(value) || value <= 0) {
       setError('Сума має бути більшою за нуль.')
       return
@@ -401,7 +401,7 @@ function NewDebt({ direction, onCreate, onDone }: {
   const [busy, setBusy] = useState(false)
 
   async function save() {
-    const value = Number(amount.replace(',', '.'))
+    const value = parseAmount(amount)
     if (person.trim() === '') {
       setError('Скажи, з ким цей борг.')
       return

@@ -63,3 +63,20 @@ export function signedMoney(amount: number, currency: string, kind: 'Income' | '
 export function signedMoneyClass(kind: 'Income' | 'Expense'): string {
   return kind === 'Income' ? 'text-emerald-600' : 'text-red-600'
 }
+
+/// What the user typed, as a number. `NaN` when it is not an amount at all.
+///
+/// Written because `Number(v.replace(',', '.'))` was copied into fourteen forms and every one
+/// of them broke on a space. `Number('1 930')` is `NaN`, so a perfectly ordinary «1 930»
+/// silently disabled the button with nothing on screen saying why — and the app's own
+/// formatter writes thousands exactly that way, so the app was refusing to read what it had
+/// just printed.
+///
+/// Spaces of every kind go: the ordinary one, the non-breaking one Intl uses (U+00A0) and the
+/// narrow one it uses in some locales (U+202F). Both decimal separators are accepted, because
+/// a Polish phone keyboard offers a comma and a numeric one offers a dot.
+export function parseAmount(input: string): number {
+  const cleaned = input.replace(/[\s  ]/g, '').replace(',', '.')
+  // An empty field is not zero: zero is a number somebody meant, and callers check > 0.
+  return cleaned === '' ? NaN : Number(cleaned)
+}

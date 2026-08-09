@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { OpeningBalance, SaveOpeningBalance } from '../types'
 import { CURRENCIES, todayIso } from '../types'
-import { dayMonth, money } from '../format'
+import { dayMonth, money, parseAmount } from '../format'
 import { Card, CardSkeleton, FormError, PrimaryButton, Screen, SectionTitle } from './Screen'
 
 interface Props {
@@ -105,7 +105,7 @@ function CountForm({ currency, onSet }: {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const value = Number(amount.replace(',', '.'))
+  const value = parseAmount(amount)
   const valid = value > 0
 
   async function save() {

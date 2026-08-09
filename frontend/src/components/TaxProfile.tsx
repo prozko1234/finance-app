@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { MonthTaxes, SaveTaxProfile, TaxDefaults, TaxRegime, TaxProfile as TaxProfileData } from '../types'
-import { money } from '../format'
+import { money, parseAmount } from '../format'
 import { Card, CardSkeleton, FormError, PrimaryButton, RatesNote, Screen, SectionTitle } from './Screen'
 
 interface Props {
@@ -184,7 +184,7 @@ function RyczaltFields({ form, set, defaults }: {
   set: <K extends keyof SaveTaxProfile>(k: K, v: SaveTaxProfile[K]) => void
   defaults: TaxDefaults | null
 }) {
-  const num = (v: string) => Number(v.replace(',', '.')) || 0
+  const num = (v: string) => parseAmount(v) || 0
 
   return (
     <>

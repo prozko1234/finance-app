@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { Category, Recurring as RecurringType, SaveRecurring } from '../types'
 import { CURRENCIES, todayIso } from '../types'
 import { CADENCES, DEFAULT_CADENCE, monthlyTotals, sameCadence, scheduleSummary, type Cadence } from '../cadence'
-import { daysUntil, dayMonth, money, signedMoney, signedMoneyClass } from '../format'
+import { daysUntil, dayMonth, money, parseAmount, signedMoney, signedMoneyClass } from '../format'
 import { Screen } from './Screen'
 
 interface Props {
@@ -95,7 +95,7 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
     }
   }
 
-  const amountNum = Number(amount.replace(',', '.'))
+  const amountNum = parseAmount(amount)
   const valid = amountNum > 0 && categoryId !== null && startsOn !== ''
   const pending = drafts.length + (valid ? 1 : 0)
 

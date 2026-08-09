@@ -389,4 +389,18 @@ describe('Money that was already put away', () => {
       expect.objectContaining({ kind: 'Withdrawal', alreadySetAside: false }),
     )
   })
+  /// Reported from use: «1 930» left both buttons dead with nothing on screen saying why.
+  /// Number() reads a space as "not a number", and the app's own formatter writes thousands
+  /// with exactly that space — so it was refusing to read back what it had just printed.
+  it('reads an amount whose thousands are separated by a space', async () => {
+    const onAddEntry = vi.fn<(e: SaveSavingsEntry) => Promise<void>>().mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    renderScreen(data([envelope()]), vi.fn(), { onAddEntry })
+
+    await user.click(screen.getByText('Заощадження'))
+    await user.type(screen.getByLabelText('Сума'), '1 930')
+    await user.click(screen.getByRole('button', { name: /Відкласти/ }))
+
+    expect(onAddEntry).toHaveBeenCalledWith(expect.objectContaining({ amount: 1930 }))
+  })
 })

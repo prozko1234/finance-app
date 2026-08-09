@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { dayHeading, daysUntil, money } from './format'
+import { dayHeading, daysUntil, money, parseAmount } from './format'
 
 describe('money', () => {
   it('formats PLN in pl-PL locale', () => {
@@ -48,3 +48,29 @@ function shiftIsoLocal(iso: string, days: number): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`
 }
+
+describe('parseAmount', () => {
+  it('reads a plain number', () => {
+    expect(parseAmount('1930')).toBe(1930)
+  })
+
+  /// The reported case: the button would not light up for «1 930», because Number() reads a
+  /// space as "not a number" — and the app's own formatter prints thousands with one.
+  it('reads a number with thousands separated by a space', () => {
+    expect(parseAmount('1 930')).toBe(1930)
+    expect(parseAmount('1 930')).toBe(1930)
+    expect(parseAmount('1 930')).toBe(1930)
+  })
+
+  it('accepts either decimal separator', () => {
+    expect(parseAmount('12,50')).toBe(12.5)
+    expect(parseAmount('12.50')).toBe(12.5)
+  })
+
+  /// An empty field is not a zero: a form that read it as one would offer to put 0 aside.
+  it('is not a number when there is nothing to read', () => {
+    expect(parseAmount('')).toBeNaN()
+    expect(parseAmount('   ')).toBeNaN()
+    expect(parseAmount('абв')).toBeNaN()
+  })
+})

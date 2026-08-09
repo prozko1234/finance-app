@@ -3,7 +3,7 @@ import type {
   Category, EnvelopeSummary, IncomePreview, SaveCategory, SaveIncome, SaveRecurring, SaveTransaction, Transaction,
 } from '../types'
 import { BASE_CURRENCY, CURRENCIES, shiftIso, todayIso } from '../types'
-import { money } from '../format'
+import { money, parseAmount } from '../format'
 import { useIncomePreview, useSaveSavingsPlan, useSettings, useTaxProfile } from '../hooks'
 import { readIncomeSources, readLastUsed, rememberIncomeSource, writeLastUsed } from '../lastUsed'
 import { CADENCES, DEFAULT_CADENCE, sameCadence, scheduleSummary, type Cadence } from '../cadence'
@@ -79,7 +79,7 @@ export function AddTransaction({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const amountNum = Number(amount.replace(',', '.'))
+  const amountNum = parseAmount(amount)
   const repeats = isSubscription || (isIncome && incomeRepeats)
   const valid = amountNum > 0
     && (isIncome || categoryId !== null)
@@ -520,7 +520,8 @@ function SavingsRow({ preview }: { preview: IncomePreview }) {
   const [mode, setMode] = useState<'Fixed' | 'Percent'>(preview.savingsMode)
   const [value, setValue] = useState(preview.savingsValue > 0 ? String(preview.savingsValue) : '')
 
-  const num = Number(value.replace(',', '.'))
+  // Empty means "нічого не відкладати" — a real answer, saved as 0 and switching the plan off.
+  const num = value.trim() === '' ? 0 : parseAmount(value)
   const valid = num >= 0 && (mode !== 'Percent' || num <= 100)
 
   async function save() {

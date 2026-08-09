@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { todayIso } from '../types'
+import { parseAmount } from '../format'
 import { Card, FormError, PrimaryButton } from './Screen'
 
 /// The first run. The first step used to ask "скільки в тебе виходить на місяць" — that is, to
@@ -199,6 +200,6 @@ function Dots({ count, active }: { count: number; active: number }) {
 
 /// An empty field means "skipped", not zero: zero would mean an income of zero złoty.
 function parse(v: string): number | null {
-  const n = Number(v.replace(',', '.'))
+  const n = parseAmount(v)
   return v.trim() === '' || Number.isNaN(n) || n <= 0 ? null : n
 }

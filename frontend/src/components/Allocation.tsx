@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type {
   Allocation as AllocationData, AllocationBucket, AllocationPreset, BucketKind, SaveAllocation,
 } from '../types'
-import { money } from '../format'
+import { money, parseAmount } from '../format'
 import { CardSkeleton, FormError, Screen } from './Screen'
 
 interface Props {
@@ -235,7 +235,9 @@ function CustomSplit({ current, budget, currency, onSave }: {
               type="text"
               inputMode="decimal"
               value={String(r.percent)}
-              onChange={(e) => patch(i, { percent: Number(e.target.value.replace(',', '.')) })}
+              // Cleared field is 0, not "not a number": the value is written straight into the
+              // bucket and rendered back, so a NaN here would appear in the box as "NaN".
+              onChange={(e) => patch(i, { percent: parseAmount(e.target.value) || 0 })}
               className="w-14 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-2 py-2 text-sm tabular-nums text-right outline-none"
               aria-label={`Частка кошика ${r.name}`}
             />
