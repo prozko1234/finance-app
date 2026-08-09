@@ -73,8 +73,11 @@ public sealed class StatsService(
         // What went into the jars, and by whose hand. Deposits the scheme made are told apart
         // from the user's own so the screen can answer the question behind "скільки я
         // відкладаю" — how much of it happens by itself and how much still takes a decision.
+        // Money recorded as already put away is left out for the same reason the budget
+        // ignores it: it was saved before, and counting it here would show a month where a
+        // year's pot was typed in as a month of extraordinary saving.
         var moved = await db.SavingsEntries
-            .Where(x => x.Date >= from && x.Date <= lastDay)
+            .Where(x => x.Date >= from && x.Date <= lastDay && !x.AlreadySetAside)
             .Select(x => new Moved(
                 x.Date,
                 x.Kind == SavingsEntryKind.Deposit ? x.AmountBase : -x.AmountBase,

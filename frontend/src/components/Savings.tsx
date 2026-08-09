@@ -680,6 +680,9 @@ function MoveMoney({ currency, balance, envelopeId, kind, onAdd }: {
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // The question the app could not ask, and the reason a jar full of last year's savings
+  // used to read as spending all of it today.
+  const [alreadySetAside, setAlreadySetAside] = useState(false)
 
   const value = Number(amount.replace(',', '.'))
   const valid = value > 0
@@ -690,9 +693,14 @@ function MoveMoney({ currency, balance, envelopeId, kind, onAdd }: {
     setBusy(true)
     setError(null)
     try {
-      await onAdd({ kind, amount: value, currency: entryCurrency, note: note.trim() || null, envelopeId })
+      await onAdd({
+        kind, amount: value, currency: entryCurrency, note: note.trim() || null, envelopeId,
+        // Only meaningful for money going in: a withdrawal is a movement whenever it happened.
+        alreadySetAside: kind === 'Deposit' && alreadySetAside,
+      })
       setAmount('')
       setNote('')
+      setAlreadySetAside(false)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Не вдалося зберегти')
     } finally {
@@ -709,6 +717,7 @@ function MoveMoney({ currency, balance, envelopeId, kind, onAdd }: {
           type="text"
           inputMode="decimal"
           placeholder="0"
+          aria-label="Сума"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           className="flex-1 text-3xl font-bold tabular-nums bg-transparent outline-none w-full"
@@ -728,6 +737,25 @@ function MoveMoney({ currency, balance, envelopeId, kind, onAdd }: {
         onChange={(e) => setNote(e.target.value)}
         className="w-full rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-sm outline-none"
       />
+
+      {/* Off by default, because the common act is moving money now. Ticking it says the
+          money was already aside — so it joins the jar without the period paying for it
+          twice. */}
+      <label className="flex items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={alreadySetAside}
+          onChange={(e) => setAlreadySetAside(e.target.checked)}
+          className="mt-1"
+        />
+        <span>
+          Ці гроші вже були відкладені
+          <span className="block text-xs text-neutral-400">
+            Не з цього періоду — старі заощадження, подарунок, торішня премія. Поповнить банку,
+            але не заб'є денну норму.
+          </span>
+        </span>
+      </label>
 
       <FormError>{error}</FormError>
 

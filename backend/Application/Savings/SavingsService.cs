@@ -146,6 +146,9 @@ public sealed class SavingsService(
         entry.FxRate = conv.Value.Rate;
         entry.FxDate = conv.Value.RateDate;
         entry.Note = string.IsNullOrWhiteSpace(req.Note) ? null : req.Note.Trim();
+        // Only a deposit can be money that was already put away. A withdrawal takes money out
+        // of the jar and back into spendable, which is a movement whenever it happened.
+        entry.AlreadySetAside = kind == SavingsEntryKind.Deposit && req.AlreadySetAside;
 
         return Result<SavingsEntry>.Ok(entry);
     }
@@ -263,7 +266,8 @@ public sealed class SavingsService(
             entries.Add(new SavingsEntryResponse(
                 x.Id, x.Date, x.Kind.ToString(), await view.FromBaseAsync(x.AmountBase, x.Date, ct),
                 x.AmountOriginal, x.CurrencyOriginal, x.Note,
-                x.EnvelopeId, x.Envelope?.Name ?? "", x.IsAuto, x.TransferKey is not null));
+                x.EnvelopeId, x.Envelope?.Name ?? "", x.IsAuto, x.TransferKey is not null,
+                x.AlreadySetAside));
 
         var summaries = new List<EnvelopeSummary>(all.Count);
         foreach (var e in all)

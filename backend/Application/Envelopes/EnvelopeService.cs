@@ -134,8 +134,11 @@ public sealed class EnvelopeService(
 
         var (first, last) = period;
         var from = countedOn ?? first;
+        // AlreadySetAside is left out: that money was put away before this period and was
+        // never part of its budget, so charging the daily norm for it would take the same
+        // złoty twice. It still counts towards the balance above — the jar really does hold it.
         var thisMonth = await db.SavingsEntries
-            .Where(x => x.Date >= from && x.Date <= last)
+            .Where(x => x.Date >= from && x.Date <= last && !x.AlreadySetAside)
             .GroupBy(x => x.EnvelopeId)
             .Select(g => new
             {

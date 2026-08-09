@@ -42,6 +42,21 @@ public class SavingsEntry : IOwnedByUser
     /// not leave a trail of correcting deposits.
     public bool IsAuto { get; set; }
 
+    /// Money that was ALREADY set aside before it was written down — an old pot being entered
+    /// so the balance is right, a gift, last year's bonus. It joins the balance and never
+    /// touches the period's budget.
+    ///
+    /// Without this the app has to assume every deposit is money leaving the current budget
+    /// right now, and typing in what a jar already held took that amount straight off "скільки
+    /// можна витратити": entering a pot of 7 000 that had been saved over a year read as
+    /// spending 7 000 today, and the daily figure went deeply negative for money that had
+    /// never been in this period's income to begin with.
+    ///
+    /// A date is not enough to tell these apart. Money moved months ago can be written down
+    /// today, and money moved today can come from anywhere — only the person entering it
+    /// knows which, so the form asks.
+    public bool AlreadySetAside { get; set; }
+
     /// Ties the two halves of a move between jars: the withdrawal from one and the deposit
     /// into the other carry the same key. They are one act, so they are undone as one — half a
     /// transfer left behind would make «Відкладено всього» grow by money nobody received.

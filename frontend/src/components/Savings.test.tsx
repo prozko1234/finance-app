@@ -4,7 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Savings } from './Savings'
-import type { EnvelopeSummary, SaveEnvelope, SaveEnvelopeTarget, SaveTransfer, Savings as SavingsData } from '../types'
+import type { EnvelopeSummary, SaveEnvelope, SaveEnvelopeTarget, SaveSavingsEntry, SaveTransfer, Savings as SavingsData } from '../types'
 
 vi.mock('../hooks', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../hooks')>()),
@@ -44,6 +44,7 @@ function renderScreen(
     onArchiveEnvelope: (id: number) => Promise<void>
     onSetTarget: (id: number, t: SaveEnvelopeTarget) => Promise<void>
     onTransfer: (t: SaveTransfer) => Promise<void>
+    onAddEntry: (e: SaveSavingsEntry) => Promise<void>
   }> = {},
 ) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -56,7 +57,7 @@ function renderScreen(
       <Savings
         data={d}
         onSavePlan={vi.fn()}
-        onAddEntry={vi.fn()}
+        onAddEntry={envelopeHandlers.onAddEntry ?? vi.fn()}
         onUpdateEntry={vi.fn()}
         onDeleteEntry={onDeleteEntry}
         onCreateEnvelope={vi.fn()}
@@ -124,12 +125,12 @@ describe('Savings', () => {
         {
           id: 10, date: '2026-07-30', kind: 'Deposit', amount: 1200, amountOriginal: 1200,
           currencyOriginal: 'PLN', note: 'За схемою «70/20/10»', envelopeId: 1, envelopeName: 'Заощадження',
-          isAuto: true, isTransfer: false,
+          isAuto: true, isTransfer: false, alreadySetAside: false,
         },
         {
           id: 11, date: '2026-07-30', kind: 'Deposit', amount: 200, amountOriginal: 200,
           currencyOriginal: 'PLN', note: 'понад план', envelopeId: 1, envelopeName: 'Заощадження',
-          isAuto: false, isTransfer: false,
+          isAuto: false, isTransfer: false, alreadySetAside: false,
         },
       ],
     }), onDeleteEntry)
@@ -273,7 +274,7 @@ describe('Savings', () => {
         {
           id: 12, date: '2026-07-30', kind: 'Deposit', amount: 800, amountOriginal: 800,
           currencyOriginal: 'PLN', note: null, envelopeId: 4, envelopeName: 'Зобовʼязання',
-          isAuto: false, isTransfer: false,
+          isAuto: false, isTransfer: false, alreadySetAside: false,
         },
       ],
     }))
@@ -325,7 +326,7 @@ describe('Savings', () => {
         {
           id: 20, date: '2026-07-30', kind: 'Withdrawal', amount: 400, amountOriginal: 400,
           currencyOriginal: 'PLN', note: 'У «Відпустка»', envelopeId: 1, envelopeName: 'Заощадження',
-          isAuto: false, isTransfer: true,
+          isAuto: false, isTransfer: true, alreadySetAside: false,
         },
       ],
     }))
@@ -336,5 +337,56 @@ describe('Savings', () => {
     const row = screen.getByText('Перекинуто звідси')
     expect(row).toBeInTheDocument()
     expect(row.closest('button')).toBeDisabled()
+  })
+})
+
+/// Writing down a jar that was already full. Every deposit used to be read as money leaving
+/// the current budget right now, so entering a pot saved over a year read as spending all of
+/// it that afternoon — and the daily figure went deeply negative over money that had never
+/// been in this period's income.
+describe('Money that was already put away', () => {
+  it('is off by default, because the usual act is moving money now', async () => {
+    const onAddEntry = vi.fn<(e: SaveSavingsEntry) => Promise<void>>().mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    renderScreen(data([envelope()]), vi.fn(), { onAddEntry })
+
+    await user.click(screen.getByText('Заощадження'))
+    await user.type(screen.getByLabelText('Сума'), '500')
+    await user.click(screen.getByRole('button', { name: /Відкласти/ }))
+
+    expect(onAddEntry).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'Deposit', amount: 500, alreadySetAside: false }),
+    )
+  })
+
+  it('is sent when the money was set aside before', async () => {
+    const onAddEntry = vi.fn<(e: SaveSavingsEntry) => Promise<void>>().mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    renderScreen(data([envelope()]), vi.fn(), { onAddEntry })
+
+    await user.click(screen.getByText('Заощадження'))
+    await user.type(screen.getByLabelText('Сума'), '7000')
+    await user.click(screen.getByLabelText(/Ці гроші вже були відкладені/))
+    await user.click(screen.getByRole('button', { name: /Відкласти/ }))
+
+    expect(onAddEntry).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 7000, alreadySetAside: true }),
+    )
+  })
+
+  /// A withdrawal is a movement whenever it happened, so the claim cannot ride along on one.
+  it('never rides along on money coming out', async () => {
+    const onAddEntry = vi.fn<(e: SaveSavingsEntry) => Promise<void>>().mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    renderScreen(data([envelope()]), vi.fn(), { onAddEntry })
+
+    await user.click(screen.getByText('Заощадження'))
+    await user.type(screen.getByLabelText('Сума'), '100')
+    await user.click(screen.getByLabelText(/Ці гроші вже були відкладені/))
+    await user.click(screen.getByRole('button', { name: /Зняти/ }))
+
+    expect(onAddEntry).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'Withdrawal', alreadySetAside: false }),
+    )
   })
 })

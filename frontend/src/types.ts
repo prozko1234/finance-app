@@ -201,6 +201,8 @@ export interface SavingsEntry {
   /// Half of a transfer between jars. Edited only as a whole: deleting takes the other half
   /// too, because money that left one jar and arrived in none is not a fact.
   isTransfer: boolean
+  /// Recorded as money that was already put away, so it never touched a period's budget.
+  alreadySetAside: boolean
 }
 
 /// A transfer between jars: one act instead of "withdraw here and remember to deposit there".
@@ -246,6 +248,9 @@ export interface SaveSavingsEntry {
   currency?: string | null
   /// Which jar. Omitted — the default one.
   envelopeId?: number
+  /// Money that was ALREADY put away before it was written down. Joins the balance without
+  /// being taken out of this period's budget — see SavingsEntry.AlreadySetAside.
+  alreadySetAside?: boolean
 }
 
 export type BucketKind = 'Spending' | 'Savings' | 'Investing' | 'Debt' | 'Other'

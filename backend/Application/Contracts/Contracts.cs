@@ -211,10 +211,15 @@ public record SaveSavingsPlanRequest(string Mode, decimal Value, bool Active);
 
 /// Currency is optional: most movements are in base currency, and an omitted field
 /// must not turn into a validation error on the common path.
+/// <param name="AlreadySetAside">True for money that was put away BEFORE it was written down
+/// — an old pot being recorded so the balance is right. It joins the jar without being taken
+/// out of this period's budget a second time. False (the default) means the money is leaving
+/// spendable money now, which is what an ordinary deposit is.</param>
 public record SaveSavingsEntryRequest(
     string Kind, decimal Amount, DateOnly? Date, string? Note, string? Currency = null,
     /// Which pot the money goes into. Omitted = the default envelope.
-    int? EnvelopeId = null);
+    int? EnvelopeId = null,
+    bool AlreadySetAside = false);
 
 public record SavingsEntryResponse(
     int Id,
@@ -233,7 +238,10 @@ public record SavingsEntryResponse(
     bool IsAuto = false,
     /// One half of a move between jars. Editable only as a whole — deleting it takes the other
     /// half with it, because money that left one jar and arrived in no other is not a fact.
-    bool IsTransfer = false);
+    bool IsTransfer = false,
+    /// Money that was already put away before it was written down, so it joined the balance
+    /// without being taken out of any period's budget.
+    bool AlreadySetAside = false);
 
 public record SavingsResponse(
     string Mode,
