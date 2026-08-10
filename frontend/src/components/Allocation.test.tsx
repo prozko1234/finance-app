@@ -92,3 +92,74 @@ describe('Allocation', () => {
     expect(screen.getByRole('button', { name: /Застосувати свій розподіл/ })).toBeDisabled()
   })
 })
+
+/// A share is easier to decide as "1500 zł" than as "25%", and the two are the same answer as
+/// long as there is a budget to convert against. What gets SAVED is still the percentage: a
+/// scheme pinned to złoty would quietly stop adding up the month the income changed.
+describe('a split typed in money', () => {
+  function custom() {
+    return {
+      name: 'Свій розподіл',
+      preset: null,
+      buckets: [
+        { name: 'На витрати', kind: 'Spending' as const, percent: 80 },
+        { name: 'Заощадження', kind: 'Savings' as const, percent: 20 },
+      ],
+    }
+  }
+
+  it('shows each share as money and saves it back as a percentage', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    render(
+      <Allocation
+        data={{ active: custom(), presets: [] }}
+        budget={6000}
+        currency="PLN"
+        onSave={onSave}
+        onBack={vi.fn()}
+      />,
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: /Сумою/ }))
+
+    const savings = screen.getByLabelText('Частка кошика Заощадження')
+    expect(savings).toHaveValue('1200') // 20% of 6000
+
+    await userEvent.clear(savings)
+    await userEvent.type(savings, '1500')
+    expect(screen.getByLabelText('Частка кошика Заощадження')).toHaveValue('1500')
+
+    // 1500 of 6000 is 25 — and 80 + 25 does not add up, which the screen has to say.
+    expect(screen.getByText(/має бути 6000,00/)).toBeInTheDocument()
+  })
+
+  /// Without a budget there is nothing to convert against, so the choice is not offered.
+  it('is not offered before there is a budget', () => {
+    render(
+      <Allocation
+        data={{ active: custom(), presets: [] }}
+        budget={null}
+        currency="PLN"
+        onSave={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: /Сумою/ })).not.toBeInTheDocument()
+  })
+
+  it('says out loud that the sum holds only while the budget does', async () => {
+    render(
+      <Allocation
+        data={{ active: custom(), presets: [] }}
+        budget={6000}
+        currency="PLN"
+        onSave={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: /Сумою/ }))
+    expect(screen.getByText(/Зберігається частка, не сума/)).toBeInTheDocument()
+  })
+})

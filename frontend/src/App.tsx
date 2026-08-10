@@ -14,7 +14,7 @@ import {
   useSavings, useSaveSavingsPlan, useAddSavingsEntry, useUpdateSavingsEntry, useDeleteSavingsEntry,
   useDebts, useCreateDebt, useDeleteDebt, useSetDebtClosed, useAddDebtPayment,
   useCreateEnvelope, useUpdateEnvelope, useDeleteEnvelope, useSetEnvelopeTarget, useTransferBetweenEnvelopes,
-  useStats, useAuthStatus, useLogin, useLogout, useRegister, queryKeys,
+  useStats, useRecentSpending, useAuthStatus, useLogin, useLogout, useRegister, queryKeys,
   useChangePassword, useChangeEmail, useSignOutEverywhere, useDevices, useRevokeDevice,
   useInvites, useCreateInvite, useRevokeInvite,
   useImportPreview, useCommitImport,
@@ -117,6 +117,10 @@ function App() {
   const setEnvelopeTarget = useSetEnvelopeTarget()
   const transferBetweenEnvelopes = useTransferBetweenEnvelopes()
   const stats = useStats(MONTHS_BACK, statsMonth, view === 'stats')
+  // The week is the window a person lives in; the fortnight is for anyone who shops on a longer
+  // rhythm. Not remembered between visits — it is a glance, not a setting.
+  const [recentDays, setRecentDays] = useState(7)
+  const recentSpending = useRecentSpending(recentDays, view === 'stats')
   const settings = useSettings()
   const setDisplayCurrency = useSetDisplayCurrency()
   const setPeriodStartDay = useSetPeriodStartDay()
@@ -441,6 +445,9 @@ function App() {
           <Stats
             data={stats.data ?? null}
             recurring={recurring.data ?? []}
+            recent={recentSpending.data ?? null}
+            recentDays={recentDays}
+            onRecentDays={setRecentDays}
             selected={statsMonth}
             onSelectMonth={setStatsMonth}
             onBack={() => go('home')}

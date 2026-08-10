@@ -15,6 +15,10 @@ public interface IStatsService
     /// one. <paramref name="month"/> ("yyyy-MM") is the one broken down by category;
     /// null means the current month.
     Task<StatsResponse> GetAsync(int months, string? month, CancellationToken ct = default);
+
+    /// Where money went over the last <paramref name="days"/>, in money rather than in counts,
+    /// with the same window one step back to compare against.
+    Task<RecentSpendingResponse> GetRecentAsync(int days, CancellationToken ct = default);
 }
 
 /// The statistics tab: income against expense per month, and where one month's expenses
@@ -43,6 +47,57 @@ public sealed class StatsService(
     /// How many months back a category's "typical" is taken from. Three is the smallest number
     /// a median can throw out an outlier from — with two, one holiday month IS the normal.
     public const int TypicalMonths = 3;
+
+    /// The windows worth asking about: the week a person actually lives in, and the fortnight
+    /// for anyone who shops on a longer rhythm. Anything wider is what the monthly view is for.
+    private static readonly int[] RecentWindows = [7, 14];
+
+    public async Task<RecentSpendingResponse> GetRecentAsync(int days, CancellationToken ct = default)
+    {
+        await materializer.MaterializeDueAsync(ct);
+
+        days = RecentWindows.Contains(days) ? days : RecentWindows[0];
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var from = today.AddDays(-(days - 1));
+        var previousFrom = from.AddDays(-days);
+
+        // Money paid out of a jar is left out for the same reason the daily norm leaves it out:
+        // it stopped being spendable when it went in, and it would make a quiet week look like
+        // a blow-out on the day a saved-up purchase finally happens. Unconfirmed subscription
+        // charges are out too — nobody has said that money has gone.
+        var rows = await db.Transactions
+            .Where(t => t.Kind == TransactionKind.Expense && t.EnvelopeId == null
+                        && t.Status == TxStatus.Posted
+                        && t.Date >= previousFrom && t.Date <= today)
+            .Select(t => new { t.Date, t.AmountBase, t.CategoryId, t.Category!.Name, t.Category.Icon })
+            .ToListAsync(ct);
+
+        var now = rows.Where(r => r.Date >= from).ToList();
+        var before = rows.Where(r => r.Date < from).ToList();
+
+        var view = await moneyViews.CurrentAsync(ct);
+        var show = (decimal v) => view.FromBaseTodayAsync(v, ct);
+
+        var previousByCategory = before
+            .GroupBy(r => r.CategoryId)
+            .ToDictionary(g => g.Key, g => g.Sum(r => r.AmountBase));
+
+        var categories = new List<RecentCategoryResponse>();
+        foreach (var g in now.GroupBy(r => new { r.CategoryId, r.Name, r.Icon })
+                             .OrderByDescending(g => g.Sum(r => r.AmountBase)))
+        {
+            categories.Add(new RecentCategoryResponse(
+                g.Key.CategoryId, g.Key.Name, g.Key.Icon,
+                await show(g.Sum(r => r.AmountBase)), g.Count(),
+                await show(previousByCategory.GetValueOrDefault(g.Key.CategoryId))));
+        }
+
+        return new RecentSpendingResponse(
+            view.Currency, days,
+            await show(now.Sum(r => r.AmountBase)),
+            await show(before.Sum(r => r.AmountBase)),
+            categories);
+    }
 
     public async Task<StatsResponse> GetAsync(int months, string? month, CancellationToken ct = default)
     {

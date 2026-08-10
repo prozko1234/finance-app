@@ -461,6 +461,24 @@ public record StatsResponse(
     decimal SavedBalance = 0m,
     IReadOnlyList<CurrencyAmountResponse>? SavedByCurrency = null);
 
+/// «Куди пішло за останній тиждень» — the window a person actually lives in, in money rather
+/// than in counts. The home screen's shortcut row already ranks recent categories by how OFTEN
+/// they were used, which answers a different question: what gets tapped a lot is rarely what
+/// costs a lot.
+///
+/// Every category comes with the same window one step back, so the line can say whether this
+/// week is unusual for it. That comparison is the only reason a weekly figure is worth reading:
+/// "їжа 380 zł" means nothing without "минулого тижня 240".
+public record RecentSpendingResponse(
+    string Currency,
+    int Days,
+    decimal Total,
+    decimal PreviousTotal,
+    IReadOnlyList<RecentCategoryResponse> Categories);
+
+public record RecentCategoryResponse(
+    int CategoryId, string Name, string? Icon, decimal Amount, int Count, decimal PreviousAmount);
+
 /// An amount left in the currency it was entered in.
 public record CurrencyAmountResponse(string Currency, decimal Amount);
 

@@ -11,6 +11,10 @@ public static class StatsEndpoints
                 IStatsService svc, int? months, string? month, CancellationToken ct) =>
             Results.Ok(await svc.GetAsync(months ?? 6, month, ct))).WithTags("Stats");
 
+        // The window a person actually lives in, in money rather than in counts.
+        app.MapGet("/api/stats/recent", async (IStatsService svc, int? days, CancellationToken ct) =>
+            Results.Ok(await svc.GetRecentAsync(days ?? 7, ct))).WithTags("Stats");
+
         return app;
     }
 }

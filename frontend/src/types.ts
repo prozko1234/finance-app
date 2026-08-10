@@ -152,6 +152,26 @@ export interface SaveTaxActuals {
   pit: number | null
 }
 
+/// «Куди пішло за останній тиждень» — money, not counts, with the same window one step back to
+/// compare against. What gets tapped a lot is rarely what costs a lot, so this is a different
+/// question from the home screen's shortcut row.
+export interface RecentSpending {
+  currency: string
+  days: number
+  total: number
+  previousTotal: number
+  categories: RecentCategory[]
+}
+
+export interface RecentCategory {
+  categoryId: number
+  name: string
+  icon?: string | null
+  amount: number
+  count: number
+  previousAmount: number
+}
+
 export interface SavingsSummary {
   balance: number
   monthGoal: number

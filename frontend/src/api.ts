@@ -2,7 +2,7 @@ import type {
   AuthStatus, AppSettings, CarryoverDecision, Category, Credentials, Envelope, FrequentCategory, Invite, NewInvite, Registration, EnvelopePeriod, SaveEnvelope, SaveEnvelopeTarget, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
   Allocation, SaveAllocation, IncomePreview, OpeningBalance, SaveOpeningBalance, SaveSavingsEntry, SaveSavingsPlan, Savings, SaveTransfer, Stats, TaxDefaults, TaxProfile, Transaction,
   ImportPreview, ImportResult, ImportRowToSave,
-  Debts, SaveDebt, SaveDebtPayment, MonthlyNeed, CategoryKind,
+  Debts, SaveDebt, SaveDebtPayment, MonthlyNeed, CategoryKind, RecentSpending,
   TaxActuals as TaxActualsType, SaveTaxActuals,
 } from './types'
 import {
@@ -208,6 +208,8 @@ export const api = {
   /// occurrence still waiting behind this one.
   confirmCharge: (transactionId: number) =>
     http<void>(`/api/recurring/charges/${transactionId}/confirm`, { method: 'POST' }),
+
+  getRecentSpending: (days: number) => http<RecentSpending>(`/api/stats/recent?days=${days}`),
 
   getTaxProfile: () => http<TaxProfile>('/api/tax/profile'),
   saveTaxProfile: (p: SaveTaxProfile) =>

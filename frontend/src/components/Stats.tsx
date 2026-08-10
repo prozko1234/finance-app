@@ -1,5 +1,6 @@
-import type { CategoryStats, Recurring, Stats as StatsData } from '../types'
-import { money } from '../format'
+import { useState } from 'react'
+import type { CategoryStats, RecentSpending, Recurring, Stats as StatsData } from '../types'
+import { money, plural } from '../format'
 import { monthlyTotals, perMonth } from '../cadence'
 import { Card, CardSkeleton, Screen, SectionTitle } from './Screen'
 
@@ -21,6 +22,10 @@ const MONTHS_BACK = 6
 
 interface Props {
   data: StatsData | null
+  /// The last week or fortnight, in money. Null while it loads.
+  recent: RecentSpending | null
+  recentDays: number
+  onRecentDays: (days: number) => void
   /// Standing charges, for the one card that answers "що можна скасувати". Empty while the
   /// list is still loading — the card simply does not appear yet.
   recurring: Recurring[]
@@ -29,26 +34,135 @@ interface Props {
   onBack: () => void
 }
 
-export function Stats({ data, recurring, selected, onSelectMonth, onBack }: Props) {
+export function Stats({
+  data, recurring, recent, recentDays, onRecentDays, selected, onSelectMonth, onBack,
+}: Props) {
+  // Half a year of totals is a thing you look at a few times a year; the week is a thing you
+  // look at on a Sunday. Until this split the screen opened on the half-year and the actionable
+  // half was three scrolls down.
+  const [history, setHistory] = useState(false)
+
   return (
     <Screen
       title="Статистика"
       onBack={onBack}
-      subtitle="Останні пів року: скільки прийшло, скільки пішло і куди саме. Місяці тут календарні — з 1-го по останнє число, а не від зарплати до зарплати, як на головній."
+      subtitle="Що незвично, що можна скасувати і куди пішло за останній тиждень."
       footnote={data
-        ? `Кожен місяць переведено в ${data.currency} за курсом свого кінця місяця — тому вже закритий місяць не змінюється щодня.`
+        ? `Місяці в історії переведено в ${data.currency} за курсом свого кінця місяця — тому вже закритий місяць не змінюється щодня.`
         : undefined}
     >
       {!data ? <CardSkeleton /> : (
         <>
           <Overruns data={data} />
+          <RecentCard recent={recent} days={recentDays} onDays={onRecentDays} />
           <Subscriptions items={recurring} />
-          <MonthBars data={data} selected={selected ?? data.selectedMonth} onSelect={onSelectMonth} />
-          <Saved data={data} />
-          <Categories data={data} />
+
+          {/* Everything below answers "як було", not "що робити". It is worth having and it is
+              not worth opening the screen on: the bars and the savings rate cannot be acted on
+              today, and they used to sit between the user and the two cards that can. */}
+          {history ? (
+            <>
+              <MonthBars data={data} selected={selected ?? data.selectedMonth} onSelect={onSelectMonth} />
+              <Saved data={data} />
+              <Categories data={data} />
+            </>
+          ) : (
+            <button
+              onClick={() => setHistory(true)}
+              className="w-full rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700 px-4 py-3 text-sm text-neutral-500"
+            >
+              Історія за пів року — доходи, витрати, заощадження
+            </button>
+          )}
         </>
       )}
     </Screen>
+  )
+}
+
+/// «Куди пішло за останній тиждень», in money. The home screen's shortcut row already ranks
+/// recent categories by how OFTEN they were used, and that answers a different question: what
+/// gets tapped a lot is rarely what costs a lot — thirty coffees and one taxi look nothing
+/// alike in a list of counts and identical in a wallet.
+///
+/// Every line carries the same window one step back, because that comparison is the only reason
+/// a weekly figure is worth reading. "Їжа 380 zł" means nothing without "минулого тижня 240".
+function RecentCard({ recent, days, onDays }: {
+  recent: RecentSpending | null
+  days: number
+  onDays: (days: number) => void
+}) {
+  if (!recent) return <CardSkeleton />
+
+  const c = recent.currency
+  const diff = recent.total - recent.previousTotal
+
+  return (
+    <Card>
+      <div className="flex items-baseline justify-between gap-3">
+        <SectionTitle>Куди пішло за {days} {plural(days, 'день', 'дні', 'днів')}</SectionTitle>
+        <div className="flex gap-1">
+          {[7, 14].map((d) => (
+            <button
+              key={d}
+              onClick={() => onDays(d)}
+              aria-pressed={days === d}
+              className={`rounded-lg px-2 py-1 text-xs ${
+                days === d
+                  ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 font-medium'
+                  : 'text-neutral-400'
+              }`}
+            >
+              {d}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {recent.categories.length === 0 ? (
+        <p className="text-sm text-neutral-500">За цей час витрат не було.</p>
+      ) : (
+        <>
+          <p className="text-2xl font-bold tabular-nums">
+            {money(recent.total, c)}
+            {recent.previousTotal > 0 && (
+              <span className={`ml-2 text-sm font-medium ${diff > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                {diff > 0 ? '+' : '−'}{money(Math.abs(diff), c)}
+              </span>
+            )}
+          </p>
+          {recent.previousTotal > 0 && (
+            <p className="text-xs text-neutral-400">
+              Попередні {days} {plural(days, 'день', 'дні', 'днів')} — {money(recent.previousTotal, c)}
+            </p>
+          )}
+
+          <div className="space-y-1.5">
+            {recent.categories.map((r) => {
+              const moved = r.amount - r.previousAmount
+              return (
+                <div key={r.categoryId} className="flex items-baseline justify-between gap-3 text-sm">
+                  <span className="truncate">{r.icon ? `${r.icon} ` : ''}{r.name}</span>
+                  <span className="tabular-nums text-right shrink-0">
+                    {money(r.amount, c)}
+                    <span className="block text-xs text-neutral-400">
+                      {r.count} × сер. {money(r.amount / r.count, c)}
+                      {/* Silent when there is nothing to compare with: a category first used
+                          this week is not "+100%", it is new. */}
+                      {r.previousAmount > 0 && (
+                        <span className={moved > 0 ? ' text-amber-600' : ' text-emerald-600'}>
+                          {' · '}{moved > 0 ? '+' : '−'}{money(Math.abs(moved), c)}
+                        </span>
+                      )}
+                    </span>
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </Card>
   )
 }
 

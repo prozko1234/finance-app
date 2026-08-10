@@ -134,6 +134,16 @@ export function useStats(months: number, month: string | null, enabled = true) {
   })
 }
 
+/// The window is part of the key, so switching between a week and a fortnight is a new fetch
+/// and the one already seen stays cached.
+export function useRecentSpending(days: number, enabled = true) {
+  return useQuery({
+    queryKey: [...queryKeys.stats, 'recent', days],
+    queryFn: () => api.getRecentSpending(days),
+    enabled,
+  })
+}
+
 export function useInvites(enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.invites,

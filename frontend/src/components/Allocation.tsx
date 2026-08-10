@@ -181,6 +181,12 @@ function CustomSplit({ current, budget, currency, onSave }: {
                                 { name: 'Заощадження', kind: 'Savings', percent: 20 }],
   )
   const [busy, setBusy] = useState(false)
+  // Percentages stay the source of truth — the budget is a different number every period, and a
+  // scheme pinned to złoty would quietly stop adding up the month the income changed. Money is
+  // a way of TYPING one: "1500 zł" is easier to decide than "25%", and the two are the same
+  // answer as long as there is a budget to convert against.
+  const [inMoney, setInMoney] = useState(false)
+  const byMoney = inMoney && budget !== null && budget > 0
 
   const total = rows.reduce((s, r) => s + (Number.isFinite(r.percent) ? r.percent : 0), 0)
   const valid = total === 100 && rows.length > 0 && rows.every((r) => r.name.trim() !== '' && r.percent > 0)
@@ -214,6 +220,25 @@ function CustomSplit({ current, budget, currency, onSave }: {
           className="w-full rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-sm outline-none"
         />
 
+        {budget !== null && budget > 0 && (
+          <div className="flex gap-2">
+            {[false, true].map((m) => (
+              <button
+                key={String(m)}
+                onClick={() => setInMoney(m)}
+                aria-pressed={inMoney === m}
+                className={`flex-1 rounded-xl px-3 py-1.5 text-xs ${
+                  inMoney === m
+                    ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+                    : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500'
+                }`}
+              >
+                {m ? `Сумою, ${currency}` : 'Відсотком'}
+              </button>
+            ))}
+          </div>
+        )}
+
         {rows.map((r, i) => (
           <div key={i} className="flex items-center gap-2">
             <input
@@ -234,14 +259,20 @@ function CustomSplit({ current, budget, currency, onSave }: {
             <input
               type="text"
               inputMode="decimal"
-              value={String(r.percent)}
+              value={byMoney ? asMoney(r.percent, budget!) : String(r.percent)}
               // Cleared field is 0, not "not a number": the value is written straight into the
               // bucket and rendered back, so a NaN here would appear in the box as "NaN".
-              onChange={(e) => patch(i, { percent: parseAmount(e.target.value) || 0 })}
-              className="w-14 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-2 py-2 text-sm tabular-nums text-right outline-none"
+              onChange={(e) => patch(i, {
+                percent: byMoney
+                  ? asPercent(parseAmount(e.target.value) || 0, budget!)
+                  : parseAmount(e.target.value) || 0,
+              })}
+              className={`rounded-xl bg-neutral-100 dark:bg-neutral-800 px-2 py-2 text-sm tabular-nums text-right outline-none ${
+                byMoney ? 'w-20' : 'w-14'
+              }`}
               aria-label={`Частка кошика ${r.name}`}
             />
-            <span className="text-neutral-400 text-sm">%</span>
+            <span className="text-neutral-400 text-sm">{byMoney ? currency : '%'}</span>
             <button
               onClick={() => setRows(rows.filter((_, j) => j !== i))}
               className="text-neutral-300 hover:text-red-500 px-1"
@@ -260,9 +291,21 @@ function CustomSplit({ current, budget, currency, onSave }: {
         </button>
 
         <p className={`text-sm tabular-nums ${total === 100 ? 'text-neutral-400' : 'text-amber-600'}`}>
-          Разом {pct(total)}%
-          {total !== 100 && ` — має бути 100% (${total > 100 ? 'зайве' : 'бракує'} ${pct(Math.abs(100 - total))}%)`}
+          Разом {byMoney ? money(budget! * total / 100, currency) : `${pct(total)}%`}
+          {total !== 100 && (
+            byMoney
+              ? ` — має бути ${money(budget!, currency)} (${total > 100 ? 'зайве' : 'бракує'} ${money(Math.abs(budget! * (100 - total) / 100), currency)})`
+              : ` — має бути 100% (${total > 100 ? 'зайве' : 'бракує'} ${pct(Math.abs(100 - total))}%)`
+          )}
         </p>
+
+        {/* The honest half of typing in money: the figure holds only while the budget does. */}
+        {byMoney && (
+          <p className="text-xs text-neutral-400">
+            Зберігається частка, не сума: {money(budget!, currency)} цього періоду — це 100%.
+            Наступного періоду з іншим доходом ті самі відсотки дадуть інші суми.
+          </p>
+        )}
 
         {budget !== null && valid && (
           <p className="text-xs text-neutral-400">
@@ -285,6 +328,17 @@ function CustomSplit({ current, budget, currency, onSave }: {
       </div>
     </details>
   )
+}
+
+/// A share of the budget as money, and back. Rounded to whole złoty on the way out — a bucket
+/// shown as "1499,99 zł" invites correcting a rounding artefact — and to two decimals on the
+/// way in, which is as fine as a percentage of a monthly budget can meaningfully be.
+function asMoney(percent: number, budget: number): string {
+  return String(Math.round(budget * percent / 100))
+}
+
+function asPercent(amount: number, budget: number): number {
+  return Math.round((amount / budget) * 10000) / 100
 }
 
 /// Percentages without trailing zeros: 20, not 20.00.
