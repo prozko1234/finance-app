@@ -50,3 +50,7 @@ frontend/bundle/
 # wwwroot holds the SPA in the image; locally it stays empty but must exist (.gitkeep).
 backend/Api/wwwroot/*
 !backend/Api/wwwroot/.gitkeep
+
+# Working copy of the checkpoint from the vault — personal session state, not project history.
+# The one that counts lives in Obsidian/Vault/02-Projects/finance-app/checkpoint.md.
+CHECKPOINT.md
