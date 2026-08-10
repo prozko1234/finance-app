@@ -777,7 +777,11 @@ function MoveMoney({ currency, balance, envelopeId, kind, onAdd }: {
           − {WITHDRAWAL_ACTION}
         </button>
       </div>
+      {/* Where withdrawn money actually goes. The button said "Зняти" and stopped there, so
+          the one thing worth knowing — that it comes back into what is safe to spend, and the
+          daily norm goes up — had to be inferred from the home screen afterwards. */}
       <p className="text-xs text-neutral-400">
+        Зняте повертається в гроші на витрати — денна норма підросте до кінця періоду.
         Максимум до зняття: {money(balance, currency)}.
         {!isBase && ` Сума в ${entryCurrency} перерахується за курсом на сьогодні.`}
       </p>

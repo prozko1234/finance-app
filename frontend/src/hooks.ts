@@ -12,6 +12,7 @@ export const queryKeys = {
   openingBalance: ['openingBalance'] as const,
   summary: ['summary'] as const,
   recurring: ['recurring'] as const,
+  monthlyNeed: ['monthlyNeed'] as const,
   taxProfile: ['taxProfile'] as const,
   taxDefaults: ['taxDefaults'] as const,
   savings: ['savings'] as const,
@@ -255,6 +256,10 @@ export function useEnvelopeHistory(envelopeId: number | null) {
 export function useSaveAllocation() {
   const invalidate = useInvalidateEverything()
   return useMutation({ mutationFn: (a: SaveAllocation) => api.saveAllocation(a), onSuccess: invalidate })
+}
+
+export function useMonthlyNeed() {
+  return useQuery({ queryKey: queryKeys.monthlyNeed, queryFn: () => api.getMonthlyNeed() })
 }
 
 export function useRecurring() {

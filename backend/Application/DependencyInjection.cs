@@ -34,6 +34,7 @@ public static class DependencyInjection
         services.AddScoped<IOpeningBalanceService, OpeningBalanceService>();
         services.AddScoped<ICarryoverService, CarryoverService>();
         services.AddScoped<ISummaryService, SummaryService>();
+        services.AddScoped<IMonthlyNeedService, MonthlyNeedService>();
         services.AddScoped<IStatsService, StatsService>();
         services.AddScoped<IMonthlyBudget, MonthlyBudget>();
         services.AddScoped<ISavingsService, SavingsService>();

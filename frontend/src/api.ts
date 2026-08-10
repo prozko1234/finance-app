@@ -2,7 +2,7 @@ import type {
   AuthStatus, AppSettings, CarryoverDecision, Category, Credentials, Envelope, FrequentCategory, Invite, NewInvite, Registration, EnvelopePeriod, SaveEnvelope, SaveEnvelopeTarget, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
   Allocation, SaveAllocation, IncomePreview, OpeningBalance, SaveOpeningBalance, SaveSavingsEntry, SaveSavingsPlan, Savings, SaveTransfer, Stats, TaxDefaults, TaxProfile, Transaction,
   ImportPreview, ImportResult, ImportRowToSave,
-  Debts, SaveDebt, SaveDebtPayment,
+  Debts, SaveDebt, SaveDebtPayment, MonthlyNeed,
 } from './types'
 import {
   apiBase, deviceName, forgetDeviceToken, isNative, readDeviceToken, readDeviceTokenId, saveDeviceToken,
@@ -190,6 +190,8 @@ export const api = {
   /// empty jar — the server answers with the balance if there is anything left in it.
   deleteEnvelope: (id: number) =>
     http<void>(`/api/envelopes/${id}`, { method: 'DELETE' }),
+
+  getMonthlyNeed: () => http<MonthlyNeed>('/api/summary/monthly-need'),
 
   getRecurring: () => http<Recurring[]>('/api/recurring'),
   createRecurring: (r: SaveRecurring) =>

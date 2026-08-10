@@ -7,7 +7,7 @@ import { Login, inviteCodeFromUrl } from './components/Login'
 import type { Horizon, Recurring as RecurringType, SaveCategory, SaveIncome, SaveTransaction, Transaction } from './types'
 import { readHorizon, writeLastUsed } from './lastUsed'
 import {
-  useCategories, useConfirmCharge, useCreateRecurring, useCreateTransaction, useDeleteRecurring,
+  useCategories, useConfirmCharge, useCreateRecurring, useCreateTransaction, useDeleteRecurring, useMonthlyNeed,
   useCreateCategory, useCreateIncome, useUpdateTransaction, useUpdateIncome, useDeleteCategory, useDeleteTransaction, useFrequentCategories, useRecurring, useUpdateCategory, useSafeToSpend, useTransactions,
   useUpdateRecurring, useTaxProfile, useTaxDefaults, useSaveTaxProfile,
   useAllocations, useSaveAllocation, useSettings, useSetDisplayCurrency, useSetPeriodStartDay,
@@ -93,6 +93,7 @@ function App() {
   const clearOpeningBalance = useClearOpeningBalance()
   const decideCarryover = useDecideCarryover()
   const confirmCharge = useConfirmCharge()
+  const monthlyNeed = useMonthlyNeed()
   // Read once at mount and kept in state: localStorage is the store, this is the value.
   const [horizon, setHorizon] = useState<Horizon>(readHorizon)
   const recurring = useRecurring()
@@ -151,6 +152,32 @@ function App() {
       await createTx.mutateAsync(tx)
     }
     go('home')
+  }
+
+  /// The reconcile screen's two explaining answers. A gap is written down as what it actually
+  /// was — an expense or an income — rather than being flattened into the account's figure, so
+  /// it lands in the history, counts in the statistics, and can be undone like anything else.
+  ///
+  /// The category is the one the starting set keeps for "нічого з переліченого": the gap has
+  /// no category by construction, and asking for one on a screen about a difference would put
+  /// a decision in the way of the correction.
+  async function recordGap(kind: 'expense' | 'income', amount: number) {
+    const note = 'Звірка з банком'
+    // The gap is only ever offered in the currency the summary is read in — the screen refuses
+    // to subtract a hryvnia count from a złoty total — so that is the currency it is saved in.
+    const currency = summary.data?.currency ?? 'PLN'
+    if (kind === 'income') {
+      await createIncome.mutateAsync({ amount, amountIncludesVat: false, currency, note })
+      return
+    }
+
+    const rows = categories.data ?? []
+    const other = rows.find((c) => c.isSystem) ?? rows[0]
+    if (!other) throw new Error('Немає жодної категорії, щоб записати витрату.')
+
+    await createTx.mutateAsync({
+      amount, currency, categoryId: other.id, frequency: 'OneOff', note,
+    })
   }
 
   function startEdit(t: Transaction) {
@@ -314,9 +341,12 @@ function App() {
         {view === 'balance' && (
           <Balance
             data={openingBalance.data ?? null}
+            summary={summary.data ?? null}
+            need={monthlyNeed.data ?? null}
             currency={settings.data?.displayCurrency ?? 'PLN'}
             onSet={(b) => setOpeningBalance.mutateAsync(b).then(() => {})}
             onClear={() => clearOpeningBalance.mutateAsync().then(() => {})}
+            onRecordGap={recordGap}
             onBack={() => go('home')}
           />
         )}

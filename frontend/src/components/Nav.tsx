@@ -24,7 +24,7 @@ type Item = { view: View; label: string; icon: string }
 
 const MONEY: Item[] = [
   { view: 'home', label: 'Головна', icon: '◉' },
-  { view: 'balance', label: 'Скільки в мене зараз', icon: '🧮' },
+  { view: 'balance', label: 'Мої гроші', icon: '🧮' },
   { view: 'savings', label: 'Банки', icon: '🐖' },
   { view: 'debts', label: 'Борги', icon: '🤝' },
   { view: 'allocation', label: 'Розподіл бюджету', icon: '🧩' },

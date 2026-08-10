@@ -59,6 +59,19 @@ public record TransactionResponse(
     /// list says so, or a row nobody agreed to would sit among the ones they did.
     string Status = nameof(TxStatus.Posted));
 
+/// What the month will ask for, whatever is in the account. Four lines in descending order of
+/// how little say the user has in them; only <paramref name="Typical"/> is a guess.
+/// <param name="Typical">Null until there are two whole months to take a median of — a figure
+/// invented from a fortnight is worse than no figure.</param>
+public record MonthlyNeedResponse(
+    string Currency,
+    decimal Recurring,
+    decimal Jars,
+    decimal Debts,
+    decimal? Typical,
+    decimal Total,
+    bool TypicalKnown);
+
 public record CategoryResponse(int Id, string Name, string? Icon, string? Color, int SortOrder, bool IsSystem);
 
 public record SaveCategoryRequest(string Name, string? Icon, string? Color);

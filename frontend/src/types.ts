@@ -343,6 +343,20 @@ export interface SafeToSpend {
 /// How far ahead the headline figure looks. Not three budgets — one, read at three scales.
 export type Horizon = 'day' | 'week' | 'period'
 
+/// What the month will ask for, whatever is in the account. Four lines in descending order of
+/// how little say you have in them; only the last is a guess.
+export interface MonthlyNeed {
+  currency: string
+  recurring: number
+  jars: number
+  debts: number
+  /// Null until there are two whole months to take a median of — a figure invented from a
+  /// fortnight is worse than no figure.
+  typical: number | null
+  total: number
+  typicalKnown: boolean
+}
+
 /// A recurring charge waiting for «оплачено ✓». Its money is already held back from the daily
 /// norm — confirming changes nothing that can be spent, it only stops the app asking.
 export interface PendingCharge {
