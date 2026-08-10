@@ -3,6 +3,7 @@ using FinanceApp.Domain.Auth;
 using FinanceApp.Domain.Budgeting;
 using FinanceApp.Domain.Debts;
 using FinanceApp.Domain.Savings;
+using FinanceApp.Domain.Tax;
 using Microsoft.EntityFrameworkCore;
 
 namespace FinanceApp.Application.Abstractions;
@@ -19,6 +20,7 @@ public interface IAppDbContext
     DbSet<FxRate> FxRates { get; }
     DbSet<RecurringExpense> RecurringExpenses { get; }
     DbSet<TaxProfile> TaxProfiles { get; }
+    DbSet<TaxActuals> TaxActuals { get; }
     DbSet<SavingsPlan> SavingsPlans { get; }
     DbSet<SavingsEntry> SavingsEntries { get; }
     DbSet<Envelope> Envelopes { get; }

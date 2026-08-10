@@ -5,6 +5,7 @@ using FinanceApp.Domain.Auth;
 using FinanceApp.Domain.Budgeting;
 using FinanceApp.Domain.Debts;
 using FinanceApp.Domain.Savings;
+using FinanceApp.Domain.Tax;
 using Microsoft.EntityFrameworkCore;
 
 namespace FinanceApp.Infrastructure;
@@ -24,6 +25,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
     public DbSet<PeriodCarryover> PeriodCarryovers => Set<PeriodCarryover>();
     public DbSet<RecurringExpense> RecurringExpenses => Set<RecurringExpense>();
     public DbSet<TaxProfile> TaxProfiles => Set<TaxProfile>();
+    public DbSet<TaxActuals> TaxActuals => Set<TaxActuals>();
     public DbSet<SavingsPlan> SavingsPlans => Set<SavingsPlan>();
     public DbSet<Envelope> Envelopes => Set<Envelope>();
     public DbSet<SavingsEntry> SavingsEntries => Set<SavingsEntry>();
@@ -97,6 +99,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
             e.Property(x => x.HealthContribution).HasPrecision(18, 2);
             e.Property(x => x.Regime).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.ZusType).HasConversion<string>().HasMaxLength(20);
+        });
+
+        b.Entity<TaxActuals>(e =>
+        {
+            e.Property(x => x.ZusSocial).HasPrecision(18, 2);
+            e.Property(x => x.Health).HasPrecision(18, 2);
+            e.Property(x => x.Pit).HasPrecision(18, 2);
+            // One row per month per account: two sets of "what the bookkeeper said" for the
+            // same March could only ever disagree.
+            e.HasIndex(x => new { x.UserId, x.Month }).IsUnique();
         });
 
         b.Entity<SavingsPlan>(e =>

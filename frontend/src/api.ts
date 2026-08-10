@@ -3,6 +3,7 @@ import type {
   Allocation, SaveAllocation, IncomePreview, OpeningBalance, SaveOpeningBalance, SaveSavingsEntry, SaveSavingsPlan, Savings, SaveTransfer, Stats, TaxDefaults, TaxProfile, Transaction,
   ImportPreview, ImportResult, ImportRowToSave,
   Debts, SaveDebt, SaveDebtPayment, MonthlyNeed, CategoryKind,
+  TaxActuals as TaxActualsType, SaveTaxActuals,
 } from './types'
 import {
   apiBase, deviceName, forgetDeviceToken, isNative, readDeviceToken, readDeviceTokenId, saveDeviceToken,
@@ -212,6 +213,11 @@ export const api = {
   saveTaxProfile: (p: SaveTaxProfile) =>
     http<TaxProfile>('/api/tax/profile', { method: 'PUT', body: JSON.stringify(p) }),
   getTaxDefaults: () => http<TaxDefaults>('/api/tax/defaults'),
+  /// What the bookkeeper said for a month. No month = the one being lived in.
+  getTaxActuals: (month?: string) =>
+    http<TaxActualsType>(`/api/tax/actuals${month ? `?month=${month}` : ''}`),
+  saveTaxActuals: (a: SaveTaxActuals) =>
+    http<TaxActualsType>('/api/tax/actuals', { method: 'PUT', body: JSON.stringify(a) }),
   getSavings: () => http<Savings>('/api/savings'),
   saveSavingsPlan: (p: SaveSavingsPlan) =>
     http<Savings>('/api/savings/plan', { method: 'PUT', body: JSON.stringify(p) }),

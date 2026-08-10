@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api'
 import type {
-  CarryoverDecision, Credentials, Registration, SaveAllocation, SaveCategory, SaveDebt, SaveDebtPayment, SaveEnvelope, SaveEnvelopeTarget, SaveIncome, SaveOpeningBalance, SaveRecurring, SaveSavingsEntry, SaveSavingsPlan, SaveTaxProfile, SaveTransaction, SaveTransfer,
+  CarryoverDecision, Credentials, Registration, SaveAllocation, SaveCategory, SaveDebt, SaveDebtPayment, SaveEnvelope, SaveEnvelopeTarget, SaveIncome, SaveOpeningBalance, SaveRecurring, SaveSavingsEntry, SaveSavingsPlan, SaveTaxProfile, SaveTaxActuals, SaveTransaction, SaveTransfer,
 } from './types'
 
 export const queryKeys = {
@@ -15,6 +15,7 @@ export const queryKeys = {
   monthlyNeed: ['monthlyNeed'] as const,
   taxProfile: ['taxProfile'] as const,
   taxDefaults: ['taxDefaults'] as const,
+  taxActuals: ['taxActuals'] as const,
   savings: ['savings'] as const,
   debts: ['debts'] as const,
   allocations: ['allocations'] as const,
@@ -265,6 +266,20 @@ export function useEnvelopeHistory(envelopeId: number | null) {
 export function useSaveAllocation() {
   const invalidate = useInvalidateEverything()
   return useMutation({ mutationFn: (a: SaveAllocation) => api.saveAllocation(a), onSuccess: invalidate })
+}
+
+export function useTaxActuals() {
+  return useQuery({ queryKey: queryKeys.taxActuals, queryFn: () => api.getTaxActuals() })
+}
+
+/// Correcting a contribution changes the month's budget, the daily norm and everything hanging
+/// off it — so this invalidates the world like every other write that moves money.
+export function useSaveTaxActuals() {
+  const invalidate = useInvalidateEverything()
+  return useMutation({
+    mutationFn: (a: SaveTaxActuals) => api.saveTaxActuals(a),
+    onSuccess: invalidate,
+  })
 }
 
 export function useMonthlyNeed() {

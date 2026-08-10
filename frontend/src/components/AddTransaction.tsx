@@ -10,6 +10,7 @@ import { CADENCES, DEFAULT_CADENCE, sameCadence, type Cadence } from '../cadence
 import { EmojiPicker } from './EmojiPicker'
 import { StickyAction } from './Screen'
 import { ChargeDay } from './ChargeDay'
+import { TaxActualsBlock } from './TaxActualsBlock'
 
 interface Props {
   categories: Category[]
@@ -534,6 +535,10 @@ function IncomePreviewBlock({ amount, includesVat, currency }: {
       </div>
 
       <TaxCurrencyNote />
+
+      {/* The month's real contributions, typed over the engine's. Under the preview because
+          that is where the engine's own figures have just been read. */}
+      <TaxActualsBlock />
 
       <SavingsRow preview={data} />
     </div>

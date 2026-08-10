@@ -76,6 +76,27 @@ public record MonthlyNeedResponse(
     decimal Total,
     bool TypicalKnown);
 
+/// What the bookkeeper said for one month, beside what the engine worked out for it. Null
+/// components mean "the engine's figure stands" — the bookkeeper rarely hands over all three
+/// at once, and a month with only ZUS filled in keeps the computed health and PIT.
+public record TaxActualsResponse(
+    DateOnly Month,
+    decimal? ZusSocial,
+    decimal? Health,
+    decimal? Pit,
+    /// What the engine makes of the same month, so the form can show it as the placeholder a
+    /// figure is being corrected against.
+    decimal ComputedZusSocial,
+    decimal ComputedHealth,
+    decimal ComputedPit,
+    string Currency);
+
+public record SaveTaxActualsRequest(
+    DateOnly Month,
+    decimal? ZusSocial,
+    decimal? Health,
+    decimal? Pit);
+
 public record CategoryResponse(
     int Id, string Name, string? Icon, string? Color, int SortOrder, bool IsSystem,
     /// "Expense" or "Income" — which side of the ledger the category belongs to.

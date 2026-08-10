@@ -17,6 +17,13 @@ public interface ITaxService
     Task<Result<TaxProfileResponse>> SaveProfileAsync(SaveTaxProfileRequest req, CancellationToken ct = default);
     Task<Result<IncomePreviewResponse>> PreviewIncomeAsync(CalculateTakeHomeRequest req, CancellationToken ct = default);
     TaxDefaultsResponse GetDefaults();
+
+    /// What the bookkeeper said for a month, beside what the engine makes of it.
+    Task<TaxActualsResponse> GetActualsAsync(DateOnly month, CancellationToken ct = default);
+
+    /// Saving all three as null clears the month back to the engine's own figures.
+    Task<Result<TaxActualsResponse>> SaveActualsAsync(
+        SaveTaxActualsRequest req, CancellationToken ct = default);
 }
 
 public sealed class TaxService(
@@ -109,6 +116,69 @@ public sealed class TaxService(
             (plan?.Mode ?? SavingsMode.Percent).ToString(), plan?.Value ?? 0m, plan?.Active ?? false,
             goalAfter, Money.BaseCurrency, fromScheme));
     }
+
+    public async Task<TaxActualsResponse> GetActualsAsync(DateOnly month, CancellationToken ct = default)
+    {
+        var first = FirstOf(month);
+        var saved = await db.TaxActuals.FirstOrDefaultAsync(x => x.Month == first, ct);
+        var computed = await ComputedForAsync(first, ct);
+
+        return new TaxActualsResponse(
+            first, saved?.ZusSocial, saved?.Health, saved?.Pit,
+            computed.ZusSocial, computed.HealthContribution, computed.Tax, Money.BaseCurrency);
+    }
+
+    public async Task<Result<TaxActualsResponse>> SaveActualsAsync(
+        SaveTaxActualsRequest req, CancellationToken ct = default)
+    {
+        if (req.ZusSocial < 0 || req.Health < 0 || req.Pit < 0)
+            return Error.Validation("Податок не може бути від'ємним.");
+
+        var first = FirstOf(req.Month);
+        var row = await db.TaxActuals.FirstOrDefaultAsync(x => x.Month == first, ct);
+
+        var empty = req.ZusSocial is null && req.Health is null && req.Pit is null;
+        if (empty)
+        {
+            // Clearing every field is how "use the engine's figures again" is expressed, and an
+            // all-null override left lying about would be a row that says nothing.
+            if (row is not null) db.TaxActuals.Remove(row);
+        }
+        else
+        {
+            row ??= new TaxActuals { Month = first };
+            row.ZusSocial = req.ZusSocial;
+            row.Health = req.Health;
+            row.Pit = req.Pit;
+            row.UpdatedAt = DateTimeOffset.UtcNow;
+            if (row.Id == 0) db.TaxActuals.Add(row);
+        }
+
+        await db.SaveChangesAsync(ct);
+        return Result<TaxActualsResponse>.Ok(await GetActualsAsync(first, ct));
+    }
+
+    /// What the engine makes of the month's own revenue, so the form has something to show the
+    /// correction against. Zero all round when nothing came in — there is nothing to owe on it.
+    private async Task<TakeHomeBreakdown> ComputedForAsync(DateOnly first, CancellationToken ct)
+    {
+        var last = first.AddMonths(1).AddDays(-1);
+
+        var revenue = await db.Transactions
+            .Where(t => t.Kind == TransactionKind.Income && t.Date >= first && t.Date <= last)
+            .SumAsync(t => (decimal?)t.AmountBase, ct) ?? 0m;
+
+        var profile = await db.TaxProfiles.OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
+        if (profile is null || revenue <= 0)
+            return new TakeHomeBreakdown(revenue, 0m, revenue, 0m, 0m, 0m, revenue, 0m, revenue);
+
+        var take = TakeHomeCalculator.Calculate(profile, revenue, amountIncludesVat: false);
+        return take.IsSuccess
+            ? take.Value!
+            : new TakeHomeBreakdown(revenue, 0m, revenue, 0m, 0m, 0m, revenue, 0m, revenue);
+    }
+
+    private static DateOnly FirstOf(DateOnly date) => new(date.Year, date.Month, 1);
 
     public TaxDefaultsResponse GetDefaults() => new(
         PolishTaxDefaults2026.Year,

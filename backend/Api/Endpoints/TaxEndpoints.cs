@@ -22,6 +22,17 @@ public static class TaxEndpoints
         // Suggested rates for the current year — data to prefill the form, not the source of truth.
         g.MapGet("/defaults", (ITaxService svc) => Results.Ok(svc.GetDefaults()));
 
+        // What the bookkeeper actually said for a month. Absent month = the one being lived in.
+        g.MapGet("/actuals", async (DateOnly? month, ITaxService svc, CancellationToken ct) =>
+            Results.Ok(await svc.GetActualsAsync(
+                month ?? DateOnly.FromDateTime(DateTime.Now), ct)));
+
+        g.MapPut("/actuals", async (SaveTaxActualsRequest req, ITaxService svc, CancellationToken ct) =>
+        {
+            var r = await svc.SaveActualsAsync(req, ct);
+            return r.IsSuccess ? Results.Ok(r.Value) : r.Error.ToProblem();
+        });
+
         // Live preview while typing an invoice — what it adds to this month's budget.
         g.MapPost("/income-preview", async (CalculateTakeHomeRequest req, ITaxService svc, CancellationToken ct) =>
         {

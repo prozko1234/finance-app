@@ -18,6 +18,31 @@ public record TakeHomeBreakdown(
     /// Everything that lands on the account but is owed to the state.
     /// Invariant: GrossWithVat - SetAside == TakeHome.
     public decimal SetAside => VatAmount + ZusSocial + HealthContribution + Tax;
+
+    /// The same breakdown with the figures the bookkeeper actually gave, where they were
+    /// given. Null leaves the computed one alone: a month with only ZUS filled in keeps the
+    /// engine's health and PIT.
+    ///
+    /// TakeHome is recomputed rather than carried over, because it is the whole point — a
+    /// corrected contribution that did not move what is left to live on would be a note, not
+    /// a correction. VAT is not overridable here: it belongs to an invoice, not to a month,
+    /// and it is already stored per row.
+    public TakeHomeBreakdown WithActuals(decimal? zusSocial, decimal? health, decimal? pit)
+    {
+        if (zusSocial is null && health is null && pit is null) return this;
+
+        var zus = zusSocial ?? ZusSocial;
+        var zdrowotne = health ?? HealthContribution;
+        var tax = pit ?? Tax;
+
+        return this with
+        {
+            ZusSocial = zus,
+            HealthContribution = zdrowotne,
+            Tax = tax,
+            TakeHome = GrossWithVat - VatAmount - zus - zdrowotne - tax,
+        };
+    }
 }
 
 /// The heart of the product: turns what the user earned into real take-home pay.

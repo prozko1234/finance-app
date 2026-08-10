@@ -109,6 +109,10 @@ public sealed class MonthlyBudget(
             : new MonthlyBudgetResult(null, null, first, false);
     }
 
+    private Task<TaxActuals?> ActualsForAsync(DateOnly inMonth, CancellationToken ct) =>
+        db.TaxActuals.FirstOrDefaultAsync(
+            x => x.Month == new DateOnly(inMonth.Year, inMonth.Month, 1), ct);
+
     /// Revenue over a date range, run through the tax profile. Zero when there is no income.
     /// <param name="recordedAfter">When set, income dated on <paramref name="from"/> only
     /// counts if it was entered after this moment — the tie-break for the day an opening
@@ -136,6 +140,20 @@ public sealed class MonthlyBudget(
         // Taxes are MONTHLY in Poland, so they are applied once to the range's total
         // revenue — never per invoice, which would double-count contributions.
         var take = TakeHomeCalculator.Calculate(profile, revenue, amountIncludesVat: false);
-        return take.IsSuccess ? (take.Value!.TakeHome, take.Value) : (revenue, null);
+        if (!take.IsSuccess) return (revenue, null);
+
+        // What the bookkeeper actually said wins over what the engine worked out. The engine is
+        // a model — right often enough to be worth having, and wrong the month there was a sick
+        // note, a deduction it knows nothing about, or a rate that changed before the code did.
+        //
+        // Keyed to the month the range STARTS in. A period from the 10th to the 9th touches two
+        // calendar months, and contributions belong to one of them; the first is the one whose
+        // income the period was built on.
+        var actuals = await ActualsForAsync(from, ct);
+        var breakdown = actuals is null
+            ? take.Value!
+            : take.Value!.WithActuals(actuals.ZusSocial, actuals.Health, actuals.Pit);
+
+        return (breakdown.TakeHome, breakdown);
     }
 }

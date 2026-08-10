@@ -131,6 +131,27 @@ export interface IncomePreview {
   savingsFromScheme: string | null
 }
 
+/// What the bookkeeper said for one month, beside what the engine worked out for it. A null
+/// component means the engine's figure stands — a month with only ZUS filled in keeps the
+/// computed health and PIT.
+export interface TaxActuals {
+  month: string
+  zusSocial: number | null
+  health: number | null
+  pit: number | null
+  computedZusSocial: number
+  computedHealth: number
+  computedPit: number
+  currency: string
+}
+
+export interface SaveTaxActuals {
+  month: string
+  zusSocial: number | null
+  health: number | null
+  pit: number | null
+}
+
 export interface SavingsSummary {
   balance: number
   monthGoal: number
