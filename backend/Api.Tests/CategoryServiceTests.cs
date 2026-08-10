@@ -1,3 +1,4 @@
+using FinanceApp.Application.Auth;
 using FinanceApp.Application.Categories;
 using FinanceApp.Application.Contracts;
 using FinanceApp.Domain;
@@ -14,7 +15,7 @@ public class CategoryServiceTests
     public async Task Creates_category_at_the_end_before_the_system_one()
     {
         using var mem = new SqliteInMemory();
-        var sut = new CategoryService(mem.Db);
+        var sut = new CategoryService(mem.Db, new UserProvisioningService(mem.Db));
 
         var r = await sut.CreateAsync(new SaveCategoryRequest("Хобі", "🎨", "#059669"));
 
@@ -22,8 +23,8 @@ public class CategoryServiceTests
         Assert.Equal("Хобі", r.Value!.Name);
         Assert.False(r.Value.IsSystem);
 
-        var all = await sut.GetAllAsync();
-        Assert.Equal("Інше", all[^1].Name); // system fallback stays last
+        var expenses = await sut.GetAllAsync(CategoryKind.Expense);
+        Assert.Equal("Інше", expenses[^1].Name); // system fallback stays last in its own list
     }
 
     /// The home screen's shortcut row. It used to be ranked on the client over whatever page
@@ -43,7 +44,7 @@ public class CategoryServiceTests
             Expense(today.AddDays(-92), 4), Expense(today.AddDays(-93), 4));
         await mem.Db.SaveChangesAsync();
 
-        var r = await new CategoryService(mem.Db).GetFrequentAsync();
+        var r = await new CategoryService(mem.Db, new UserProvisioningService(mem.Db)).GetFrequentAsync();
 
         Assert.Equal([1, 2, 3], r.Select(x => x.CategoryId));
         Assert.Equal(3, r[0].Uses);
@@ -63,7 +64,7 @@ public class CategoryServiceTests
             Expense(today.AddDays(-20), 2), Expense(today.AddDays(-21), 3));
         await mem.Db.SaveChangesAsync();
 
-        var r = await new CategoryService(mem.Db).GetFrequentAsync();
+        var r = await new CategoryService(mem.Db, new UserProvisioningService(mem.Db)).GetFrequentAsync();
 
         Assert.Equal(3, r.Count);
         Assert.All(r, x => Assert.Equal(30, x.Days));
@@ -83,7 +84,7 @@ public class CategoryServiceTests
             Expense(today.AddDays(-3), 2, TransactionKind.Income));
         await mem.Db.SaveChangesAsync();
 
-        var r = await new CategoryService(mem.Db).GetFrequentAsync();
+        var r = await new CategoryService(mem.Db, new UserProvisioningService(mem.Db)).GetFrequentAsync();
 
         Assert.Equal([1], r.Select(x => x.CategoryId));
     }
@@ -101,7 +102,7 @@ public class CategoryServiceTests
     public async Task Rejects_duplicate_name()
     {
         using var mem = new SqliteInMemory();
-        var sut = new CategoryService(mem.Db);
+        var sut = new CategoryService(mem.Db, new UserProvisioningService(mem.Db));
 
         var r = await sut.CreateAsync(new SaveCategoryRequest("Продукти", null, null));
 
@@ -121,7 +122,7 @@ public class CategoryServiceTests
         });
         await mem.Db.SaveChangesAsync();
 
-        var r = await new CategoryService(mem.Db).DeleteAsync(5);
+        var r = await new CategoryService(mem.Db, new UserProvisioningService(mem.Db)).DeleteAsync(5);
 
         Assert.True(r.IsSuccess);
         var tx = await mem.Db.Transactions.SingleAsync();
@@ -140,7 +141,7 @@ public class CategoryServiceTests
         });
         await mem.Db.SaveChangesAsync();
 
-        await new CategoryService(mem.Db).DeleteAsync(5);
+        await new CategoryService(mem.Db, new UserProvisioningService(mem.Db)).DeleteAsync(5);
 
         var rec = await mem.Db.RecurringExpenses.SingleAsync();
         Assert.Equal(FallbackId, rec.CategoryId);
@@ -151,7 +152,7 @@ public class CategoryServiceTests
     {
         using var mem = new SqliteInMemory();
 
-        var r = await new CategoryService(mem.Db).DeleteAsync(FallbackId);
+        var r = await new CategoryService(mem.Db, new UserProvisioningService(mem.Db)).DeleteAsync(FallbackId);
 
         Assert.False(r.IsSuccess);
         Assert.Equal(ErrorType.Validation, r.Error.Type);
@@ -161,7 +162,7 @@ public class CategoryServiceTests
     public async Task Renames_and_keeps_transactions_attached()
     {
         using var mem = new SqliteInMemory();
-        var sut = new CategoryService(mem.Db);
+        var sut = new CategoryService(mem.Db, new UserProvisioningService(mem.Db));
 
         var r = await sut.UpdateAsync(1, new SaveCategoryRequest("Продукти", "🥑", "#16a34a"));
 
@@ -169,4 +170,86 @@ public class CategoryServiceTests
         Assert.Equal("Продукти", r.Value!.Name);
         Assert.Equal("🥑", r.Value.Icon);
     }
+
+    /// Income had no categories of its own, so every invoice was hung off whatever expense one
+    /// came first — the app filed a salary under "Продукти" in its own database and covered for
+    /// it on every screen that showed a row.
+    [Fact]
+    public async Task The_two_sides_of_the_ledger_are_separate_lists()
+    {
+        using var mem = new SqliteInMemory();
+        var sut = Sut(mem);
+
+        var expenses = await sut.GetAllAsync(CategoryKind.Expense);
+        var income = await sut.GetAllAsync(CategoryKind.Income);
+
+        Assert.All(expenses, c => Assert.Equal(nameof(CategoryKind.Expense), c.Kind));
+        Assert.All(income, c => Assert.Equal(nameof(CategoryKind.Income), c.Kind));
+        Assert.Contains(income, c => c.Name == "Зарплата");
+        Assert.DoesNotContain(expenses, c => c.Name == "Зарплата");
+    }
+
+    /// Each list has its own fallback. A salary moved into the spending "Інше" would sit in a
+    /// list that only ever sums what went out.
+    [Fact]
+    public async Task Deleting_an_income_category_moves_its_money_to_the_income_fallback()
+    {
+        using var mem = new SqliteInMemory();
+        var sut = Sut(mem);
+
+        var income = await sut.GetAllAsync(CategoryKind.Income);
+        var salary = income.Single(c => c.Name == "Зарплата");
+        var fallback = income.Single(c => c.IsSystem);
+
+        mem.Db.Transactions.Add(new Transaction
+        {
+            Kind = TransactionKind.Income, CurrencyOriginal = "PLN",
+            AmountOriginal = 5_000m, AmountBase = 5_000m, FxRate = 1m,
+            FxDate = DateOnly.FromDateTime(DateTime.Now), Date = DateOnly.FromDateTime(DateTime.Now),
+            CategoryId = salary.Id, CreatedAt = DateTimeOffset.UtcNow,
+        });
+        await mem.Db.SaveChangesAsync();
+
+        Assert.True((await sut.DeleteAsync(salary.Id)).IsSuccess);
+
+        var moved = await mem.Db.Transactions.SingleAsync(t => t.Kind == TransactionKind.Income);
+        Assert.Equal(fallback.Id, moved.CategoryId);
+    }
+
+    /// The same word can name a source of money and a thing paid for. Forbidding the second
+    /// helps nobody.
+    [Fact]
+    public async Task The_same_name_may_exist_on_both_sides()
+    {
+        using var mem = new SqliteInMemory();
+        var sut = Sut(mem);
+
+        var expense = await sut.CreateAsync(new SaveCategoryRequest("Фактура", null, null));
+        var income = await sut.CreateAsync(new SaveCategoryRequest("Фактура", null, null, nameof(CategoryKind.Income)));
+
+        Assert.True(expense.IsSuccess);
+        // Income already starts with a "Фактура", so this one is the conflict — on its own side.
+        Assert.False(income.IsSuccess);
+    }
+
+    /// Provisioning only runs at registration, so an account made before income had categories
+    /// would open the form to an empty list and be unable to write an invoice at all.
+    [Fact]
+    public async Task An_account_without_income_categories_is_topped_up_on_first_ask()
+    {
+        using var mem = new SqliteInMemory();
+        var sut = Sut(mem);
+
+        mem.Db.Categories.RemoveRange(
+            await mem.Db.Categories.Where(c => c.Kind == CategoryKind.Income).ToListAsync());
+        await mem.Db.SaveChangesAsync();
+
+        var income = await sut.GetAllAsync(CategoryKind.Income);
+
+        Assert.NotEmpty(income);
+        Assert.Contains(income, c => c.IsSystem);
+    }
+
+    private static CategoryService Sut(SqliteInMemory mem) =>
+        new(mem.Db, new UserProvisioningService(mem.Db));
 }

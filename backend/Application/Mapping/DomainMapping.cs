@@ -24,7 +24,7 @@ public static class DomainMapping
         && Math.Abs(t.AmountOriginal * t.FxRate - gross) < 0.02m;
 
     public static CategoryResponse ToResponse(this Category c) =>
-        new(c.Id, c.Name, c.Icon, c.Color, c.SortOrder, c.IsSystem);
+        new(c.Id, c.Name, c.Icon, c.Color, c.SortOrder, c.IsSystem, c.Kind.ToString());
 
     public static RecurringResponse ToResponse(this RecurringExpense r) => new(
         r.Id, r.AmountOriginal, r.CurrencyOriginal, r.CategoryId, r.Category?.Name ?? "",

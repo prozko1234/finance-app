@@ -7,7 +7,7 @@ import { Login, inviteCodeFromUrl } from './components/Login'
 import type { Horizon, Recurring as RecurringType, SaveCategory, SaveIncome, SaveTransaction, Transaction } from './types'
 import { readHorizon, writeLastUsed } from './lastUsed'
 import {
-  useCategories, useConfirmCharge, useCreateRecurring, useCreateTransaction, useDeleteRecurring, useMonthlyNeed,
+  useCategories, useIncomeCategories, useConfirmCharge, useCreateRecurring, useCreateTransaction, useDeleteRecurring, useMonthlyNeed,
   useCreateCategory, useCreateIncome, useUpdateTransaction, useUpdateIncome, useDeleteCategory, useDeleteTransaction, useFrequentCategories, useRecurring, useUpdateCategory, useSafeToSpend, useTransactions,
   useUpdateRecurring, useTaxProfile, useTaxDefaults, useSaveTaxProfile,
   useAllocations, useSaveAllocation, useSettings, useSetDisplayCurrency, useSetPeriodStartDay,
@@ -83,6 +83,7 @@ function App() {
   useEffect(() => setOnUnauthorized(() => { qc.invalidateQueries({ queryKey: queryKeys.auth }) }), [qc])
 
   const categories = useCategories()
+  const incomeCategories = useIncomeCategories()
   const summary = useSafeToSpend()
   // How many recent rows we show. Grows by 20 on "Показати ще": a full screen of history is
   // not wanted every day, but "where was that expense last week" does happen.
@@ -320,6 +321,7 @@ function App() {
         {view === 'add' && (
           <AddTransaction
             categories={categories.data ?? []}
+            incomeCategories={incomeCategories.data ?? []}
             // Only jars with something in them: an empty jar as a source is a choice that
             // does nothing.
             envelopes={(summary.data?.envelopes ?? []).filter((e) => e.balance > 0)}

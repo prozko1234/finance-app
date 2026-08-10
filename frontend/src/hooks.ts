@@ -176,6 +176,15 @@ export function useCategories() {
   return useQuery({ queryKey: queryKeys.categories, queryFn: () => api.getCategories() })
 }
 
+/// Where money comes FROM. Its own query rather than a filter over the full list, because the
+/// server tops the set up on first ask for accounts made before income had categories.
+export function useIncomeCategories() {
+  return useQuery({
+    queryKey: [...queryKeys.categories, 'income'],
+    queryFn: () => api.getCategories('Income'),
+  })
+}
+
 export function useCreateCategory() {
   const invalidate = useInvalidateEverything()
   return useMutation({ mutationFn: (c: SaveCategory) => api.createCategory(c), onSuccess: invalidate })

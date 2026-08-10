@@ -2,7 +2,7 @@ import type {
   AuthStatus, AppSettings, CarryoverDecision, Category, Credentials, Envelope, FrequentCategory, Invite, NewInvite, Registration, EnvelopePeriod, SaveEnvelope, SaveEnvelopeTarget, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
   Allocation, SaveAllocation, IncomePreview, OpeningBalance, SaveOpeningBalance, SaveSavingsEntry, SaveSavingsPlan, Savings, SaveTransfer, Stats, TaxDefaults, TaxProfile, Transaction,
   ImportPreview, ImportResult, ImportRowToSave,
-  Debts, SaveDebt, SaveDebtPayment, MonthlyNeed,
+  Debts, SaveDebt, SaveDebtPayment, MonthlyNeed, CategoryKind,
 } from './types'
 import {
   apiBase, deviceName, forgetDeviceToken, isNative, readDeviceToken, readDeviceTokenId, saveDeviceToken,
@@ -132,7 +132,10 @@ export const api = {
   revokeInvite: (id: number) =>
     http<void>(`/api/auth/invites/${id}`, { method: 'DELETE' }),
 
-  getCategories: () => http<Category[]>('/api/categories'),
+  /// One side of the ledger, or both when nothing is asked for — the settings screen lists
+  /// everything, the entry forms ask for the side they are about.
+  getCategories: (kind?: CategoryKind) =>
+    http<Category[]>(`/api/categories${kind ? `?kind=${kind}` : ''}`),
 
   /// The home screen's one-tap shortcuts. Ranked and windowed server-side — see
   /// CategoryService.GetFrequentAsync for why it is not derived from the recent list.

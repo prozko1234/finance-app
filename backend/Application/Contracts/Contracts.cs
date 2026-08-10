@@ -21,7 +21,11 @@ public record SaveIncomeRequest(
     bool AmountIncludesVat,
     string Currency,
     DateOnly? Date,
-    string? Note);
+    string? Note,
+    /// Where the money came from. Null falls back to the account's income fallback category —
+    /// income used to have no category of its own and was hung off whatever expense one came
+    /// first, so rows written that way still have to load.
+    int? CategoryId = null);
 
 public record TransactionResponse(
     int Id,
@@ -72,9 +76,14 @@ public record MonthlyNeedResponse(
     decimal Total,
     bool TypicalKnown);
 
-public record CategoryResponse(int Id, string Name, string? Icon, string? Color, int SortOrder, bool IsSystem);
+public record CategoryResponse(
+    int Id, string Name, string? Icon, string? Color, int SortOrder, bool IsSystem,
+    /// "Expense" or "Income" — which side of the ledger the category belongs to.
+    string Kind = nameof(CategoryKind.Expense));
 
-public record SaveCategoryRequest(string Name, string? Icon, string? Color);
+/// <param name="Kind">Null means expense, which is what every category made before income had
+/// its own is, and what the "+ Нова" button beside an expense form sends.</param>
+public record SaveCategoryRequest(string Name, string? Icon, string? Color, string? Kind = null);
 
 
 

@@ -7,12 +7,19 @@ export interface Category {
   color?: string | null
   sortOrder: number
   isSystem: boolean
+  /// Which side of the ledger. Income used to have no categories of its own, so an invoice was
+  /// hung off whatever expense one came first.
+  kind?: CategoryKind
 }
+
+export type CategoryKind = 'Expense' | 'Income'
 
 export interface SaveCategory {
   name: string
   icon?: string | null
   color?: string | null
+  /// Absent means expense — what the "+ Нова" button beside an expense form sends.
+  kind?: CategoryKind
 }
 
 export interface Transaction {
@@ -82,6 +89,8 @@ export interface SaveIncome {
   currency: string
   date?: string | null
   note?: string | null
+  /// Where the money came from. Absent falls back to the account's income fallback category.
+  categoryId?: number | null
 }
 
 /// Explains the gap between what landed on the account and the month's budget.

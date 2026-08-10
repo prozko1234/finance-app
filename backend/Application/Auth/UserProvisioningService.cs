@@ -11,6 +11,16 @@ public interface IUserProvisioning
     /// account already has categories, so a retry after a half-finished registration cannot
     /// hand someone two of everything.
     Task ProvisionAsync(int userId, CancellationToken ct = default);
+
+    /// A top-up for accounts made before income had categories of its own. Provisioning only
+    /// runs at registration, so without this an existing account would open the income form to
+    /// an empty list and be unable to write an invoice at all.
+    ///
+    /// Idempotent by construction: it fires only when there is not a single income category,
+    /// which after the first call is never true again. Somebody who deletes all of theirs on
+    /// purpose gets the starting set back — the alternative is a form with nothing in it.
+    /// Unlike ProvisionAsync this runs as the signed-in user, so the query filter is the scope.
+    Task EnsureIncomeCategoriesAsync(CancellationToken ct = default);
 }
 
 /// What a new account starts life with.
@@ -63,6 +73,14 @@ public sealed class UserProvisioningService(IAppDbContext db) : IUserProvisionin
         await db.SaveChangesAsync(ct);
     }
 
+    public async Task EnsureIncomeCategoriesAsync(CancellationToken ct = default)
+    {
+        if (await db.Categories.AnyAsync(c => c.Kind == CategoryKind.Income, ct)) return;
+
+        foreach (var c in IncomeCategories()) db.Categories.Add(c);
+        await db.SaveChangesAsync(ct);
+    }
+
     /// Named after where the money actually goes, from a year of real statements rather than
     /// from a tidy-looking list. Two splits earn their place: delivery is not groceries (in
     /// that year, 22 765 zł against 11 127 zł — one category would have hidden the bigger
@@ -88,5 +106,26 @@ public sealed class UserProvisioningService(IAppDbContext db) : IUserProvisionin
         new() { Name = "Кафе й бари", Icon = "☕", SortOrder = 7 },
         new() { Name = "Підписки", Icon = "🔁", SortOrder = 8 },
         new() { Name = "Перекази", Icon = "👤", SortOrder = 9 },
+        .. IncomeCategories(),
+    ];
+
+    /// Where money comes FROM. Income used to hang off whatever expense category was first, so
+    /// the app filed a salary under "Продукти" and covered for it on every screen that showed
+    /// a row.
+    ///
+    /// Six, not a taxonomy: for someone invoicing from Poland the answer is almost always the
+    /// same two, and the rest exist so that the odd one out has somewhere to go that is not
+    /// "Інше". Money coming back from a person is deliberately absent — a repaid debt is not
+    /// revenue and never becomes a transaction at all.
+    internal static List<Category> IncomeCategories() =>
+    [
+        new() { Kind = CategoryKind.Income, Name = "Зарплата", Icon = "💼", SortOrder = 1 },
+        new() { Kind = CategoryKind.Income, Name = "Фактура", Icon = "🧾", SortOrder = 2 },
+        new() { Kind = CategoryKind.Income, Name = "Фріланс", Icon = "💻", SortOrder = 3 },
+        new() { Kind = CategoryKind.Income, Name = "Продаж", Icon = "🏷", SortOrder = 4 },
+        new() { Kind = CategoryKind.Income, Name = "Подарунок", Icon = "🎁", SortOrder = 5 },
+        // The fallback for income, separate from the expense one: a salary moved into the
+        // spending "Інше" would sit in a list that only ever sums what went out.
+        new() { Kind = CategoryKind.Income, Name = "Інше надходження", Icon = "💰", SortOrder = 99, IsSystem = true },
     ];
 }

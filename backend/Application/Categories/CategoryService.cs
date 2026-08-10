@@ -1,4 +1,5 @@
 using FinanceApp.Application.Abstractions;
+using FinanceApp.Application.Auth;
 using FinanceApp.Application.Contracts;
 using FinanceApp.Application.Mapping;
 using FinanceApp.Domain;
@@ -9,7 +10,10 @@ namespace FinanceApp.Application.Categories;
 
 public interface ICategoryService
 {
-    Task<IReadOnlyList<CategoryResponse>> GetAllAsync(CancellationToken ct = default);
+    /// <param name="kind">Null — both sides of the ledger, which is what the settings screen
+    /// shows. The entry forms ask for one.</param>
+    Task<IReadOnlyList<CategoryResponse>> GetAllAsync(
+        CategoryKind? kind = null, CancellationToken ct = default);
 
     /// The categories to offer as one-tap shortcuts, most used first.
     Task<IReadOnlyList<FrequentCategoryResponse>> GetFrequentAsync(
@@ -20,12 +24,19 @@ public interface ICategoryService
     Task<Result<bool>> DeleteAsync(int id, CancellationToken ct = default);
 }
 
-public sealed class CategoryService(IAppDbContext db) : ICategoryService
+public sealed class CategoryService(IAppDbContext db, IUserProvisioning provisioning) : ICategoryService
 {
-    public async Task<IReadOnlyList<CategoryResponse>> GetAllAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<CategoryResponse>> GetAllAsync(
+        CategoryKind? kind = null, CancellationToken ct = default)
     {
+        if (kind == CategoryKind.Income) await provisioning.EnsureIncomeCategoriesAsync(ct);
+
+        // Grouped by side of the ledger before anything else: asked for both, the two lists
+        // would otherwise interleave by sort order and read as one muddled list where a salary
+        // sits between groceries and rent.
         var cats = await db.Categories
-            .OrderBy(c => c.SortOrder).ThenBy(c => c.Id)
+            .Where(c => kind == null || c.Kind == kind)
+            .OrderBy(c => c.Kind).ThenBy(c => c.SortOrder).ThenBy(c => c.Id)
             .ToListAsync(ct);
         return cats.Select(c => c.ToResponse()).ToList();
     }
@@ -84,16 +95,22 @@ public sealed class CategoryService(IAppDbContext db) : ICategoryService
     public async Task<Result<CategoryResponse>> CreateAsync(SaveCategoryRequest req, CancellationToken ct = default)
     {
         var name = req.Name.Trim();
-        if (await db.Categories.AnyAsync(c => c.Name == name, ct))
+        if (!TryParseKind(req.Kind, out var kind))
+            return Error.Validation($"Невідомий рід категорії: {req.Kind}.");
+
+        // Uniqueness is per side of the ledger: "Фактура" as a source of money and as a thing
+        // paid for are two different categories, and forbidding the second helps nobody.
+        if (await db.Categories.AnyAsync(c => c.Name == name && c.Kind == kind, ct))
             return Error.Conflict($"Категорія «{name}» вже існує.");
 
-        // New categories go to the end, but always before the system fallback.
-        var maxOrder = await db.Categories.Where(c => !c.IsSystem)
+        // New categories go to the end of their own list, but always before its fallback.
+        var maxOrder = await db.Categories.Where(c => !c.IsSystem && c.Kind == kind)
             .Select(c => (int?)c.SortOrder).MaxAsync(ct) ?? 0;
 
         var c = new Category
         {
             Name = name,
+            Kind = kind,
             Icon = req.Icon,
             Color = req.Color,
             SortOrder = maxOrder + 1,
@@ -109,7 +126,7 @@ public sealed class CategoryService(IAppDbContext db) : ICategoryService
         if (c is null) return Error.NotFound($"Категорію {id} не знайдено.");
 
         var name = req.Name.Trim();
-        if (await db.Categories.AnyAsync(x => x.Name == name && x.Id != id, ct))
+        if (await db.Categories.AnyAsync(x => x.Name == name && x.Kind == c.Kind && x.Id != id, ct))
             return Error.Conflict($"Категорія «{name}» вже існує.");
 
         c.Name = name;
@@ -121,6 +138,18 @@ public sealed class CategoryService(IAppDbContext db) : ICategoryService
 
     /// Deleting a category never deletes money: its transactions and recurring expenses
     /// are moved to the system fallback category first.
+    /// Missing kind means expense — that is what every category created before income had its
+    /// own is, and what the plain "+ Нова" button beside an expense form sends.
+    private static bool TryParseKind(string? kind, out CategoryKind parsed)
+    {
+        if (string.IsNullOrWhiteSpace(kind))
+        {
+            parsed = CategoryKind.Expense;
+            return true;
+        }
+        return Enum.TryParse(kind, ignoreCase: true, out parsed);
+    }
+
     public async Task<Result<bool>> DeleteAsync(int id, CancellationToken ct = default)
     {
         var c = await db.Categories.FirstOrDefaultAsync(x => x.Id == id, ct);
@@ -128,7 +157,9 @@ public sealed class CategoryService(IAppDbContext db) : ICategoryService
         if (c.IsSystem)
             return Error.Validation("Категорію «Інше» видалити не можна — у неї переносяться інші.");
 
-        var fallback = await db.Categories.FirstOrDefaultAsync(x => x.IsSystem, ct);
+        // The fallback of the SAME side of the ledger: moving a salary into the spending
+        // "Інше" would file income in a list that only ever sums what went out.
+        var fallback = await db.Categories.FirstOrDefaultAsync(x => x.IsSystem && x.Kind == c.Kind, ct);
         if (fallback is null)
             return Error.Conflict("Немає системної категорії для перенесення.");
 

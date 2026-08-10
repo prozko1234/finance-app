@@ -1,3 +1,4 @@
+using FinanceApp.Application.Auth;
 using FinanceApp.Application.Common;
 using FinanceApp.Api.Tests.Integration;
 using FinanceApp.Application.Contracts;
@@ -22,7 +23,8 @@ public class IncomeEditTests
     {
         var fx = new FakeFxConverter();
         return new TransactionService(
-            mem.Db, fx, new RecurringMaterializer(mem.Db, fx, new BudgetPeriodResolver(mem.Db)), new MoneyViewFactory(mem.Db, fx));
+            mem.Db, fx, new RecurringMaterializer(mem.Db, fx, new BudgetPeriodResolver(mem.Db)),
+            new MoneyViewFactory(mem.Db, fx), new UserProvisioningService(mem.Db));
     }
 
     /// A VAT payer at 23%, which is what makes the gross and the revenue two different numbers.

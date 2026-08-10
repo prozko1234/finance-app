@@ -45,6 +45,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
             e.Property(c => c.Name).HasMaxLength(60).IsRequired();
             e.Property(c => c.Icon).HasMaxLength(16);
             e.Property(c => c.Color).HasMaxLength(9);
+            e.Property(c => c.Kind).HasConversion<string>().HasMaxLength(10)
+                // Every category that existed before income had its own is an expense one.
+                .HasDefaultValue(CategoryKind.Expense);
         });
 
         b.Entity<Transaction>(e =>

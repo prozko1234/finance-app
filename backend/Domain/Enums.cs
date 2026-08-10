@@ -18,6 +18,12 @@ public enum TxSource { Manual, Bank, Notification, Recurring }
 /// and count towards the monthly revenue that taxes are computed on.
 public enum TransactionKind { Expense, Income }
 
+/// Which side of the ledger a category belongs to. Income used to have none of its own, so
+/// every invoice was hung off whatever expense category happened to be first — the app called
+/// a salary "Продукти" in its own database and had to paper over it on every screen. Two lists
+/// also mean a form can offer the six answers that make sense instead of thirty that do not.
+public enum CategoryKind { Expense, Income }
+
 /// Whether the money has actually moved. Anything the user types is Posted the moment it is
 /// written — they were standing at the till. A recurring charge is Pending until they say it
 /// went through: the app knows the schedule, not the bank, and «я ще не оплатив, а воно вже

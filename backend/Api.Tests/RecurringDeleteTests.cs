@@ -1,3 +1,4 @@
+using FinanceApp.Application.Auth;
 using FinanceApp.Application.Common;
 using FinanceApp.Application.Display;
 using FinanceApp.Application.Recurring;
@@ -44,8 +45,9 @@ public class RecurringDeleteTests
     private static TransactionService Transactions(SqliteInMemory mem)
     {
         var fx = new FakeFxConverter();
-        return new TransactionService(mem.Db, fx, new RecurringMaterializer(mem.Db, fx, new BudgetPeriodResolver(mem.Db)),
-            new MoneyViewFactory(mem.Db, fx));
+        return new TransactionService(
+            mem.Db, fx, new RecurringMaterializer(mem.Db, fx, new BudgetPeriodResolver(mem.Db)),
+            new MoneyViewFactory(mem.Db, fx), new UserProvisioningService(mem.Db));
     }
 
     [Fact]

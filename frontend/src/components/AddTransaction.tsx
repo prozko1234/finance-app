@@ -13,6 +13,9 @@ import { ChargeDay } from './ChargeDay'
 
 interface Props {
   categories: Category[]
+  /// Where money comes FROM. A separate list, because offering thirty expense categories to
+  /// file a salary under is how a salary ended up filed as "Продукти".
+  incomeCategories: Category[]
   /// Jars with a balance — money can be paid straight out of them. An empty list means there
   /// is no choice, and the "звідки гроші" question is not shown at all.
   envelopes: EnvelopeSummary[]
@@ -44,7 +47,7 @@ const KIND_TITLE: Record<Kind, string> = {
 
 
 export function AddTransaction({
-  categories, envelopes, onSave, onSaveIncome, onUpdateIncome, onSaveRecurring, onCreateCategory, onCancel,
+  categories, incomeCategories, envelopes, onSave, onSaveIncome, onUpdateIncome, onSaveRecurring, onCreateCategory, onCancel,
   editing, presetCategoryId, initialKind = 'expense',
 }: Props) {
   const [newCatOpen, setNewCatOpen] = useState(false)
@@ -65,6 +68,10 @@ export function AddTransaction({
       ?? categories[0]?.id
       ?? null,
   )
+  // Kept apart from the expense one: switching tabs must not carry "Продукти" into an invoice,
+  // nor "Зарплата" back into a purchase.
+  const [incomeCategoryId, setIncomeCategoryId] = useState<number | null>(
+    editing?.kind === 'Income' ? editing.categoryId : null)
   const [date, setDate] = useState(editing?.date ?? todayIso())
   const [cadence, setCadence] = useState<Cadence>(DEFAULT_CADENCE)
   const [incomeRepeats, setIncomeRepeats] = useState(false)
@@ -82,6 +89,9 @@ export function AddTransaction({
   const [error, setError] = useState<string | null>(null)
 
   const amountNum = parseAmount(amount)
+  // The list arrives a moment after the form does, so the default is resolved at render rather
+  // than pinned in state — pinning null would send an invoice with no source on a fast tap.
+  const incomeCategory = incomeCategoryId ?? incomeCategories[0]?.id ?? null
   const repeats = isSubscription || (isIncome && incomeRepeats)
   const valid = amountNum > 0
     && (isIncome || categoryId !== null)
@@ -97,9 +107,7 @@ export function AddTransaction({
         await onSaveRecurring({
           amount: amountNum,
           currency,
-          // Income rows still need a category to hang off; the first one is the income
-          // category the manual income flow already uses.
-          categoryId: categoryId ?? categories[0].id,
+          categoryId: (isIncome ? incomeCategory : categoryId) ?? categories[0].id,
           // The date field doubles as "first charge" for a repeating row — one date on
           // screen, not two, and it already defaults to today.
           startsOn: date,
@@ -119,6 +127,7 @@ export function AddTransaction({
           currency,
           date,
           note: note.trim() || null,
+          categoryId: incomeCategory,
         }
         if (editing) await onUpdateIncome(editing.id, income)
         else await onSaveIncome(income)
@@ -195,6 +204,26 @@ export function AddTransaction({
 
         {isIncome ? (
           <>
+            {incomeCategories.length > 0 && (
+              <div>
+                <label className="text-xs text-neutral-400">Звідки</label>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {incomeCategories.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => setIncomeCategoryId(c.id)}
+                      className={`rounded-xl px-3 py-2 text-sm ${
+                        incomeCategory === c.id
+                          ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+                          : 'bg-neutral-100 dark:bg-neutral-800'
+                      }`}
+                    >
+                      {c.icon} {c.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {vatApplies && (
             <div>
               <label className="text-xs text-neutral-400">Що прийшло</label>

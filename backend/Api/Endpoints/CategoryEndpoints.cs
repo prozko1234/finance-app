@@ -1,6 +1,7 @@
 using FinanceApp.Api.Common;
 using FinanceApp.Application.Categories;
 using FinanceApp.Application.Contracts;
+using FinanceApp.Domain;
 
 namespace FinanceApp.Api.Endpoints;
 
@@ -10,8 +11,16 @@ public static class CategoryEndpoints
     {
         var g = app.MapGroup("/api/categories").WithTags("Categories");
 
-        g.MapGet("/", async (ICategoryService svc, CancellationToken ct) =>
-            Results.Ok(await svc.GetAllAsync(ct)));
+        // ?kind=Income narrows it to one side of the ledger. Absent — both, which is what the
+        // settings screen lists.
+        g.MapGet("/", async (string? kind, ICategoryService svc, CancellationToken ct) =>
+        {
+            if (kind is not null && !Enum.TryParse<CategoryKind>(kind, ignoreCase: true, out var parsed))
+                return Results.BadRequest();
+
+            return Results.Ok(await svc.GetAllAsync(
+                kind is null ? null : Enum.Parse<CategoryKind>(kind, ignoreCase: true), ct));
+        });
 
         g.MapGet("/frequent", async (ICategoryService svc, CancellationToken ct) =>
             Results.Ok(await svc.GetFrequentAsync(ct: ct)));

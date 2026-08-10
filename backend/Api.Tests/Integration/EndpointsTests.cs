@@ -15,7 +15,20 @@ public class EndpointsTests(TestApiFactory factory) : IClassFixture<TestApiFacto
         res.EnsureSuccessStatusCode();
 
         var json = await res.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(10, json.GetArrayLength());
+        Assert.Equal(16, json.GetArrayLength()); // ten to spend on, six to receive from
+    }
+
+    /// The income form asks for one side of the ledger only: offering thirty expense
+    /// categories to file a salary under is how a salary ended up filed as "Продукти".
+    [Fact]
+    public async Task Categories_can_be_asked_for_one_side_of_the_ledger()
+    {
+        var res = await _client.GetAsync("/api/categories?kind=Income");
+        res.EnsureSuccessStatusCode();
+
+        var json = await res.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(6, json.GetArrayLength());
+        Assert.All(json.EnumerateArray(), c => Assert.Equal("Income", c.GetProperty("kind").GetString()));
     }
 
     [Fact]

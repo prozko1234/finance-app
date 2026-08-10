@@ -1,4 +1,5 @@
 using FinanceApp.Application.Abstractions;
+using FinanceApp.Application.Auth;
 using FinanceApp.Application.Contracts;
 using FinanceApp.Application.Display;
 using FinanceApp.Application.Mapping;
@@ -14,7 +15,7 @@ namespace FinanceApp.Application.Transactions;
 
 public sealed class TransactionService(
     IAppDbContext db, IFxConverter fx, IRecurringMaterializer materializer,
-    IMoneyViewFactory moneyViews) : ITransactionService
+    IMoneyViewFactory moneyViews, IUserProvisioning provisioning) : ITransactionService
 {
     /// Every transaction leaving this service carries the amount as the user reads it,
     /// converted at the transaction's OWN date: a row is a record of what happened, and
@@ -74,12 +75,14 @@ public sealed class TransactionService(
     public async Task<Result<TransactionResponse>> CreateIncomeAsync(
         SaveIncomeRequest req, CancellationToken ct = default)
     {
-        var category = await db.Categories.OrderBy(c => c.Id).FirstAsync(ct);
+        var categoryId = await IncomeCategoryAsync(req.CategoryId, ct);
+        if (categoryId is null) return Error.Validation("Немає категорії надходжень.");
+
         var tx = new Transaction
         {
             Kind = TransactionKind.Income,
             CurrencyOriginal = req.Currency.ToUpperInvariant(),
-            CategoryId = category.Id,
+            CategoryId = categoryId.Value,
             Frequency = Frequency.OneOff,
             Source = TxSource.Manual,
             CreatedAt = DateTimeOffset.UtcNow,
@@ -108,12 +111,45 @@ public sealed class TransactionService(
         if (tx.Kind != TransactionKind.Income)
             return Error.Validation("Це витрата, а не дохід — редагується вона як витрата.");
 
+        // "Від кого" is as correctable as the amount. An id from the expense list is refused
+        // the same way it is on creation, and the row keeps the category it had.
+        if (req.CategoryId is { } chosen && await db.Categories.AnyAsync(
+                c => c.Id == chosen && c.Kind == CategoryKind.Income, ct))
+            tx.CategoryId = chosen;
+
         var applied = await ApplyIncomeAsync(tx, req, ct);
         if (!applied.IsSuccess) return applied.Error;
 
         await db.SaveChangesAsync(ct);
         await LoadCategoryAsync(tx, ct);
         return Result<TransactionResponse>.Ok(await ShowAsync(tx, ct));
+    }
+
+    /// Where the money came from. A chosen category has to be an income one — filing a salary
+    /// under "Продукти" is exactly what having two lists is meant to stop, and an id from the
+    /// wrong list can only be a mistake, not a preference.
+    ///
+    /// Nothing chosen falls back to the account's income fallback, and to any income category
+    /// after that: the form sends an id, but an invoice arriving from an older client — or
+    /// from the reconcile screen, which has no category to offer — must still be writable.
+    private async Task<int?> IncomeCategoryAsync(int? chosen, CancellationToken ct)
+    {
+        if (chosen is { } id)
+        {
+            var ok = await db.Categories.AnyAsync(
+                c => c.Id == id && c.Kind == CategoryKind.Income, ct);
+            if (ok) return id;
+        }
+
+        await provisioning.EnsureIncomeCategoriesAsync(ct);
+
+        var fallback = await db.Categories
+            .Where(c => c.Kind == CategoryKind.Income)
+            .OrderByDescending(c => c.IsSystem).ThenBy(c => c.SortOrder)
+            .Select(c => (int?)c.Id)
+            .FirstOrDefaultAsync(ct);
+
+        return fallback;
     }
 
     /// The VAT split, shared by writing an invoice and correcting one, so the two can never
