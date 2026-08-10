@@ -44,6 +44,10 @@ public class Transaction : IOwnedByUser
     public Frequency Frequency { get; set; }
     public TxSource Source { get; set; }
 
+    /// Posted for everything the user entered themselves; Pending for a recurring charge the
+    /// schedule says fell due but nobody has confirmed left the account yet.
+    public TxStatus Status { get; set; } = TxStatus.Posted;
+
     public DateOnly Date { get; set; }
     public string? MerchantRaw { get; set; }
     public string? Note { get; set; }

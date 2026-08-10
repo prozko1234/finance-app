@@ -6,8 +6,10 @@ import { BASE_CURRENCY, CURRENCIES, shiftIso, todayIso } from '../types'
 import { money, parseAmount } from '../format'
 import { useIncomePreview, useSaveSavingsPlan, useSettings, useTaxProfile } from '../hooks'
 import { readIncomeSources, readLastUsed, rememberIncomeSource, writeLastUsed } from '../lastUsed'
-import { CADENCES, DEFAULT_CADENCE, sameCadence, scheduleSummary, type Cadence } from '../cadence'
+import { CADENCES, DEFAULT_CADENCE, sameCadence, type Cadence } from '../cadence'
 import { EmojiPicker } from './EmojiPicker'
+import { StickyAction } from './Screen'
+import { ChargeDay } from './ChargeDay'
 
 interface Props {
   categories: Category[]
@@ -341,16 +343,12 @@ export function AddTransaction({
                 </button>
               ))}
             </div>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-neutral-500 shrink-0">Перше списання</span>
-              <input
-                type="date" value={date} onChange={(e) => setDate(e.target.value)}
-                className="flex-1 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-1.5"
-              />
-            </div>
-            <p className="text-xs text-neutral-400">
-              Списуватиметься {scheduleSummary(cadence.unit, cadence.interval, date)}.
-            </p>
+            <ChargeDay
+              unit={cadence.unit}
+              interval={cadence.interval}
+              value={date}
+              onChange={setDate}
+            />
           </div>
         )}
 
@@ -423,18 +421,22 @@ export function AddTransaction({
         {error && <p className="text-sm text-red-600">{error}</p>}
       </div>
 
-      <button
-        onClick={submit}
-        disabled={!valid || saving}
-        className="w-full rounded-2xl bg-emerald-600 text-white py-4 font-semibold disabled:opacity-40"
-      >
-        {saving
-          ? 'Зберігаю…'
-          : editing ? 'Зберегти зміни'
-            : isSubscription ? 'Додати підписку'
-              : repeats ? 'Додати регулярний дохід'
-                : 'Зберегти'}
-      </button>
+      {/* Pinned: with a category wall, a source row and a date picker above it, the button
+          that ends every single entry sat below the fold. */}
+      <StickyAction>
+        <button
+          onClick={submit}
+          disabled={!valid || saving}
+          className="w-full rounded-2xl bg-emerald-600 text-white py-4 font-semibold shadow-lg disabled:opacity-40"
+        >
+          {saving
+            ? 'Зберігаю…'
+            : editing ? 'Зберегти зміни'
+              : isSubscription ? 'Додати підписку'
+                : repeats ? 'Додати регулярний дохід'
+                  : 'Зберегти'}
+        </button>
+      </StickyAction>
     </div>
   )
 }

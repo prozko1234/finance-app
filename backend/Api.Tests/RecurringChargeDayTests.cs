@@ -23,6 +23,10 @@ namespace FinanceApp.Api.Tests;
 /// today" counted it like a purchase. The user got a minus for a decision they never made,
 /// and the norm itself jumped, because the calculator adds today's spending back when it
 /// works out what the day started with.
+///
+/// Where the money sits on that day is <see cref="RecurringConfirmationTests"/>'s business —
+/// it stays reserved until confirmed. What is pinned here is that the DAY is untouched either
+/// way, which was true before charges could be pending and has to stay true after.
 public class RecurringChargeDayTests
 {
     [Fact]
@@ -34,11 +38,12 @@ public class RecurringChargeDayTests
 
         var r = await Sut(mem).GetSafeToSpendAsync();
 
-        // It really did charge, and the period figure carries it.
-        Assert.Equal(100m, r.SpentThisPeriod);
-        Assert.Equal(0m, r.ReservedRecurring); // moved from reserved to spent
+        // The money is accounted for — held back rather than declared spent, because nobody
+        // has said it left the account.
+        Assert.Equal(100m, r.ReservedRecurring);
+        Assert.Equal(0m, r.SpentThisPeriod);
 
-        // But the day is untouched: nothing was chosen today, so nothing is spent today.
+        // And the day is untouched: nothing was chosen today, so nothing is spent today.
         Assert.Equal(0m, r.SpentToday);
         Assert.Equal(r.DailyNorm, r.LeftToday);
     }
@@ -64,7 +69,8 @@ public class RecurringChargeDayTests
         var r = await Sut(mem).GetSafeToSpendAsync();
 
         Assert.Equal(40m, r.SpentToday);
-        Assert.Equal(140m, r.SpentThisPeriod); // the coffee and the subscription
+        Assert.Equal(40m, r.SpentThisPeriod);   // the coffee; the subscription is still held
+        Assert.Equal(100m, r.ReservedRecurring);
         Assert.Equal(r.DailyNorm - 40m, r.LeftToday);
     }
 
@@ -125,20 +131,5 @@ public class RecurringChargeDayTests
         return (r.Id, category.Id);
     }
 
-    private static SummaryService Sut(SqliteInMemory mem)
-    {
-        var fx = new FakeFxConverter();
-        return new SummaryService(
-            mem.Db, fx,
-            new RecurringMaterializer(mem.Db, fx),
-            new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db), new DebtLedger(mem.Db, new BudgetPeriodResolver(mem.Db))),
-            new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db), fx, new DebtLedger(mem.Db, new BudgetPeriodResolver(mem.Db)), NullLogger<EnvelopeService>.Instance),
-            new AllocationService(mem.Db),
-            new MoneyViewFactory(mem.Db, fx),
-            new BudgetPeriodResolver(mem.Db),
-            new CarryoverService(
-                mem.Db, new BudgetPeriodResolver(mem.Db),
-                new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db), new DebtLedger(mem.Db, new BudgetPeriodResolver(mem.Db))),
-                NullLogger<CarryoverService>.Instance), new DebtLedger(mem.Db, new BudgetPeriodResolver(mem.Db)));
-    }
+    private static SummaryService Sut(SqliteInMemory mem) => TestSummary.Sut(mem);
 }

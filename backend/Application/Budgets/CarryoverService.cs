@@ -133,6 +133,11 @@ public sealed class CarryoverService(
 
         // Expenses paid out of a jar are left out for the same reason the home screen leaves
         // them out: that money stopped being spendable when it went into the jar.
+        //
+        // A recurring charge still waiting to be confirmed IS counted here, unlike on the home
+        // screen. This period is over: a subscription whose day passed weeks ago has almost
+        // certainly gone, and the one thing a leftover must never do is offer money that is
+        // not in the account. Unconfirmed and old is treated as spent.
         var spent = await db.Transactions
             .Where(t => t.Kind == TransactionKind.Expense && t.EnvelopeId == null
                         && t.Date >= from && t.Date <= period.End)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cadenceLabel, scheduleSummary } from './cadence'
+import { cadenceLabel, dayOfMonth, scheduleSummary, withDayOfMonth } from './cadence'
 
 describe('cadenceLabel', () => {
   it('names the schedules the picker offers', () => {
@@ -50,5 +50,32 @@ describe('scheduleSummary', () => {
 
   it('falls back to the cadence when the date is unusable', () => {
     expect(scheduleSummary('Month', 1, 'not a date')).toBe('Щомісяця')
+  })
+})
+
+describe('the day of the month a monthly charge lands on', () => {
+  it('reads the day out of the anchor', () => {
+    expect(dayOfMonth('2026-08-10')).toBe(10)
+  })
+
+  it('moves the anchor onto another day of the same month', () => {
+    expect(withDayOfMonth('2026-08-10', 25)).toBe('2026-08-25')
+  })
+
+  /// The one that costs a real payment. Clamping the 31st into a 28-day February would anchor
+  /// the whole series there — RecurringSchedule counts every occurrence from the anchor, so
+  /// rent on the 31st would slip to the 28th and stay there for good. It walks back to a month
+  /// that actually has the day instead.
+  it('anchors the 31st on a month that has one', () => {
+    expect(withDayOfMonth('2026-02-10', 31)).toBe('2026-01-31')
+  })
+
+  it('walks back across a year boundary when it has to', () => {
+    expect(withDayOfMonth('2026-02-10', 30)).toBe('2026-01-30')
+    expect(withDayOfMonth('2027-02-10', 31)).toBe('2027-01-31')
+  })
+
+  it('leaves an unusable anchor alone rather than inventing a date', () => {
+    expect(withDayOfMonth('not a date', 10)).toBe('not a date')
   })
 })

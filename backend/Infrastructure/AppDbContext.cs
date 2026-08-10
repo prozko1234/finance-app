@@ -59,6 +59,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
             e.Property(t => t.Frequency).HasConversion<string>().HasMaxLength(10);
             e.Property(t => t.Source).HasConversion<string>().HasMaxLength(15);
             e.Property(t => t.Kind).HasConversion<string>().HasMaxLength(10);
+            e.Property(t => t.Status).HasConversion<string>().HasMaxLength(10)
+                // Every row written before charges could be pending was money that had
+                // already moved, so the backfill has to be Posted, not the CLR default.
+                .HasDefaultValue(TxStatus.Posted);
             e.Property(t => t.GrossWithVat).HasPrecision(18, 2);
             e.Property(t => t.VatAmount).HasPrecision(18, 2);
             e.HasOne(t => t.Category)

@@ -6,7 +6,7 @@ import { UndoBar } from './components/Screen'
 import { Login, inviteCodeFromUrl } from './components/Login'
 import type { Recurring as RecurringType, SaveCategory, SaveIncome, SaveTransaction, Transaction } from './types'
 import {
-  useCategories, useCreateRecurring, useCreateTransaction, useDeleteRecurring,
+  useCategories, useConfirmCharge, useCreateRecurring, useCreateTransaction, useDeleteRecurring,
   useCreateCategory, useCreateIncome, useUpdateTransaction, useUpdateIncome, useDeleteCategory, useDeleteTransaction, useFrequentCategories, useRecurring, useUpdateCategory, useSafeToSpend, useTransactions,
   useUpdateRecurring, useTaxProfile, useTaxDefaults, useSaveTaxProfile,
   useAllocations, useSaveAllocation, useSettings, useSetDisplayCurrency, useSetPeriodStartDay,
@@ -91,6 +91,7 @@ function App() {
   const setOpeningBalance = useSetOpeningBalance()
   const clearOpeningBalance = useClearOpeningBalance()
   const decideCarryover = useDecideCarryover()
+  const confirmCharge = useConfirmCharge()
   const recurring = useRecurring()
   const frequentCategories = useFrequentCategories()
   const savings = useSavings()
@@ -271,6 +272,7 @@ function App() {
             onGoAllocation={() => go('allocation')}
             onGoBalance={() => go('balance')}
             onDecideCarryover={(d) => decideCarryover.mutate(d)}
+            onConfirmCharge={(id) => confirmCharge.mutate(id)}
             frequent={frequentCategories.data ?? []}
             onQuickCategory={(categoryId) => { setPresetCategoryId(categoryId); go('add') }}
             onEdit={startEdit}

@@ -198,6 +198,10 @@ export const api = {
     http<Recurring>(`/api/recurring/${id}`, { method: 'PUT', body: JSON.stringify(r) }),
   deleteRecurring: (id: number) =>
     http<void>(`/api/recurring/${id}`, { method: 'DELETE' }),
+  /// The id is one CHARGE's, not the subscription's: the same subscription can have another
+  /// occurrence still waiting behind this one.
+  confirmCharge: (transactionId: number) =>
+    http<void>(`/api/recurring/charges/${transactionId}/confirm`, { method: 'POST' }),
 
   getTaxProfile: () => http<TaxProfile>('/api/tax/profile'),
   saveTaxProfile: (p: SaveTaxProfile) =>

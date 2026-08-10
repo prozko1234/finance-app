@@ -63,6 +63,41 @@ export function monthlyTotals(items: Recurring[]): MonthlyTotal[] {
   return [...totals.values()]
 }
 
+/// The model stores a full date — the first charge — because a weekly rule has no day of the
+/// month at all. A monthly one is remembered as a day and nothing else ("кожного 10-го"), so
+/// that is what the form asks for; these two turn one into the other.
+export function dayOfMonth(iso: string): number {
+  return Number(iso.slice(8, 10)) || 1
+}
+
+/// The same anchor moved onto another day of the month, walking back to a month that actually
+/// HAS that day rather than clamping into a short one. Anchoring the 31st on a 28-day February
+/// is what pins a series to the 28th for good: every occurrence is counted from the anchor, so
+/// the anchor itself has to be a real 31st.
+export function withDayOfMonth(iso: string, day: number): string {
+  const [year, month] = iso.split('-').map(Number)
+  if (!year || !month) return iso
+
+  let y = year
+  let m = month
+  for (let i = 0; i < 12 && day > daysIn(y, m); i++) {
+    m -= 1
+    if (m === 0) { m = 12; y -= 1 }
+  }
+
+  return `${y}-${pad(m)}-${pad(day)}`
+}
+
+/// Day 0 of the next month is the last day of this one — and built from local parts, so it is
+/// not the UTC-midnight trap that turns a date into the previous day west of Greenwich.
+function daysIn(year: number, month: number): number {
+  return new Date(year, month, 0).getDate()
+}
+
+function pad(v: number): string {
+  return String(v).padStart(2, '0')
+}
+
 export function sameCadence(a: { unit: RecurrenceUnit; interval: number }, b: Cadence): boolean {
   return a.unit === b.unit && a.interval === b.interval
 }

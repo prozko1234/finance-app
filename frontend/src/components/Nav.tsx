@@ -57,7 +57,12 @@ export function Nav({ current, onGo, onAdd, showDev, onLogout }: Props) {
 
   return (
     <>
-      <BottomBar current={current} onGo={go} onAdd={onAdd} onMore={() => setOpen(true)} />
+      {/* The form is a task, not a place: its own "Зберегти" takes the bottom of the screen,
+          and a "+" that reopens the form you are already in is a button with nothing to do.
+          The ← in the form's header is the way out. */}
+      {current !== 'add' && (
+        <BottomBar current={current} onGo={go} onAdd={onAdd} onMore={() => setOpen(true)} />
+      )}
 
       {open && (
         <div className="md:hidden fixed inset-0 z-40 flex">
@@ -131,7 +136,7 @@ function BottomBar({ current, onGo, onAdd, onMore }: {
       <Tab {...TABS[2]} active={current === TABS[2].view} onGo={onGo} />
       <Tab
         view="settings" label="Ще" icon="☰"
-        active={!inTabs && current !== 'add'}
+        active={!inTabs}
         onGo={onMore}
       />
     </nav>

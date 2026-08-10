@@ -50,7 +50,7 @@ public class DebtTests
         var periods = new BudgetPeriodResolver(mem.Db);
         return new SummaryService(
             mem.Db, fx,
-            new RecurringMaterializer(mem.Db, fx),
+            new RecurringMaterializer(mem.Db, fx, new BudgetPeriodResolver(mem.Db)),
             new MonthlyBudget(mem.Db, periods, Ledger(mem)),
             Envelopes(mem),
             new AllocationService(mem.Db),

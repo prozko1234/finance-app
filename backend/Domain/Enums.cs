@@ -17,3 +17,12 @@ public enum TxSource { Manual, Bank, Notification, Recurring }
 /// Money out (Expense) or money in (Income). Income rows carry the VAT split
 /// and count towards the monthly revenue that taxes are computed on.
 public enum TransactionKind { Expense, Income }
+
+/// Whether the money has actually moved. Anything the user types is Posted the moment it is
+/// written — they were standing at the till. A recurring charge is Pending until they say it
+/// went through: the app knows the schedule, not the bank, and «я ще не оплатив, а воно вже
+/// рахує» is exactly what happens when a calendar is read as a receipt.
+///
+/// Pending money is not free money. It stays reserved out of the daily norm — confirming it
+/// moves it from one column to another and changes nothing the user can spend.
+public enum TxStatus { Posted, Pending }

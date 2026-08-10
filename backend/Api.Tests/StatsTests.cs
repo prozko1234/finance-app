@@ -1,3 +1,4 @@
+using FinanceApp.Application.Common;
 using FinanceApp.Application.Display;
 using FinanceApp.Application.Recurring;
 using FinanceApp.Application.Stats;
@@ -17,7 +18,7 @@ public class StatsTests
     private static StatsService Sut(SqliteInMemory mem, IFxConverter? fx = null)
     {
         fx ??= new FakeFxConverter();
-        return new StatsService(mem.Db, new MoneyViewFactory(mem.Db, fx), new RecurringMaterializer(mem.Db, fx));
+        return new StatsService(mem.Db, new MoneyViewFactory(mem.Db, fx), new RecurringMaterializer(mem.Db, fx, new BudgetPeriodResolver(mem.Db)));
     }
 
     private static async Task<int> CategoryAsync(SqliteInMemory mem, string name)

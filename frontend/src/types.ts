@@ -34,6 +34,8 @@ export interface Transaction {
   /// The emoji the category itself carries. The list used to guess it from the name against a
   /// table, so everything the user made themselves showed the same 📦.
   categoryIcon?: string | null
+  /// 'Pending' — a subscription charge the schedule wrote that nobody has confirmed yet.
+  status?: 'Posted' | 'Pending'
   /// Which jar this was paid out of. Null — out of ordinary spending money.
   envelopeId?: number | null
   envelopeName?: string | null
@@ -330,6 +332,21 @@ export interface SafeToSpend {
   /// What debts are holding back from this period. Separate from the recurring reserve so the
   /// home screen can name it: money missing with nothing explaining it is the whole complaint.
   reservedDebts: number
+  /// Subscriptions whose day has come and gone without anybody saying they were paid.
+  pendingCharges: PendingCharge[]
+}
+
+/// A recurring charge waiting for «оплачено ✓». Its money is already held back from the daily
+/// norm — confirming changes nothing that can be spent, it only stops the app asking.
+export interface PendingCharge {
+  transactionId: number
+  name: string
+  /// As entered, so it matches what the bank's page says («Netflix $15,99»)…
+  amountOriginal: number
+  currencyOriginal: string
+  /// …and in the reading currency, which the rest of the screen is in.
+  amountDisplay: number
+  date: string
 }
 
 export interface Carryover {
@@ -381,6 +398,9 @@ export interface Recurring {
   /// Already taken out of this period's budget. The row looks identical either way, so it
   /// has to be said.
   chargedThisPeriod: boolean
+  /// Its day has passed and nobody has said whether it went through. The money is held, not
+  /// spent — the row is a question, and the home screen is where it gets answered.
+  awaitingConfirmation?: boolean
 }
 
 export interface SaveRecurring {

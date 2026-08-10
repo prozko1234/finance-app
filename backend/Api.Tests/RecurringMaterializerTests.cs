@@ -1,3 +1,4 @@
+using FinanceApp.Application.Common;
 using FinanceApp.Api.Tests.Integration;
 using FinanceApp.Application.Recurring;
 using FinanceApp.Domain;
@@ -25,7 +26,7 @@ public class RecurringMaterializerTests
         });
         await mem.Db.SaveChangesAsync();
 
-        var sut = new RecurringMaterializer(mem.Db, new FakeFxConverter());
+        var sut = new RecurringMaterializer(mem.Db, new FakeFxConverter(), new BudgetPeriodResolver(mem.Db));
         await sut.MaterializeDueAsync();
         await sut.MaterializeDueAsync(); // second run must not create a duplicate
 
@@ -56,7 +57,7 @@ public class RecurringMaterializerTests
         });
         await mem.Db.SaveChangesAsync();
 
-        await new RecurringMaterializer(mem.Db, new FakeFxConverter()).MaterializeDueAsync();
+        await new RecurringMaterializer(mem.Db, new FakeFxConverter(), new BudgetPeriodResolver(mem.Db)).MaterializeDueAsync();
 
         Assert.Empty(await mem.Db.Transactions.Where(t => t.Source == TxSource.Recurring).ToListAsync());
     }
@@ -90,7 +91,7 @@ public class RecurringMaterializerTests
         });
         await mem.Db.SaveChangesAsync();
 
-        await new RecurringMaterializer(mem.Db, new FakeFxConverter()).MaterializeDueAsync();
+        await new RecurringMaterializer(mem.Db, new FakeFxConverter(), new BudgetPeriodResolver(mem.Db)).MaterializeDueAsync();
 
         var tx = await mem.Db.Transactions.SingleAsync(t => t.Source == TxSource.Recurring);
         Assert.Equal(TransactionKind.Income, tx.Kind);
@@ -121,7 +122,7 @@ public class RecurringMaterializerTests
         });
         await mem.Db.SaveChangesAsync();
 
-        await new RecurringMaterializer(mem.Db, new FakeFxConverter()).MaterializeDueAsync();
+        await new RecurringMaterializer(mem.Db, new FakeFxConverter(), new BudgetPeriodResolver(mem.Db)).MaterializeDueAsync();
 
         // Two years of weeks, and not one charge more.
         var rows = await mem.Db.Transactions.CountAsync();
@@ -145,7 +146,7 @@ public class RecurringMaterializerTests
         });
         await mem.Db.SaveChangesAsync();
 
-        await new RecurringMaterializer(mem.Db, new FakeFxConverter()).MaterializeDueAsync();
+        await new RecurringMaterializer(mem.Db, new FakeFxConverter(), new BudgetPeriodResolver(mem.Db)).MaterializeDueAsync();
 
         // 24 months back plus the current one, minus this month's charge if it is not due yet.
         var rows = await mem.Db.Transactions.CountAsync();

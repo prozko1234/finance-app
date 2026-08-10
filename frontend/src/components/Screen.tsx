@@ -62,6 +62,24 @@ export function PrimaryButton({ onClick, disabled, saved, children }: {
   )
 }
 
+/// A form's final action, pinned to the bottom of the screen for as long as the form is
+/// taller than it. Reaching "Зберегти" used to mean scrolling past every field — the one tap
+/// that ends every entry was the one thing never on screen.
+///
+/// `sticky`, not `fixed`: the button keeps its place in the form's flow, so a short form
+/// simply ends with it instead of having it hover over the last field forever.
+///
+/// The offset carries `env(safe-area-inset-bottom)` of its own: a sticky element is placed
+/// against the scrollport, which the padding on <body> does not move. Screens that use this
+/// hide the mobile bottom bar, so there is nothing else down there to clear.
+export function StickyAction({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="sticky bottom-[calc(0.75rem_+_env(safe-area-inset-bottom))] z-20 rounded-2xl bg-neutral-50/85 dark:bg-neutral-950/85 py-2 backdrop-blur">
+      {children}
+    </div>
+  )
+}
+
 export function FormError({ children }: { children: React.ReactNode }) {
   return children ? <p className="text-sm text-red-600">{children}</p> : null
 }

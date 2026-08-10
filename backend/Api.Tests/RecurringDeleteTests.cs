@@ -39,12 +39,12 @@ public class RecurringDeleteTests
     }
 
     private static RecurringMaterializer Materializer(SqliteInMemory mem) =>
-        new(mem.Db, new FakeFxConverter());
+        new(mem.Db, new FakeFxConverter(), new BudgetPeriodResolver(mem.Db));
 
     private static TransactionService Transactions(SqliteInMemory mem)
     {
         var fx = new FakeFxConverter();
-        return new TransactionService(mem.Db, fx, new RecurringMaterializer(mem.Db, fx),
+        return new TransactionService(mem.Db, fx, new RecurringMaterializer(mem.Db, fx, new BudgetPeriodResolver(mem.Db)),
             new MoneyViewFactory(mem.Db, fx));
     }
 

@@ -15,6 +15,9 @@ public interface IRecurringService
     Task<Result<RecurringResponse>> CreateAsync(SaveRecurringRequest req, CancellationToken ct = default);
     Task<Result<RecurringResponse>> UpdateAsync(int id, SaveRecurringRequest req, CancellationToken ct = default);
     Task<Result<bool>> DeleteAsync(int id, CancellationToken ct = default);
+
+    /// «Оплачено ✓» for one charge the schedule wrote and nobody had confirmed yet.
+    Task<Result<bool>> ConfirmChargeAsync(int transactionId, CancellationToken ct = default);
 }
 
 public sealed class RecurringService(IAppDbContext db, IBudgetPeriods periods) : IRecurringService
@@ -33,18 +36,23 @@ public sealed class RecurringService(IAppDbContext db, IBudgetPeriods periods) :
         // Which of these have already been taken out of the period being lived in. Asked once
         // for the whole list rather than per row: the answer is a set of ids, not a query each.
         var (start, end) = await periods.CurrentAsync(ct);
-        var charged = await db.Transactions
+        // Split by status: a charge the schedule wrote but nobody has ticked off has not «вже
+        // пішло», and saying it has is how the screen came to disagree with the bank. It is
+        // not silent either — an unanswered question on the row is the whole point.
+        var written = await db.Transactions
             .Where(t => t.RecurringExpenseId != null && t.Date >= start && t.Date <= end)
-            .Select(t => t.RecurringExpenseId!.Value)
-            .Distinct()
+            .Select(t => new { Id = t.RecurringExpenseId!.Value, t.Status })
             .ToListAsync(ct);
-        var chargedIds = charged.ToHashSet();
+
+        var chargedIds = written.Where(t => t.Status == TxStatus.Posted).Select(t => t.Id).ToHashSet();
+        var awaitingIds = written.Where(t => t.Status == TxStatus.Pending).Select(t => t.Id).ToHashSet();
 
         return items
             .Select(r => r.ToResponse() with
             {
                 NextChargeOn = NextChargeOn(r),
                 ChargedThisPeriod = chargedIds.Contains(r.Id),
+                AwaitingConfirmation = awaitingIds.Contains(r.Id),
             })
             .ToList();
     }
@@ -97,18 +105,34 @@ public sealed class RecurringService(IAppDbContext db, IBudgetPeriods periods) :
                 return Error.Validation($"Невідомий тип: {req.Kind}.");
             r.Kind = kind;
         }
-        r.AmountIncludesVat = req.AmountIncludesVat;
-        r.AmountOriginal = req.Amount;
-        r.CurrencyOriginal = req.Currency.ToUpperInvariant();
+        // Parsed before anything is written: returning an error with the entity half-updated
+        // leaves a dirty tracked row behind for whatever saves next.
         if (!TryParseUnit(req.Unit, out var unit))
             return Error.Validation($"Невідома періодичність: {req.Unit}.");
 
+        var currency = req.Currency.ToUpperInvariant();
+
+        // Whether the CHARGES this rule produces would come out differently. The pause switch
+        // and the name are deliberately not in it: pausing means "no more of these", not "the
+        // one that already fell due never happened", and dropping its unconfirmed charge would
+        // quietly hand back money that has probably already gone.
+        var chargesChanged =
+            r.StartsOn != req.StartsOn || r.Unit != unit || r.Interval != req.Interval
+            || r.AmountOriginal != req.Amount || r.CurrencyOriginal != currency
+            || r.CategoryId != req.CategoryId;
+
+        r.AmountIncludesVat = req.AmountIncludesVat;
+        r.AmountOriginal = req.Amount;
+        r.CurrencyOriginal = currency;
         r.CategoryId = req.CategoryId;
         r.StartsOn = req.StartsOn;
         r.Unit = unit;
         r.Interval = req.Interval;
         r.Active = req.Active;
         r.Note = req.Note;
+
+        if (chargesChanged) await DropUnconfirmedChargesAsync(r.Id, ct);
+
         await db.SaveChangesAsync(ct);
         await LoadCategoryAsync(r, ct);
         return Result<RecurringResponse>.Ok(r.ToResponse());
@@ -122,6 +146,46 @@ public sealed class RecurringService(IAppDbContext db, IBudgetPeriods periods) :
         // Already materialized transactions keep their history (FK set to null on delete).
         db.RecurringExpenses.Remove(r);
         await db.SaveChangesAsync(ct);
+        return Result<bool>.Ok(true);
+    }
+
+    /// Charges this period that nobody has confirmed, thrown away so the next read can write
+    /// them again from the rule as it now stands. A charge written on the 15th has nothing to
+    /// attach to once the day moves to the 20th: it is no longer an occurrence, so nothing
+    /// will ask about it and nothing will write it back — it would sit in the list forever as
+    /// a question with no answer. The same goes for one written at the old price.
+    ///
+    /// Only this period, and only unconfirmed. Confirmed charges are history, and history does
+    /// not move because a subscription's date did. A deleted occurrence leaves a
+    /// <see cref="RecurringSkip"/> behind, which materialization still honours, so nothing
+    /// the user threw away comes back through here.
+    private async Task DropUnconfirmedChargesAsync(int recurringId, CancellationToken ct)
+    {
+        var (start, end) = await periods.CurrentAsync(ct);
+
+        var unconfirmed = await db.Transactions
+            .Where(t => t.RecurringExpenseId == recurringId && t.Status == TxStatus.Pending
+                        && t.Date >= start && t.Date <= end)
+            .ToListAsync(ct);
+
+        db.Transactions.RemoveRange(unconfirmed);
+    }
+
+    /// Confirming twice is not an error: the second tap comes from a stale screen, and the
+    /// state it asks for is the state the row is already in. Failing it would show the user a
+    /// problem that does not exist.
+    public async Task<Result<bool>> ConfirmChargeAsync(int transactionId, CancellationToken ct = default)
+    {
+        var tx = await db.Transactions
+            .FirstOrDefaultAsync(t => t.Id == transactionId && t.RecurringExpenseId != null, ct);
+        if (tx is null) return Error.NotFound($"Списання {transactionId} не знайдено.");
+
+        if (tx.Status == TxStatus.Pending)
+        {
+            tx.Status = TxStatus.Posted;
+            await db.SaveChangesAsync(ct);
+        }
+
         return Result<bool>.Ok(true);
     }
 

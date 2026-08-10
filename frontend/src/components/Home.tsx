@@ -1,4 +1,6 @@
-import type { CarryoverDecision, EnvelopeSummary, FrequentCategory, SafeToSpend, Transaction } from '../types'
+import type {
+  CarryoverDecision, EnvelopeSummary, FrequentCategory, PendingCharge, SafeToSpend, Transaction,
+} from '../types'
 import { dayHeading, dayMonth, money, signedMoney, signedMoneyClass } from '../format'
 import { envelopeIcon } from '../envelopeWords'
 
@@ -23,15 +25,26 @@ interface Props {
   onGoBalance: () => void
   /// Where last period's leftover goes. Asked only when there is one and nobody has placed it.
   onDecideCarryover: (decision: CarryoverDecision) => void
+  /// «Оплачено ✓» for one subscription charge. "Не списалось" reuses onDelete — deleting the
+  /// charge is already what records the skip, and it comes with the undo bar.
+  onConfirmCharge: (transactionId: number) => void
 }
 
 export function Home({
   summary, transactions, paydayNudge, canLoadMore, onLoadMore, onDelete, onAddIncome, frequent, onQuickCategory, onEdit, onGoSavings, onGoAllocation,
-  onGoBalance, onDecideCarryover,
+  onGoBalance, onDecideCarryover, onConfirmCharge,
 }: Props) {
   return (
     <div className="space-y-6">
       <SafeToSpendCard summary={summary} onAddIncome={onAddIncome} />
+      {summary && summary.pendingCharges.length > 0 && (
+        <PendingChargesCard
+          charges={summary.pendingCharges}
+          currency={summary.currency}
+          onConfirm={onConfirmCharge}
+          onDidNotHappen={onDelete}
+        />
+      )}
       {summary?.carryover && (
         <CarryoverCard
           carryover={summary.carryover}
@@ -54,6 +67,65 @@ export function Home({
         onDelete={onDelete}
         onEdit={onEdit}
       />
+    </div>
+  )
+}
+
+/// Subscriptions whose day has passed with nobody saying they were paid.
+///
+/// Until this card a due date was read as a receipt: the app insisted Netflix was paid on the
+/// 5th because the 5th had happened, and someone who had not paid it read a figure that was
+/// wrong in a way nothing on screen could explain.
+///
+/// The money is held back either way, so neither button moves the daily norm — which is what
+/// lets this sit near the top without being alarming. It asks a question; it does not report
+/// a loss. "Не списалось" goes through the ordinary delete, so it arrives with the undo bar
+/// and leaves a skip behind — the next read will not write the charge back.
+function PendingChargesCard({ charges, currency, onConfirm, onDidNotHappen }: {
+  charges: PendingCharge[]
+  currency: string
+  onConfirm: (transactionId: number) => void
+  onDidNotHappen: (transactionId: number) => void
+}) {
+  return (
+    <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm space-y-3">
+      <div>
+        <p className="text-sm font-medium">
+          {charges.length === 1 ? 'Мало списатись' : `Мало списатись — ${charges.length}`}
+        </p>
+        <p className="text-xs text-neutral-500">
+          Гроші вже відкладені з норми, тож відповідь її не змінить — просто скажи, чи пішло.
+        </p>
+      </div>
+
+      <ul className="space-y-2">
+        {charges.map((c) => (
+          <li key={c.transactionId} className="flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="font-medium truncate">{c.name}</p>
+              <p className="text-xs text-neutral-400 tabular-nums">
+                {dayMonth(c.date)} ·{' '}
+                {money(c.amountOriginal, c.currencyOriginal)}
+                {/* The converted figure only when it says something the line above does not:
+                    "45,99 zł ≈ 45,99 zł" is a second number to read for nothing. */}
+                {c.currencyOriginal !== currency && ` ≈ ${money(c.amountDisplay, currency)}`}
+              </p>
+            </div>
+            <button
+              onClick={() => onDidNotHappen(c.transactionId)}
+              className="rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-xs text-neutral-500"
+            >
+              Не пішло
+            </button>
+            <button
+              onClick={() => onConfirm(c.transactionId)}
+              className="rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 px-3 py-2 text-sm font-medium"
+            >
+              Оплачено ✓
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
@@ -411,6 +483,11 @@ function RecentList({ transactions, canLoadMore, onLoadMore, onDelete, onEdit }:
                 {/* Says at a glance why this expense did not reduce the daily norm. */}
                 {t.envelopeName && (
                   <span className="text-xs text-neutral-400"> · з «{t.envelopeName}»</span>
+                )}
+                {/* And why this one did not either: the schedule wrote it, nobody confirmed
+                    it, and it is being held rather than counted. */}
+                {t.status === 'Pending' && (
+                  <span className="text-xs text-amber-600"> · чекає підтвердження</span>
                 )}
               </p>
               <p className="text-xs text-neutral-400 truncate">

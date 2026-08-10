@@ -1,10 +1,21 @@
+using FinanceApp.Api.Tests.Integration;
 using FinanceApp.Application.Abstractions;
+using FinanceApp.Application.Allocations;
 using FinanceApp.Application.Auth;
+using FinanceApp.Application.Budgets;
+using FinanceApp.Application.Common;
+using FinanceApp.Application.Debts;
+using FinanceApp.Application.Display;
+using FinanceApp.Application.Envelopes;
+using FinanceApp.Application.Recurring;
+using FinanceApp.Application.Summaries;
 using FinanceApp.Domain;
+using FinanceApp.Domain.Common;
 using FinanceApp.Domain.Fx;
 using FinanceApp.Infrastructure;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace FinanceApp.Api.Tests;
 
@@ -67,6 +78,61 @@ public static class TestIncome
             CreatedAt = DateTimeOffset.UtcNow,
         };
     }
+}
+
+/// The safe-to-spend service with every collaborator wired the way the API wires it. Built
+/// here rather than in each test file because the graph is a dozen lines deep and it is the
+/// same graph every time — a second copy drifts the moment one of them gains a dependency.
+public static class TestSummary
+{
+    public static SummaryService Sut(SqliteInMemory mem, IFxConverter? fx = null)
+    {
+        var converter = fx ?? new FakeFxConverter();
+        // One resolver for the whole graph: it caches the period start day per instance, and
+        // the setting cannot change inside one request anyway.
+        var periods = new BudgetPeriodResolver(mem.Db);
+        var debts = new DebtLedger(mem.Db, periods);
+        var budget = new MonthlyBudget(mem.Db, periods, debts);
+        var allocations = new AllocationService(mem.Db);
+
+        return new SummaryService(
+            mem.Db, converter,
+            new RecurringMaterializer(mem.Db, converter, new BudgetPeriodResolver(mem.Db)),
+            budget,
+            new EnvelopeService(
+                mem.Db, allocations, periods, converter, debts, NullLogger<EnvelopeService>.Instance),
+            allocations,
+            new MoneyViewFactory(mem.Db, converter),
+            periods,
+            new CarryoverService(mem.Db, periods, budget, NullLogger<CarryoverService>.Instance),
+            debts);
+    }
+}
+
+/// An FX converter whose dollar rate can be moved between two reads. Everything else behaves
+/// like <see cref="FakeFxConverter"/>; the point is only that a rate is not the same number
+/// twice, which is the one condition under which re-converting a written charge is visible.
+public sealed class MovingRateFxConverter(decimal plnPerUsd) : IFxConverter
+{
+    public decimal PlnPerUsd { get; set; } = plnPerUsd;
+
+    public Task<Result<FxConversion>> ConvertToBaseAsync(
+        decimal amount, string currency, DateOnly date, CancellationToken ct = default)
+    {
+        var rate = Rate(currency);
+        return Task.FromResult(Result<FxConversion>.Ok(
+            new FxConversion(Math.Round(amount * rate, 2, MidpointRounding.AwayFromZero), rate, date)));
+    }
+
+    public Task<Result<FxConversion>> ConvertFromBaseAsync(
+        decimal baseAmount, string currency, DateOnly date, CancellationToken ct = default)
+    {
+        var rate = Rate(currency);
+        return Task.FromResult(Result<FxConversion>.Ok(
+            new FxConversion(Math.Round(baseAmount / rate, 2, MidpointRounding.AwayFromZero), rate, date)));
+    }
+
+    private decimal Rate(string currency) => currency.ToUpperInvariant() == "USD" ? PlnPerUsd : 1m;
 }
 
 /// Stub rate provider: returns a given quote and counts calls.

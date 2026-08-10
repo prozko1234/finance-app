@@ -27,6 +27,15 @@ public static class RecurringEndpoints
             return r.IsSuccess ? Results.Ok(r.Value) : r.Error.ToProblem();
         }).AddEndpointFilter<ValidationFilter<SaveRecurringRequest>>();
 
+        // The id is a transaction's, not a subscription's: what gets confirmed is one charge
+        // on one date, and the same subscription can have another still waiting behind it.
+        g.MapPost("/charges/{transactionId:int}/confirm",
+            async (int transactionId, IRecurringService svc, CancellationToken ct) =>
+        {
+            var r = await svc.ConfirmChargeAsync(transactionId, ct);
+            return r.IsSuccess ? Results.NoContent() : r.Error.ToProblem();
+        });
+
         g.MapDelete("/{id:int}", async (int id, IRecurringService svc, CancellationToken ct) =>
         {
             var r = await svc.DeleteAsync(id, ct);

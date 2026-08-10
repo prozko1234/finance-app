@@ -54,7 +54,10 @@ public record TransactionResponse(
     /// The emoji the category actually carries. Sent with the row because the list used to
     /// guess it from the category NAME against a hard-coded table, so every category the user
     /// made themselves — and every renamed one — showed the same 📦.
-    string? CategoryIcon = null);
+    string? CategoryIcon = null,
+    /// "Pending" for a subscription charge the schedule wrote and nobody has confirmed. The
+    /// list says so, or a row nobody agreed to would sit among the ones they did.
+    string Status = nameof(TxStatus.Posted));
 
 public record CategoryResponse(int Id, string Name, string? Icon, string? Color, int SortOrder, bool IsSystem);
 
@@ -116,7 +119,25 @@ public record SafeToSpendResponse(
     /// What debts are holding back from this period, for the debts the user asked to reserve
     /// for. Sent separately from the recurring reserve so the screen can say which is which:
     /// money missing with nothing to explain it is the whole complaint being answered here.
-    decimal ReservedDebts = 0m);
+    decimal ReservedDebts = 0m,
+    /// Recurring charges whose day has come and gone without anybody saying they were paid.
+    /// Empty almost always; when it is not, it is the first thing the home screen asks about.
+    IReadOnlyList<PendingChargeResponse>? PendingCharges = null);
+
+/// A subscription the schedule says has fallen due, waiting for «оплачено ✓». Its money is
+/// already held back from the daily norm, so confirming it changes nothing that can be spent
+/// — it only stops the app asking.
+///
+/// The amount comes twice: as it was entered, because that is the figure on the bank's page
+/// («Netflix $15,99»), and in the reading currency, because that is the figure the rest of
+/// the screen is in.
+public record PendingChargeResponse(
+    int TransactionId,
+    string Name,
+    decimal AmountOriginal,
+    string CurrencyOriginal,
+    decimal AmountDisplay,
+    DateOnly Date);
 
 /// Where the month's budget went before the daily norm was computed — the "куди пішов
 /// бюджет" row. Null-ish case (the default one-bucket scheme) still comes through, so the
@@ -362,9 +383,12 @@ public record RecurringResponse(
     /// nothing coming. Computed server-side because the day is clamped to the month's length
     /// (the 31st in February) and the screen must not guess that on its own.
     DateOnly? NextChargeOn = null,
-    /// Already taken out of this period's budget. The screen says so, because the money is
-    /// gone but the row looks exactly the same as one that is still to come.
-    bool ChargedThisPeriod = false);
+    /// Confirmed as paid this period. The screen says so, because the money is gone but the
+    /// row looks exactly the same as one that is still to come.
+    bool ChargedThisPeriod = false,
+    /// Its day has passed and nobody has said whether it went through. Distinct from charged:
+    /// the money is held, not spent, and the row is a question rather than a fact.
+    bool AwaitingConfirmation = false);
 
 /// App-wide settings. <paramref name="BaseCurrency"/> is what the app stores in; the user
 /// only chooses what to read. <paramref name="TaxesInBaseCurrency"/> tells the UI it must

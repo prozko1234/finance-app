@@ -195,3 +195,82 @@ describe('Recurring — when it next goes out', () => {
     expect(screen.getByText(/на паузі/)).toBeInTheDocument()
   })
 })
+
+/// The field used to be a date picker labelled «Перше списання» for every rhythm, and it read
+/// as a one-off: the app has always charged «кожного 10-го», but nothing on the form said so.
+describe('when the charge lands', () => {
+  it('asks a monthly rule for a day of the month, not a date', async () => {
+    const user = userEvent.setup()
+    render(<Recurring {...props({ items: [item()] })} />)
+    await user.click(screen.getByText(/Netflix/))
+
+    const day = screen.getByLabelText('День місяця')
+    expect(day).toHaveValue('5')
+    expect(screen.queryByLabelText('Перше списання')).not.toBeInTheDocument()
+
+    await user.selectOptions(day, '20')
+    expect(screen.getByText(/Списуватиметься кожного 20-го/)).toBeInTheDocument()
+  })
+
+  /// A week has no day of the month and a year's month has to come from somewhere, so those
+  /// keep the date. The weekday is read off it.
+  it('keeps the date for a weekly rule', async () => {
+    const user = userEvent.setup()
+    render(<Recurring {...props({ items: [item({ unit: 'Week' })] })} />)
+    await user.click(screen.getByText(/Netflix/))
+
+    expect(screen.getByLabelText('Перше списання')).toBeInTheDocument()
+    expect(screen.queryByLabelText('День місяця')).not.toBeInTheDocument()
+  })
+
+  it('warns that a late day falls back to the end of a short month', async () => {
+    const user = userEvent.setup()
+    render(<Recurring {...props({ items: [item()] })} />)
+    await user.click(screen.getByText(/Netflix/))
+
+    await user.selectOptions(screen.getByLabelText('День місяця'), '31')
+    expect(screen.getByText(/У коротких місяцях — останнього дня/)).toBeInTheDocument()
+  })
+})
+
+/// Changing the day or the price throws away the charge already written for this period and
+/// writes it again from the new rule. That is right, and invisible unless it is said out loud.
+describe('editing a rule that has already charged', () => {
+  it('says what will happen to the unconfirmed charge', async () => {
+    const user = userEvent.setup()
+    render(<Recurring {...props({ items: [item()] })} />)
+    await user.click(screen.getByText(/Netflix/))
+
+    expect(screen.queryByText(/ще не підтверджене, приберемо/)).not.toBeInTheDocument()
+
+    await user.selectOptions(screen.getByLabelText('День місяця'), '20')
+    expect(screen.getByText(/День зміниться/)).toBeInTheDocument()
+    expect(screen.getByText(/ще не підтверджене, приберемо/)).toBeInTheDocument()
+  })
+
+  it('says the same about a price change', async () => {
+    const user = userEvent.setup()
+    render(<Recurring {...props({ items: [item()] })} />)
+    await user.click(screen.getByText(/Netflix/))
+
+    await user.clear(screen.getByPlaceholderText('0'))
+    await user.type(screen.getByPlaceholderText('0'), '75')
+
+    expect(screen.getByText(/Сума зміниться/)).toBeInTheDocument()
+  })
+})
+
+/// Three states, not two. A charge whose day has passed but which nobody has confirmed used
+/// to read exactly like one still ahead — so a subscription could look like it was still
+/// coming while its money was already being held.
+describe('what the row says about this period', () => {
+  it('names a charge waiting to be confirmed', () => {
+    render(<Recurring {...props({ items: [item({ awaitingConfirmation: true, nextChargeOn: '2026-09-05' })] })} />)
+    expect(screen.getByText(/чекає підтвердження/)).toBeInTheDocument()
+  })
+
+  it('still says when a confirmed charge has gone', () => {
+    render(<Recurring {...props({ items: [item({ chargedThisPeriod: true, nextChargeOn: '2026-09-05' })] })} />)
+    expect(screen.getByText(/цього періоду вже пішло/)).toBeInTheDocument()
+  })
+})

@@ -48,8 +48,12 @@ public sealed class SummaryService(
         // Expenses paid out of an envelope are left out on purpose. That money was taken out
         // of what is spendable when it went into the envelope; counting it again as it
         // leaves would charge the daily norm twice for one purchase.
+        // Pending charges are left out: a recurring charge the schedule says fell due has not
+        // been confirmed to have left the account, and it is still being held by the reserve
+        // below. Counting it here as well would take the same money twice.
         var spent = await monthRows
-            .Where(t => t.Kind == TransactionKind.Expense && t.EnvelopeId == null)
+            .Where(t => t.Kind == TransactionKind.Expense && t.EnvelopeId == null
+                        && t.Status == TxStatus.Posted)
             .SumAsync(t => (decimal?)t.AmountBase, ct) ?? 0m;
 
         // A recurring charge that fell due today is NOT today's spending. Its money was set
@@ -98,6 +102,19 @@ public sealed class SummaryService(
 
         var left = await carryover.PendingAsync(ct);
 
+        // Only charges whose day has already passed: one still ahead is not something the
+        // user can answer yet, and a list of things to confirm later is a list to ignore.
+        var pending = await db.Transactions
+            .Where(t => t.Status == TxStatus.Pending && t.RecurringExpenseId != null
+                        && t.Date >= period.Start && t.Date <= today)
+            .OrderBy(t => t.Date)
+            .Select(t => new
+            {
+                t.Id, t.AmountOriginal, t.CurrencyOriginal, t.AmountBase, t.Date, t.Note,
+                CategoryName = t.Category!.Name,
+            })
+            .ToListAsync(ct);
+
         return new SafeToSpendResponse(
             today, view.Currency, r.BudgetSet,
             r.PeriodBudget is null ? null : await show(r.PeriodBudget.Value),
@@ -132,13 +149,27 @@ public sealed class SummaryService(
             // reading in is not one they can decide with.
             left is null ? null : new CarryoverResponse(
                 await show(left.Amount), left.FromStart, left.FromEnd, left.EnvelopeName),
-            await show(debtsReserved));
+            await show(debtsReserved),
+            await Task.WhenAll(pending.Select(async p => new PendingChargeResponse(
+                p.Id, string.IsNullOrWhiteSpace(p.Note) ? p.CategoryName : p.Note,
+                p.AmountOriginal, p.CurrencyOriginal, await show(p.AmountBase), p.Date))));
     }
 
-    /// Active recurring EXPENSES whose charge in THIS PERIOD is still in the future = not yet
-    /// spent. Recurring income is excluded: it raises the budget when it lands, and
-    /// reserving it here would subtract the salary from what the user may spend.
-    /// Converted at today's rate (an estimate; the real rate is locked when it materializes).
+    /// Active recurring EXPENSES this period that have not been confirmed as paid. Recurring
+    /// income is excluded: it raises the budget when it lands, and reserving it here would
+    /// subtract the salary from what the user may spend.
+    ///
+    /// A charge stops being reserved when it is CONFIRMED, not when its day arrives. The day
+    /// used to be the line, and it made the two halves of the same money disagree: the charge
+    /// dropped out of the reserve and appeared in `spent` on the strength of the calendar
+    /// alone, so the app insisted a subscription was paid while the account said otherwise.
+    ///
+    /// A charge already written (pending) is reserved at the amount it was written with,
+    /// never re-converted. That is what makes confirming it a move between two columns rather
+    /// than a change to the money: re-converting at today's rate would shift what is left by
+    /// the difference between two days' rates every time a dollar subscription changed hands.
+    /// Occurrences with no transaction yet have no such amount, so those still go at today's
+    /// rate — an estimate, and the only honest one for a charge that has not happened.
     ///
     /// Occurrences the user has deleted are left out, exactly as
     /// <see cref="Recurring.RecurringMaterializer"/> leaves them out. The two have to agree:
@@ -161,16 +192,36 @@ public sealed class SummaryService(
             .Select(s => (s.RecurringExpenseId, s.Date))
             .ToHashSet();
 
-        var reserved = 0m;
+        // The charges already written for this period, by the occurrence they belong to. One
+        // row per (recurring, date) — the unique index guarantees it, so this cannot collide.
+        var written = (await db.Transactions
+                .Where(t => t.RecurringExpenseId != null
+                            && t.Date >= period.Start && t.Date <= period.End)
+                .Select(t => new { Id = t.RecurringExpenseId!.Value, t.Date, t.Status, t.AmountBase })
+                .ToListAsync(ct))
+            .ToDictionary(t => (t.Id, t.Date), t => (t.Status, t.AmountBase));
+
+        // Every unconfirmed charge is held, whatever the rule that produced it says NOW. A row
+        // written on the 15th and then moved to the 20th, or one whose subscription has since
+        // been paused, is still a claim on real money — walking the current schedule alone
+        // would free it silently, and editing a subscription would hand back money that is
+        // still owed. Amounts come from the rows themselves, never re-converted: that is what
+        // makes confirming a charge a move between columns rather than a change to the money.
+        var reserved = written.Values
+            .Where(c => c.Status == TxStatus.Pending)
+            .Sum(c => c.AmountBase);
 
         foreach (var r in recurring)
         {
             foreach (var occ in RecurringSchedule.Occurrences(
                          r.StartsOn, r.Unit, r.Interval, period.Start, period.End))
             {
-                if (occ <= today) continue; // already charged (materialized into spent)
                 if (skipped.Contains((r.Id, occ))) continue;
+                // Posted is in `spent`; pending is already in the sum above.
+                if (written.ContainsKey((r.Id, occ))) continue;
 
+                // Nothing written yet, so there is no amount to take — today's rate is the
+                // only honest estimate for a charge that has not happened.
                 var conv = await fx.ConvertToBaseAsync(r.AmountOriginal, r.CurrencyOriginal, today, ct);
                 if (conv.IsSuccess) reserved += conv.Value!.AmountBase;
             }

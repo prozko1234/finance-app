@@ -17,6 +17,7 @@ function summary(over: Partial<SafeToSpend> = {}): SafeToSpend {
     periodStart: '2026-07-01', periodEnd: '2026-07-31',
     carryover: null,
     reservedDebts: 0,
+    pendingCharges: [],
     ...over,
   }
 }
@@ -25,7 +26,7 @@ const props = {
   transactions: [], canLoadMore: false, onLoadMore: vi.fn(), paydayNudge: null, frequent: [],
   onDelete: vi.fn(), onAddIncome: vi.fn(), onQuickCategory: vi.fn(), onEdit: vi.fn(),
   onGoSavings: vi.fn(), onGoAllocation: vi.fn(), onGoBalance: vi.fn(),
-  onDecideCarryover: vi.fn(),
+  onDecideCarryover: vi.fn(), onConfirmCharge: vi.fn(),
 }
 
 describe('Home', () => {
@@ -335,5 +336,47 @@ describe('Home — the payday question', () => {
   it('names what debts are holding back', () => {
     render(<Home {...props} summary={summary({ reservedDebts: 250 })} />)
     expect(screen.getByText(/на борги 250,00/)).toBeInTheDocument()
+  })
+
+  /// A due date is a schedule, not a receipt. The charge is asked about rather than assumed,
+  /// and both answers are one tap — "не пішло" goes through the ordinary delete, which is what
+  /// records the skip and brings the undo bar with it.
+  describe('a charge waiting to be confirmed', () => {
+    const charge = {
+      transactionId: 7, name: 'Netflix', amountOriginal: 15.99,
+      currencyOriginal: 'USD', amountDisplay: 63.84, date: '2026-07-20',
+    }
+
+    it('asks about it, in the currency it was entered in and in the one being read', () => {
+      render(<Home {...props} summary={summary({ pendingCharges: [charge] })} />)
+
+      expect(screen.getByText('Netflix')).toBeInTheDocument()
+      // Both figures on one line: the dollars are what the bank's page says, the złoty are
+      // what every other number on this screen is in.
+      expect(screen.getByText(/15,99.*≈.*63,84/)).toBeInTheDocument()
+    })
+
+    it('confirms with the charge id, not the subscription id', async () => {
+      const onConfirmCharge = vi.fn()
+      render(
+        <Home {...props} summary={summary({ pendingCharges: [charge] })} onConfirmCharge={onConfirmCharge} />,
+      )
+
+      await userEvent.click(screen.getByText(/Оплачено/))
+      expect(onConfirmCharge).toHaveBeenCalledWith(7)
+    })
+
+    it('sends "не пішло" through the ordinary delete, so undo works', async () => {
+      const onDelete = vi.fn()
+      render(<Home {...props} summary={summary({ pendingCharges: [charge] })} onDelete={onDelete} />)
+
+      await userEvent.click(screen.getByText('Не пішло'))
+      expect(onDelete).toHaveBeenCalledWith(7)
+    })
+
+    it('stays out of the way when there is nothing to confirm', () => {
+      render(<Home {...props} summary={summary()} />)
+      expect(screen.queryByText(/Мало списатись/)).not.toBeInTheDocument()
+    })
   })
 })

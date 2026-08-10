@@ -327,6 +327,14 @@ export function useDeleteRecurring() {
   return useMutation({ mutationFn: (id: number) => api.deleteRecurring(id), onSuccess: invalidate })
 }
 
+export function useConfirmCharge() {
+  const invalidate = useInvalidateEverything()
+  return useMutation({
+    mutationFn: (transactionId: number) => api.confirmCharge(transactionId),
+    onSuccess: invalidate,
+  })
+}
+
 export function useTaxProfile() {
   return useQuery({ queryKey: queryKeys.taxProfile, queryFn: () => api.getTaxProfile() })
 }

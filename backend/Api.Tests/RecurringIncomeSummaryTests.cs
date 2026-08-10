@@ -56,7 +56,7 @@ public class RecurringIncomeSummaryTests
         var fx = new FakeFxConverter();
         var sut = new SummaryService(
             mem.Db, fx,
-            new RecurringMaterializer(mem.Db, fx),
+            new RecurringMaterializer(mem.Db, fx, new BudgetPeriodResolver(mem.Db)),
             new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db), new DebtLedger(mem.Db, new BudgetPeriodResolver(mem.Db))),
             new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db), fx, new DebtLedger(mem.Db, new BudgetPeriodResolver(mem.Db)), NullLogger<EnvelopeService>.Instance),
             new AllocationService(mem.Db),
@@ -103,7 +103,7 @@ public class RecurringIncomeSummaryTests
         var fx = new FakeFxConverter();
         var sut = new SummaryService(
             mem.Db, fx,
-            new RecurringMaterializer(mem.Db, fx),
+            new RecurringMaterializer(mem.Db, fx, new BudgetPeriodResolver(mem.Db)),
             new MonthlyBudget(mem.Db, new BudgetPeriodResolver(mem.Db), new DebtLedger(mem.Db, new BudgetPeriodResolver(mem.Db))),
             new EnvelopeService(mem.Db, new AllocationService(mem.Db), new BudgetPeriodResolver(mem.Db), fx, new DebtLedger(mem.Db, new BudgetPeriodResolver(mem.Db)), NullLogger<EnvelopeService>.Instance),
             new AllocationService(mem.Db),

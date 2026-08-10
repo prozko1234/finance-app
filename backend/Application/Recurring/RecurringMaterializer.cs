@@ -1,4 +1,5 @@
 using FinanceApp.Application.Abstractions;
+using FinanceApp.Application.Common;
 using FinanceApp.Domain;
 using FinanceApp.Domain.Budgeting;
 using FinanceApp.Domain.Fx;
@@ -18,7 +19,8 @@ public interface IRecurringMaterializer
 ///
 /// Which dates are due is not decided here: <see cref="RecurringSchedule"/> owns that, so
 /// weekly, fortnightly, quarterly and yearly rules all arrive as a plain list of dates.
-public sealed class RecurringMaterializer(IAppDbContext db, IFxConverter fx) : IRecurringMaterializer
+public sealed class RecurringMaterializer(
+    IAppDbContext db, IFxConverter fx, IBudgetPeriods periods) : IRecurringMaterializer
 {
     private static readonly SemaphoreSlim Gate = new(1, 1);
 
@@ -32,6 +34,7 @@ public sealed class RecurringMaterializer(IAppDbContext db, IFxConverter fx) : I
         try
         {
             var today = DateOnly.FromDateTime(DateTime.Now);
+            var period = await periods.CurrentAsync(ct);
             var recurring = await db.RecurringExpenses.Where(r => r.Active).ToListAsync(ct);
 
             // Backstop against a bad date: lazy materialization is meant to catch up days or
@@ -56,7 +59,7 @@ public sealed class RecurringMaterializer(IAppDbContext db, IFxConverter fx) : I
                 foreach (var occ in RecurringSchedule.Occurrences(r.StartsOn, r.Unit, r.Interval, from, today))
                 {
                     if (skipped.Contains((r.Id, occ))) continue;
-                    await MaterializeOneAsync(r, occ, ct);
+                    await MaterializeOneAsync(r, occ, period, ct);
                 }
             }
         }
@@ -66,7 +69,8 @@ public sealed class RecurringMaterializer(IAppDbContext db, IFxConverter fx) : I
         }
     }
 
-    private async Task MaterializeOneAsync(RecurringExpense r, DateOnly occ, CancellationToken ct)
+    private async Task MaterializeOneAsync(
+        RecurringExpense r, DateOnly occ, BudgetPeriod period, CancellationToken ct)
     {
         var exists = await db.Transactions.AnyAsync(t => t.RecurringExpenseId == r.Id && t.Date == occ, ct);
         if (exists) return;
@@ -87,6 +91,22 @@ public sealed class RecurringMaterializer(IAppDbContext db, IFxConverter fx) : I
             RecurringExpenseId = r.Id,
             Frequency = Frequency.Recurring,
             Source = TxSource.Recurring,
+            // An expense the schedule says fell due is a claim, not a receipt. It waits for
+            // «оплачено ✓» — until then it is held back from the norm as a reserve, exactly
+            // as it was the day before it came due. Income is Posted straight away: a salary
+            // that fails to arrive is something you notice without being asked, and holding
+            // the budget back until it is confirmed would leave the app saying there is no
+            // money on the one day there certainly is.
+            //
+            // Only the period being lived in is worth asking about. Telling the app in August
+            // about a subscription that started last year backfills a year of charges, and
+            // eleven of them are not questions — nobody remembers whether Netflix went
+            // through in March, and a "чекає підтвердження" badge on a row that never appears
+            // in the card asking about it is a state with no way out. Older charges are
+            // history: they land Posted.
+            Status = r.Kind == TransactionKind.Expense && occ >= period.Start
+                ? TxStatus.Pending
+                : TxStatus.Posted,
             Date = occ,
             Note = r.Note,
             CreatedAt = DateTimeOffset.UtcNow,

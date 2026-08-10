@@ -4,6 +4,7 @@ import { CURRENCIES, todayIso } from '../types'
 import { CADENCES, DEFAULT_CADENCE, monthlyTotals, sameCadence, scheduleSummary, type Cadence } from '../cadence'
 import { daysUntil, dayMonth, money, parseAmount, signedMoney, signedMoneyClass } from '../format'
 import { Screen } from './Screen'
+import { ChargeDay } from './ChargeDay'
 
 interface Props {
   categories: Category[]
@@ -31,8 +32,9 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
   const [currency, setCurrency] = useState('PLN')
   const [categoryId, setCategoryId] = useState<number | null>(categories[0]?.id ?? null)
   const [cadence, setCadence] = useState<Cadence>(DEFAULT_CADENCE)
-  // The date of the first charge, not a day-of-month: a weekly subscription has no such day,
-  // and the weekday is taken from here.
+  // Always a full date, whatever the form shows: a weekly rule has no day of the month, and
+  // its weekday is read off this. ChargeDay is what turns it into "кожного 10-го" for the
+  // rhythms that do have one.
   const [startsOn, setStartsOn] = useState(todayIso)
   const [note, setNote] = useState('')
   const [drafts, setDrafts] = useState<Draft[]>([])
@@ -211,18 +213,14 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
           </select>
         </div>
 
-        <div className="flex items-center gap-2 text-sm">
-          <span className="text-neutral-500 shrink-0">Перше списання</span>
-          <input
-            type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)}
-            className="flex-1 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-1.5"
-          />
-        </div>
-        {/* The schedule in words: "13 серпня" on its own does not say whether that is a
-            Tuesday, nor whether it comes back every week. */}
-        <p className="text-xs text-neutral-400">
-          Списуватиметься {scheduleSummary(cadence.unit, cadence.interval, startsOn)}.
-        </p>
+        <ChargeDay
+          unit={cadence.unit}
+          interval={cadence.interval}
+          value={startsOn}
+          onChange={setStartsOn}
+        />
+
+        <ScheduleChangeNote editing={editing} startsOn={startsOn} amount={amountNum} currency={currency} />
 
         <input
           placeholder="Назва (Netflix, оренда…)" value={note}
@@ -339,6 +337,34 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
   )
 }
 
+/// What editing this row will do to the charge already written for this period. Changing the
+/// day or the price throws away the unconfirmed one and writes it again from the new rule —
+/// which is right, and invisible unless it is said out loud. A confirmed charge is history and
+/// does not move.
+///
+/// Shown only once something that matters has actually changed: a note that is always there is
+/// a note nobody reads.
+function ScheduleChangeNote({ editing, startsOn, amount, currency }: {
+  editing: RecurringType | null
+  startsOn: string
+  amount: number
+  currency: string
+}) {
+  if (!editing) return null
+
+  const dayMoved = editing.startsOn !== startsOn
+  const priceMoved = editing.amountOriginal !== amount || editing.currencyOriginal !== currency
+  if (!dayMoved && !priceMoved) return null
+
+  return (
+    <p className="text-xs text-amber-600 leading-relaxed">
+      {dayMoved ? 'День зміниться. ' : 'Сума зміниться. '}
+      Списання за цей період, яке ще не підтверджене, приберемо — застосунок запише його
+      заново за новим правилом. Підтверджені лишаться в історії.
+    </p>
+  )
+}
+
 /// The one figure this screen is actually opened for: what all of this costs in a month.
 /// A list of seven rows on four different rhythms does not add up in anyone's head, and the
 /// question behind "підписок забагато" is always the total, never the rows.
@@ -382,6 +408,11 @@ function whenNext(r: RecurringType): string {
   const when = r.nextChargeOn
     ? `${dayMonth(r.nextChargeOn)}${untilWords(r.nextChargeOn)}`
     : scheduleSummary(r.unit, r.interval, r.startsOn)
+
+  // Three states, not two: still ahead, gone, and "the day passed and nobody said". The third
+  // one used to read exactly like the first, which is how a subscription could look like it
+  // was still coming while its money was already being held.
+  if (r.awaitingConfirmation) return `чекає підтвердження · далі ${when}`
 
   return r.chargedThisPeriod ? `цього періоду вже пішло · далі ${when}` : when
 }
