@@ -32,11 +32,13 @@ describe('Balance', () => {
   })
 
   /// A balance counted in a past period no longer drives the norm — and must not offer to be
-  /// cleared, because there is nothing to clear.
-  it('does not offer to clear a count that no longer applies', () => {
+  /// cleared, because there is nothing to clear. It is demoted to a footnote rather than
+  /// dropped: it still answers "чому норма така", just not at the top of the screen.
+  it('demotes a count that no longer applies to one line', () => {
     render(<Balance {...props} data={data({ appliesNow: false })} onSet={vi.fn()} onClear={vi.fn()} />)
 
-    expect(screen.getByText('Уже не діє')).toBeInTheDocument()
+    expect(screen.getByText(/Востаннє рахував/)).toBeInTheDocument()
+    expect(screen.queryByText('Діє зараз')).not.toBeInTheDocument()
     expect(screen.queryByText(/Прибрати/)).not.toBeInTheDocument()
   })
 

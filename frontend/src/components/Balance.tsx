@@ -67,27 +67,39 @@ function Current({ data, onClear }: { data: OpeningBalance; onClear: () => Promi
     }
   }
 
+  // A count from a period that has ended changes nothing today, and it used to open this
+  // screen as a card with the figure at 3xl — the first thing read was a number that is not
+  // in force and cannot be acted on. It stays, because "чому норма така" is sometimes
+  // answered by "бо ти рахував 3-го", but at the weight of a footnote.
+  if (!data.appliesNow) {
+    return (
+      <p className="text-sm text-neutral-500">
+        Востаннє рахував {data.date ? dayMonth(data.date) : '—'}
+        {' '}({money(data.amount, data.currency)}) — це минулий період, тож зараз бюджет
+        знову з доходу.
+      </p>
+    )
+  }
+
   return (
     <Card>
-      <SectionTitle>{data.appliesNow ? 'Діє зараз' : 'Уже не діє'}</SectionTitle>
+      <SectionTitle>Діє зараз</SectionTitle>
       <p className="text-3xl font-bold tabular-nums">{money(data.amount, data.currency)}</p>
       <p className="text-sm text-neutral-500">
-        {data.appliesNow
-          ? `Порахував ${data.date ? dayMonth(data.date) : '—'}. Денна норма йде від цієї суми, а витрати до того дня вже в ній. Відкладати цей період застосунок не буде — ці гроші на життя.`
-          : `Порахував ${data.date ? dayMonth(data.date) : '—'} — це минулий період, тож зараз бюджет знову з доходу.`}
+        Порахував {data.date ? dayMonth(data.date) : '—'}. Денна норма йде від цієї суми, а
+        витрати до того дня вже в ній. Відкладати цей період застосунок не буде — ці гроші
+        на життя.
       </p>
 
       <FormError>{error}</FormError>
 
-      {data.appliesNow && (
-        <button
-          onClick={clear}
-          disabled={busy}
-          className="w-full rounded-xl bg-neutral-100 dark:bg-neutral-800 py-2.5 font-medium disabled:opacity-40"
-        >
-          {busy ? 'Прибираю…' : 'Прибрати — рахувати з доходу'}
-        </button>
-      )}
+      <button
+        onClick={clear}
+        disabled={busy}
+        className="w-full rounded-xl bg-neutral-100 dark:bg-neutral-800 py-2.5 font-medium disabled:opacity-40"
+      >
+        {busy ? 'Прибираю…' : 'Прибрати — рахувати з доходу'}
+      </button>
     </Card>
   )
 }
