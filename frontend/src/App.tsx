@@ -4,7 +4,8 @@ import { setOnUnauthorized } from './api'
 import { useDeferredDelete } from './undo'
 import { UndoBar } from './components/Screen'
 import { Login, inviteCodeFromUrl } from './components/Login'
-import type { Recurring as RecurringType, SaveCategory, SaveIncome, SaveTransaction, Transaction } from './types'
+import type { Horizon, Recurring as RecurringType, SaveCategory, SaveIncome, SaveTransaction, Transaction } from './types'
+import { readHorizon, writeLastUsed } from './lastUsed'
 import {
   useCategories, useConfirmCharge, useCreateRecurring, useCreateTransaction, useDeleteRecurring,
   useCreateCategory, useCreateIncome, useUpdateTransaction, useUpdateIncome, useDeleteCategory, useDeleteTransaction, useFrequentCategories, useRecurring, useUpdateCategory, useSafeToSpend, useTransactions,
@@ -92,6 +93,8 @@ function App() {
   const clearOpeningBalance = useClearOpeningBalance()
   const decideCarryover = useDecideCarryover()
   const confirmCharge = useConfirmCharge()
+  // Read once at mount and kept in state: localStorage is the store, this is the value.
+  const [horizon, setHorizon] = useState<Horizon>(readHorizon)
   const recurring = useRecurring()
   const frequentCategories = useFrequentCategories()
   const savings = useSavings()
@@ -273,6 +276,8 @@ function App() {
             onGoBalance={() => go('balance')}
             onDecideCarryover={(d) => decideCarryover.mutate(d)}
             onConfirmCharge={(id) => confirmCharge.mutate(id)}
+            horizon={horizon}
+            onHorizon={(h) => { setHorizon(h); writeLastUsed({ horizon: h }) }}
             frequent={frequentCategories.data ?? []}
             onQuickCategory={(categoryId) => { setPresetCategoryId(categoryId); go('add') }}
             onEdit={startEdit}

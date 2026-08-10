@@ -152,7 +152,9 @@ public sealed class SummaryService(
             await show(debtsReserved),
             await Task.WhenAll(pending.Select(async p => new PendingChargeResponse(
                 p.Id, string.IsNullOrWhiteSpace(p.Note) ? p.CategoryName : p.Note,
-                p.AmountOriginal, p.CurrencyOriginal, await show(p.AmountBase), p.Date))));
+                p.AmountOriginal, p.CurrencyOriginal, await show(p.AmountBase), p.Date))),
+            r.DaysThisWeek,
+            r.LeftThisWeek is null ? null : await show(r.LeftThisWeek.Value));
     }
 
     /// Active recurring EXPENSES this period that have not been confirmed as paid. Recurring

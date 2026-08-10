@@ -122,7 +122,11 @@ public record SafeToSpendResponse(
     decimal ReservedDebts = 0m,
     /// Recurring charges whose day has come and gone without anybody saying they were paid.
     /// Empty almost always; when it is not, it is the first thing the home screen asks about.
-    IReadOnlyList<PendingChargeResponse>? PendingCharges = null);
+    IReadOnlyList<PendingChargeResponse>? PendingCharges = null,
+    /// The same money over a wider horizon, for the day/week/period switch on the home card.
+    /// Seven days from today, or fewer when the period ends first.
+    int DaysThisWeek = 0,
+    decimal? LeftThisWeek = null);
 
 /// A subscription the schedule says has fallen due, waiting for «оплачено ✓». Its money is
 /// already held back from the daily norm, so confirming it changes nothing that can be spent

@@ -144,4 +144,61 @@ public class SafeToSpendTests
     /// The calendar month around a date — a payday on the 1st.
     private static BudgetPeriod Month(DateOnly date) =>
         BudgetPeriods.For(date, BudgetPeriods.FirstOfMonth);
+
+    /// The same money over a wider horizon, not a second budget: keep to the norm every day
+    /// and this is what the next seven days give you. Today's spending is already off it,
+    /// because the window starts today.
+    [Fact]
+    public void The_week_window_is_seven_norms_less_what_today_has_taken()
+    {
+        // Today's spending is part of the period's — the two arguments must agree, or the
+        // norm is computed from a day that never happened.
+        var r = SafeToSpendCalculator.Calculate(3_400m, spentThisPeriod: 50m, spentToday: 50m,
+            reservedRecurring: 0m, today: MidJuly, period: JulyMonth);
+
+        Assert.Equal(7, r.DaysThisWeek);
+        Assert.Equal(200m, r.DailyNorm); // 3400 / 17
+        Assert.Equal(200m * 7 - 50m, r.LeftThisWeek);
+    }
+
+    /// A figure for "наступні 7 днів" must never promise money that arrives with the next
+    /// payday, so the window is cut short by the end of the period.
+    [Fact]
+    public void The_week_window_stops_at_the_end_of_the_period()
+    {
+        var threeLeft = new DateOnly(2026, 7, 29); // 29, 30, 31
+
+        var r = SafeToSpendCalculator.Calculate(600m, spentThisPeriod: 0m, spentToday: 0m,
+            reservedRecurring: 0m, today: threeLeft, period: JulyMonth);
+
+        Assert.Equal(3, r.DaysThisWeek);
+        Assert.Equal(3, r.DaysLeftInPeriod);
+    }
+
+    /// Once the window covers the whole period it IS the period, and it has to say the same
+    /// number. Seven floored norms would come out a few groszy under the period figure sitting
+    /// beside it on the same screen, and two numbers that should agree failing to is worse
+    /// than either being slightly generous.
+    [Fact]
+    public void A_week_that_covers_the_rest_of_the_period_agrees_with_it()
+    {
+        var threeLeft = new DateOnly(2026, 7, 29);
+
+        var r = SafeToSpendCalculator.Calculate(1_000m, spentThisPeriod: 40m, spentToday: 40m,
+            reservedRecurring: 0m, today: threeLeft, period: JulyMonth);
+
+        Assert.Equal(333.33m, r.DailyNorm); // floored, so 3 x 333.33 = 999.99
+        Assert.Equal(r.RemainingThisPeriod, r.LeftThisWeek);
+        Assert.Equal(960m, r.LeftThisWeek); // 1000 - 40 spent today
+    }
+
+    [Fact]
+    public void Without_a_budget_the_week_has_no_figure_either()
+    {
+        var r = SafeToSpendCalculator.Calculate(null, spentThisPeriod: 0m, spentToday: 0m,
+            reservedRecurring: 0m, today: MidJuly, period: JulyMonth);
+
+        Assert.Null(r.LeftThisWeek);
+        Assert.Equal(7, r.DaysThisWeek); // the window is still a real length
+    }
 }

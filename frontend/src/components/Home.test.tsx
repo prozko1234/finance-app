@@ -18,6 +18,7 @@ function summary(over: Partial<SafeToSpend> = {}): SafeToSpend {
     carryover: null,
     reservedDebts: 0,
     pendingCharges: [],
+    daysThisWeek: 7, leftThisWeek: 2625,
     ...over,
   }
 }
@@ -27,6 +28,7 @@ const props = {
   onDelete: vi.fn(), onAddIncome: vi.fn(), onQuickCategory: vi.fn(), onEdit: vi.fn(),
   onGoSavings: vi.fn(), onGoAllocation: vi.fn(), onGoBalance: vi.fn(),
   onDecideCarryover: vi.fn(), onConfirmCharge: vi.fn(),
+  horizon: 'day' as const, onHorizon: vi.fn(),
 }
 
 describe('Home', () => {
@@ -378,5 +380,70 @@ describe('Home — the payday question', () => {
       render(<Home {...props} summary={summary()} />)
       expect(screen.queryByText(/Мало списатись/)).not.toBeInTheDocument()
     })
+  })
+})
+
+/// One figure, read at three scales — not three budgets. "Скільки сьогодні" is the product,
+/// but planning anything past today used to mean multiplying in your head and getting the end
+/// of the period wrong.
+describe('the horizon switch', () => {
+  it('reads the week off the week window, with the norm underneath', () => {
+    render(
+      <Home
+        {...props}
+        horizon="week"
+        summary={summary({ daysThisWeek: 7, leftThisWeek: 2625, dailyNorm: 375 })}
+      />,
+    )
+
+    expect(screen.getByText('Можна витратити за 7 днів')).toBeInTheDocument()
+    expect(screen.getByText(/^2625,00/)).toBeInTheDocument()
+    expect(screen.getByText('По 375,00 zł на день')).toBeInTheDocument()
+  })
+
+  /// The window is cut short by the end of the period — a figure for the next seven days must
+  /// never promise money that arrives with the next payday.
+  it('names a short window by its real length', () => {
+    render(
+      <Home {...props} horizon="week" summary={summary({ daysThisWeek: 3, leftThisWeek: 900 })} />,
+    )
+    expect(screen.getByText('Можна витратити за 3 дні')).toBeInTheDocument()
+  })
+
+  it('reads the period off what is left outright, and names the day it ends', () => {
+    render(
+      <Home
+        {...props}
+        horizon="period"
+        summary={summary({ remainingThisPeriod: 3000, daysLeftInPeriod: 8 })}
+      />,
+    )
+
+    expect(screen.getByText('Можна витратити до 31 липня')).toBeInTheDocument()
+    expect(screen.getByText(/8 днів · по 375,00/)).toBeInTheDocument()
+  })
+
+  it('says "понад" in whichever scale is being read', () => {
+    render(
+      <Home {...props} horizon="week" summary={summary({ leftThisWeek: -120, daysThisWeek: 7 })} />,
+    )
+    expect(screen.getByText('Понад норму на 7 днів')).toBeInTheDocument()
+    expect(screen.getByText(/^120,00/)).toBeInTheDocument()
+  })
+
+  /// Tomorrow's norm is a consequence of today's choices. Under a week's figure it would be
+  /// answering a question nobody asked.
+  it('drops the tomorrow note outside the day scale', () => {
+    const spent = { spentThisPeriod: 300, spentToday: 300, tomorrowIfStop: 168.75, tomorrowIfOnPlan: 176.47 }
+    render(<Home {...props} horizon="week" summary={summary(spent)} />)
+    expect(screen.queryByText(/Завтра/)).not.toBeInTheDocument()
+  })
+
+  it('hands the choice back so it can be remembered', async () => {
+    const onHorizon = vi.fn()
+    render(<Home {...props} summary={summary()} onHorizon={onHorizon} />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Тиждень' }))
+    expect(onHorizon).toHaveBeenCalledWith('week')
   })
 })

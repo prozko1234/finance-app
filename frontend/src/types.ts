@@ -334,7 +334,14 @@ export interface SafeToSpend {
   reservedDebts: number
   /// Subscriptions whose day has come and gone without anybody saying they were paid.
   pendingCharges: PendingCharge[]
+  /// The same money over a wider horizon: seven days from today, or fewer when the period ends
+  /// first. Drives the day/week/period switch on the home card.
+  daysThisWeek: number
+  leftThisWeek: number | null
 }
+
+/// How far ahead the headline figure looks. Not three budgets — one, read at three scales.
+export type Horizon = 'day' | 'week' | 'period'
 
 /// A recurring charge waiting for «оплачено ✓». Its money is already held back from the daily
 /// norm — confirming changes nothing that can be spent, it only stops the app asking.

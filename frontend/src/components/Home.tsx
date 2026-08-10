@@ -1,7 +1,7 @@
 import type {
-  CarryoverDecision, EnvelopeSummary, FrequentCategory, PendingCharge, SafeToSpend, Transaction,
+  CarryoverDecision, EnvelopeSummary, FrequentCategory, Horizon, PendingCharge, SafeToSpend, Transaction,
 } from '../types'
-import { dayHeading, dayMonth, money, signedMoney, signedMoneyClass } from '../format'
+import { dayHeading, dayMonth, money, plural, signedMoney, signedMoneyClass } from '../format'
 import { envelopeIcon } from '../envelopeWords'
 
 interface Props {
@@ -28,15 +28,23 @@ interface Props {
   /// «Оплачено ✓» for one subscription charge. "Не списалось" reuses onDelete — deleting the
   /// charge is already what records the skip, and it comes with the undo bar.
   onConfirmCharge: (transactionId: number) => void
+  /// Which scale the headline figure is read at, and where the choice is kept.
+  horizon: Horizon
+  onHorizon: (h: Horizon) => void
 }
 
 export function Home({
   summary, transactions, paydayNudge, canLoadMore, onLoadMore, onDelete, onAddIncome, frequent, onQuickCategory, onEdit, onGoSavings, onGoAllocation,
-  onGoBalance, onDecideCarryover, onConfirmCharge,
+  onGoBalance, onDecideCarryover, onConfirmCharge, horizon, onHorizon,
 }: Props) {
   return (
     <div className="space-y-6">
-      <SafeToSpendCard summary={summary} onAddIncome={onAddIncome} />
+      <SafeToSpendCard
+        summary={summary}
+        onAddIncome={onAddIncome}
+        horizon={horizon}
+        onHorizon={onHorizon}
+      />
       {summary && summary.pendingCharges.length > 0 && (
         <PendingChargesCard
           charges={summary.pendingCharges}
@@ -239,7 +247,89 @@ function QuickRow({ categories, onPick }: {
   )
 }
 
-function SafeToSpendCard({ summary, onAddIncome }: { summary: SafeToSpend | null; onAddIncome: () => void }) {
+/// The one figure, read at whichever scale the question came in. "Скільки сьогодні" is the
+/// product, but "скільки цього тижня" is the same money asked about differently — before this
+/// there was no way to see it, so planning anything more than a day out meant multiplying in
+/// your head and getting the end of the period wrong.
+///
+/// Three scales, not three budgets. The week is seven norms less what today has taken; the
+/// period is what is left outright. Nothing is reallocated, nothing carries over between
+/// scales, and the choice is remembered per device.
+const HORIZONS: { key: Horizon; label: string }[] = [
+  { key: 'day', label: 'День' },
+  { key: 'week', label: 'Тиждень' },
+  { key: 'period', label: 'Період' },
+]
+
+interface HorizonView {
+  left: number
+  title: string
+  over: string
+  sub: string
+}
+
+function horizonView(s: SafeToSpend, horizon: Horizon): HorizonView {
+  const c = s.currency
+  const norm = s.dailyNorm ?? 0
+  const days = (n: number) => `${n} ${plural(n, 'день', 'дні', 'днів')}`
+
+  if (horizon === 'week') {
+    return {
+      left: s.leftThisWeek ?? 0,
+      title: `Можна витратити за ${days(s.daysThisWeek)}`,
+      over: `Понад норму на ${days(s.daysThisWeek)}`,
+      sub: `По ${money(norm, c)} на день`,
+    }
+  }
+
+  if (horizon === 'period') {
+    return {
+      left: s.remainingThisPeriod ?? 0,
+      title: `Можна витратити до ${dayMonth(s.periodEnd)}`,
+      over: `Понад бюджет періоду`,
+      sub: `${days(s.daysLeftInPeriod)} · по ${money(norm, c)} на день`,
+    }
+  }
+
+  return {
+    left: s.leftToday ?? 0,
+    title: 'Можна витратити сьогодні',
+    over: 'Понад норму сьогодні',
+    sub: s.spentToday > 0
+      ? `Норма ${money(norm, c)}, витрачено ${money(s.spentToday, c)}`
+      : `Норма на день · ще ${days(s.daysLeftInPeriod)}`,
+  }
+}
+
+function HorizonSwitch({ current, onChange }: {
+  current: Horizon; onChange: (h: Horizon) => void
+}) {
+  return (
+    <div className="flex justify-center gap-1" role="group" aria-label="За який час">
+      {HORIZONS.map((h) => (
+        <button
+          key={h.key}
+          onClick={() => onChange(h.key)}
+          aria-pressed={current === h.key}
+          className={`rounded-lg px-3 py-1 text-xs ${
+            current === h.key
+              ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 font-medium'
+              : 'text-neutral-400'
+          }`}
+        >
+          {h.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function SafeToSpendCard({ summary, onAddIncome, horizon, onHorizon }: {
+  summary: SafeToSpend | null
+  onAddIncome: () => void
+  horizon: Horizon
+  onHorizon: (h: Horizon) => void
+}) {
   if (!summary) {
     return <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm animate-pulse h-40" />
   }
@@ -264,27 +354,29 @@ function SafeToSpendCard({ summary, onAddIncome }: { summary: SafeToSpend | null
     )
   }
 
-  const left = summary.leftToday ?? 0
-  const positive = left >= 0
-  const c = summary.currency
+  const view = horizonView(summary, horizon)
+  const positive = view.left >= 0
 
   // One figure, one line under it. Everything explaining where it came from lives in the
   // period card below: until M25 there was a paragraph about the counting window here too, and
   // the home screen read as prose rather than as the answer to one question.
   return (
-    <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm text-center">
-      <p className="text-sm uppercase tracking-wide text-neutral-400">
-        {positive ? 'Можна витратити сьогодні' : 'Понад норму сьогодні'}
-      </p>
-      <p className={`mt-1 text-5xl font-bold tabular-nums ${positive ? 'text-emerald-600' : 'text-red-600'}`}>
-        {money(positive ? left : -left, c)}
-      </p>
-      <p className="mt-2 text-sm text-neutral-500">
-        {summary.spentToday > 0
-          ? `Норма ${money(summary.dailyNorm ?? 0, c)}, витрачено ${money(summary.spentToday, c)}`
-          : `Норма на день · ще ${summary.daysLeftInPeriod} дн.`}
-      </p>
-      <TomorrowNote summary={summary} />
+    <div className="rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-sm text-center space-y-2">
+      <HorizonSwitch current={horizon} onChange={onHorizon} />
+
+      <div>
+        <p className="text-sm uppercase tracking-wide text-neutral-400">
+          {positive ? view.title : view.over}
+        </p>
+        <p className={`mt-1 text-5xl font-bold tabular-nums ${positive ? 'text-emerald-600' : 'text-red-600'}`}>
+          {money(positive ? view.left : -view.left, summary.currency)}
+        </p>
+        <p className="mt-2 text-sm text-neutral-500">{view.sub}</p>
+      </div>
+
+      {/* Only on the day: tomorrow's norm is a consequence of today's choices, and under a
+          week's figure it would be answering a question nobody asked. */}
+      {horizon === 'day' && <TomorrowNote summary={summary} />}
     </div>
   )
 }
