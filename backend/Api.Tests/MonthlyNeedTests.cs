@@ -126,8 +126,11 @@ public class MonthlyNeedTests
         Assert.Equal(500m, r.Typical);
     }
 
+    /// The headline is what the month HAS to cover. Saving is not a bill: folding it in made
+    /// the figure read thousands above what the month really costs, and that figure is the one
+    /// somebody compares their balance against before deciding they are in trouble.
     [Fact]
-    public async Task The_total_is_every_line_added_up()
+    public async Task The_total_is_the_bills_and_the_saving_is_counted_separately()
     {
         using var mem = new SqliteInMemory();
         var category = await CategoryAsync(mem);
@@ -140,8 +143,52 @@ public class MonthlyNeedTests
 
         var r = await Sut(mem).GetAsync();
 
-        Assert.Equal(r.Recurring + r.Jars + r.Debts + r.Typical, r.Total);
+        Assert.Equal(r.Recurring + r.Debts + r.Typical, r.Total);
         Assert.Equal(860m, r.Total);
+        Assert.Equal(r.Total + r.Jars, r.WithJars);
+    }
+
+    /// The one estimated line on the screen can be checked instead of believed: the months the
+    /// median was taken over come with it, newest first.
+    [Fact]
+    public async Task The_months_behind_the_median_come_with_it()
+    {
+        using var mem = new SqliteInMemory();
+        var category = await CategoryAsync(mem);
+
+        var firstOfThisMonth = FirstOfThisMonth();
+        Spend(mem, category, 400m, firstOfThisMonth.AddMonths(-1).AddDays(3));
+        Spend(mem, category, 900m, firstOfThisMonth.AddMonths(-2).AddDays(3));
+        await mem.Db.SaveChangesAsync();
+
+        var r = await Sut(mem).GetAsync();
+
+        Assert.Equal(
+            [firstOfThisMonth.AddMonths(-1), firstOfThisMonth.AddMonths(-2)],
+            r.TypicalMonths!.Select(m => m.Month));
+        Assert.Equal([400m, 900m], r.TypicalMonths!.Select(m => m.Amount));
+    }
+
+    /// Six months back, not three. A median of three values is just the middle month, so one
+    /// holiday or one dentist moves a whole month's living cost by hundreds and it never
+    /// settles down.
+    [Fact]
+    public async Task Usual_spending_looks_half_a_year_back()
+    {
+        using var mem = new SqliteInMemory();
+        var category = await CategoryAsync(mem);
+
+        var firstOfThisMonth = FirstOfThisMonth();
+        foreach (var back in new[] { 1, 2, 3, 4, 5 })
+            Spend(mem, category, 100m * back, firstOfThisMonth.AddMonths(-back).AddDays(3));
+        // Older than the window: not counted, and not in the list either.
+        Spend(mem, category, 9_000m, firstOfThisMonth.AddMonths(-7).AddDays(3));
+        await mem.Db.SaveChangesAsync();
+
+        var r = await Sut(mem).GetAsync();
+
+        Assert.Equal(5, r.TypicalMonths!.Count);
+        Assert.Equal(300m, r.Typical); // median of 100..500
     }
 
     private static DateOnly FirstOfThisMonth()

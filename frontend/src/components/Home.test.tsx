@@ -396,18 +396,27 @@ describe('the horizon switch', () => {
       />,
     )
 
-    expect(screen.getByText('Можна витратити за 7 днів')).toBeInTheDocument()
+    expect(screen.getByText('Можна витратити до кінця тижня')).toBeInTheDocument()
     expect(screen.getByText(/^2625,00/)).toBeInTheDocument()
-    expect(screen.getByText('По 375,00 zł на день')).toBeInTheDocument()
+    expect(screen.getByText('Лишилось 7 днів · по 375,00 zł на день')).toBeInTheDocument()
   })
 
-  /// The window is cut short by the end of the period — a figure for the next seven days must
-  /// never promise money that arrives with the next payday.
-  it('names a short window by its real length', () => {
+  /// The week runs to Sunday, and is cut shorter still by the end of the period — a figure for
+  /// the week must never promise money that arrives with the next payday.
+  it('names how much of the week is left', () => {
     render(
       <Home {...props} horizon="week" summary={summary({ daysThisWeek: 3, leftThisWeek: 900 })} />,
     )
-    expect(screen.getByText('Можна витратити за 3 дні')).toBeInTheDocument()
+    expect(screen.getByText(/Лишилось 3 дні/)).toBeInTheDocument()
+  })
+
+  /// On a Sunday the week IS today. "Лишився 1 день" under a figure equal to today's would
+  /// read as a bug rather than as the calendar.
+  it('says out loud that Sunday is the last day of the week', () => {
+    render(
+      <Home {...props} horizon="week" summary={summary({ daysThisWeek: 1, leftThisWeek: 375 })} />,
+    )
+    expect(screen.getByText(/Неділя — останній день тижня/)).toBeInTheDocument()
   })
 
   it('reads the period off what is left outright, and names the day it ends', () => {
@@ -427,7 +436,7 @@ describe('the horizon switch', () => {
     render(
       <Home {...props} horizon="week" summary={summary({ leftThisWeek: -120, daysThisWeek: 7 })} />,
     )
-    expect(screen.getByText('Понад норму на 7 днів')).toBeInTheDocument()
+    expect(screen.getByText('Понад норму до кінця тижня')).toBeInTheDocument()
     expect(screen.getByText(/^120,00/)).toBeInTheDocument()
   })
 

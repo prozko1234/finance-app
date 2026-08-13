@@ -12,8 +12,8 @@ public record SafeToSpendResult(
     decimal? LeftToday,          // скільки з норми ще лишилось; від'ємне = перебір
     decimal? TomorrowIfStop,     // завтрашня норма, якщо сьогодні більше не витрачати
     decimal? TomorrowIfOnPlan,   // якою вона була б, якби сьогодні витратив рівно норму
-    int DaysThisWeek,            // скільки днів покриває тижневе вікно — 7 або менше
-    decimal? LeftThisWeek);      // скільки лишилось на це вікно, з урахуванням витраченого сьогодні
+    int DaysThisWeek,            // днів від сьогодні до неділі включно, обрізано кінцем періоду
+    decimal? LeftThisWeek);      // скільки лишилось до кінця тижня, з урахуванням витраченого сьогодні
 
 /// The core of the product: "how much is safe to spend today".
 /// v1.2: the daily norm is fixed at the START of the day — (budget - spent before today -
@@ -32,9 +32,9 @@ public static class SafeToSpendCalculator
         // again, and that is rarely the end of a calendar month.
         var daysLeft = period.DaysLeftFrom(today); // including today
 
-        // The week is a window starting today, cut short when the period ends first — a figure
-        // for "наступні 7 днів" must never promise money that arrives with the next payday.
-        var daysThisWeek = Math.Min(WeekDays, daysLeft);
+        // The week runs to Sunday, cut short when the period ends first — a figure for "цей
+        // тиждень" must never promise money that arrives with the next payday.
+        var daysThisWeek = Math.Min(DaysToSunday(today), daysLeft);
 
         if (periodBudget is null)
             return new SafeToSpendResult(
@@ -60,9 +60,9 @@ public static class SafeToSpendCalculator
         // because the window starts today.
         //
         // Once the window covers the whole period it IS the period, and the answer is
-        // `remaining` rather than the multiplication — the norm is floored, so seven floored
-        // days would come out a few groszy under the figure sitting beside it on the same
-        // screen, and two numbers that should agree failing to is worse than either.
+        // `remaining` rather than the multiplication — the norm is floored, so a handful of
+        // floored days would come out a few groszy under the figure sitting beside it on the
+        // same screen, and two numbers that should agree failing to is worse than either.
         var leftThisWeek = daysThisWeek == daysLeft
             ? remaining
             : dailyNorm * daysThisWeek - spentToday;
@@ -73,10 +73,19 @@ public static class SafeToSpendCalculator
             daysThisWeek, leftThisWeek);
     }
 
-    /// A week is seven days from today, not "since Monday". Monday is the calendar's idea of a
-    /// week; the question being answered is "скільки я можу витратити найближчим часом", and
-    /// that does not reset on a particular morning.
-    private const int WeekDays = 7;
+    /// Today through Sunday, today included: 7 on a Monday, 1 on a Sunday.
+    ///
+    /// The week is the calendar's, not a rolling seven days. A rolling window answers "скільки
+    /// я можу витратити найближчим часом", which sounds like the same question and is not: a
+    /// week people actually live in has a Monday and a Sunday, plans are made inside it, and a
+    /// figure that quietly re-bases itself every morning cannot be compared with the one read
+    /// yesterday. It also never lines up with anything else — "минулого тижня" on the
+    /// statistics screen means a calendar week to everyone who reads it.
+    ///
+    /// The cost is that the number shrinks through the week and is smallest on Sunday. That is
+    /// the truth of it: on a Sunday there is one day of the week left.
+    private static int DaysToSunday(DateOnly today) =>
+        8 - (today.DayOfWeek == DayOfWeek.Sunday ? 7 : (int)today.DayOfWeek);
 
     // Round money DOWN to 2 decimals — a "safe" figure must not promise too much.
     private static decimal FloorTo2(decimal v) => Math.Floor(v * 100m) / 100m;

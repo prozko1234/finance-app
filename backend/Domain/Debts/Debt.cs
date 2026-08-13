@@ -46,6 +46,22 @@ public class Debt : IOwnedByUser
     /// When the money changed hands — not when the row was typed.
     public DateOnly Date { get; set; }
 
+    /// Which pocket the money came out of when it was lent — or went into when it was
+    /// borrowed. Without it a debt was a note rather than a movement: lending 500 zł left the
+    /// daily norm untouched, and then the 500 coming back was ADDED to the budget, so the app
+    /// invented money every time somebody paid the user back.
+    ///
+    /// <see cref="MoneySource.AlreadyHappened"/> is the migration's default, and the honest
+    /// answer for every debt written down before this existed: the money moved before the app
+    /// was told, so nothing in this period pays for it.
+    public MoneySource Origin { get; set; } = MoneySource.AlreadyHappened;
+
+    /// Which jar the money was lent out of, when <see cref="Origin"/> says Envelope. Null
+    /// otherwise. Only ever set on a debt the user is owed — money arriving does not come out
+    /// of a pot, the same rule <see cref="DebtPayment"/> already follows.
+    public int? OriginEnvelopeId { get; set; }
+    public Savings.Envelope? OriginEnvelope { get; set; }
+
     /// The day it is meant to be settled by, if anybody said. Optional: «віддам як зможу» is
     /// most of them, and demanding a date would make the app refuse to record real life.
     public DateOnly? Deadline { get; set; }

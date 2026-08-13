@@ -4,7 +4,7 @@ import { setOnUnauthorized } from './api'
 import { useDeferredDelete } from './undo'
 import { UndoBar } from './components/Screen'
 import { Login, inviteCodeFromUrl } from './components/Login'
-import type { Horizon, Recurring as RecurringType, SaveCategory, SaveIncome, SaveTransaction, Transaction } from './types'
+import type { Horizon, Recurring as RecurringType, SaveCategory, SaveIncome, SaveTransaction, SpendWindow, Transaction } from './types'
 import { readHorizon, writeLastUsed } from './lastUsed'
 import {
   useCategories, useIncomeCategories, useConfirmCharge, useCreateRecurring, useCreateTransaction, useDeleteRecurring, useMonthlyNeed,
@@ -19,6 +19,7 @@ import {
   useInvites, useCreateInvite, useRevokeInvite,
   useImportPreview, useCommitImport,
   useOpeningBalance, useSetOpeningBalance, useClearOpeningBalance, useDecideCarryover,
+  usePushStatus, useSetReminderHour, useRefreshPush,
 } from './hooks'
 import { Onboarding } from './components/Onboarding'
 import { Home } from './components/Home'
@@ -117,13 +118,16 @@ function App() {
   const setEnvelopeTarget = useSetEnvelopeTarget()
   const transferBetweenEnvelopes = useTransferBetweenEnvelopes()
   const stats = useStats(MONTHS_BACK, statsMonth, view === 'stats')
-  // The week is the window a person lives in; the fortnight is for anyone who shops on a longer
-  // rhythm. Not remembered between visits — it is a glance, not a setting.
-  const [recentDays, setRecentDays] = useState(7)
-  const recentSpending = useRecentSpending(recentDays, view === 'stats')
+  // The week is the window a person lives in; the month is the one the bills arrive in. Not
+  // remembered between visits — it is a glance, not a setting.
+  const [spendWindow, setSpendWindow] = useState<SpendWindow>('week')
+  const recentSpending = useRecentSpending(spendWindow, view === 'stats')
   const settings = useSettings()
   const setDisplayCurrency = useSetDisplayCurrency()
   const setPeriodStartDay = useSetPeriodStartDay()
+  const pushStatus = usePushStatus()
+  const setReminderHour = useSetReminderHour()
+  const refreshPush = useRefreshPush()
   const taxProfile = useTaxProfile()
   const taxDefaults = useTaxDefaults()
   const saveTaxProfile = useSaveTaxProfile()
@@ -361,6 +365,9 @@ function App() {
             settings={settings.data ?? null}
             onPickCurrency={(c) => setDisplayCurrency.mutateAsync(c).then(() => {})}
             onPickPeriodStartDay={(d) => setPeriodStartDay.mutateAsync(d).then(() => {})}
+            push={pushStatus.data ?? null}
+            onPickReminderHour={(h) => setReminderHour.mutateAsync(h).then(() => {})}
+            onPushChanged={refreshPush}
             onBack={() => go('home')}
           />
         )}
@@ -446,8 +453,8 @@ function App() {
             data={stats.data ?? null}
             recurring={recurring.data ?? []}
             recent={recentSpending.data ?? null}
-            recentDays={recentDays}
-            onRecentDays={setRecentDays}
+            window={spendWindow}
+            onWindow={setSpendWindow}
             selected={statsMonth}
             onSelectMonth={setStatsMonth}
             onBack={() => go('home')}

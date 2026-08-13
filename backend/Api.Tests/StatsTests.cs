@@ -236,6 +236,29 @@ public class StatsTests
         Assert.Equal(100m, r.Categories.Single(c => c.CategoryId == food).Typical);
     }
 
+    /// A subscription charge nobody has confirmed is money the rest of the app is still
+    /// HOLDING, not money that has gone. Counting it here made the bars and the category
+    /// breakdown disagree with the home screen about the same month — and let «Що вилізло за
+    /// межу» flag a category for money that had not left the account.
+    [Fact]
+    public async Task An_unconfirmed_charge_is_not_spending_yet()
+    {
+        using var mem = new SqliteInMemory();
+        var cat = await CategoryAsync(mem, "Підписки");
+
+        var posted = Tx(100m, Today, cat, TransactionKind.Expense);
+        var pending = Tx(900m, Today, cat, TransactionKind.Expense);
+        pending.Status = TxStatus.Pending;
+        mem.Db.Transactions.AddRange(posted, pending);
+        await mem.Db.SaveChangesAsync();
+
+        var r = await Sut(mem).GetAsync(months: 6, month: null);
+
+        Assert.Equal(100m, r.SelectedExpense);
+        Assert.Equal(100m, r.Categories.Single().Amount);
+        Assert.Equal(100m, r.Months.Last().Expense);
+    }
+
     /// Rates that differ by date, so a test can prove WHICH date a column was drawn at.
     private sealed class RateByDateFx(Dictionary<DateOnly, decimal> rates, decimal fallback) : IFxConverter
     {

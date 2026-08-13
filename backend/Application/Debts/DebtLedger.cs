@@ -7,8 +7,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FinanceApp.Application.Debts;
 
-/// One movement out of a jar to pay a debt, in the shape the envelope arithmetic already
-/// handles expenses paid from a jar.
+/// One movement out of a jar because of a debt — money lent out of it, or a repayment made
+/// from it — in the shape the envelope arithmetic already handles expenses paid from a jar.
 public record EnvelopeDebtPayment(int EnvelopeId, DateOnly Date, decimal AmountBase);
 
 /// Everything the budget arithmetic needs to know about debts, and nothing else.
@@ -20,19 +20,26 @@ public record EnvelopeDebtPayment(int EnvelopeId, DateOnly Date, decimal AmountB
 /// the summary, the monthly budget and the jars cannot end up with three different answers.
 public interface IDebtLedger
 {
-    /// Repayments made out of spendable money in the window: real spending, and the daily
-    /// norm has to feel them like any other.
-    Task<decimal> PaidFromSpendableAsync(DateOnly from, DateOnly to, CancellationToken ct = default);
+    /// Money that LEFT spendable in the window because of a debt: a repayment made out of
+    /// ordinary money, and money lent out of it. Both are real spending, and the daily norm
+    /// has to feel them like any other.
+    ///
+    /// Lending belongs here for the reason it was missing: without it, handing somebody 500 zł
+    /// changed nothing on screen, and then the 500 coming back was added to the budget — so
+    /// the app printed money on every loan that was repaid.
+    Task<decimal> OutOfSpendableAsync(DateOnly from, DateOnly to, CancellationToken ct = default);
 
-    /// Money that came back in the window and is free to spend again.
+    /// Money that ARRIVED into spendable in the window because of a debt: money paid back to
+    /// the user, and money borrowed from somebody.
     ///
     /// This is not income. Running it through the tax engine would charge VAT, ZUS and PIT on
-    /// money that was already the user's before they lent it out, and inflate the budget it
-    /// is added to. It joins the budget after tax, exactly where a carried-over leftover does.
+    /// money that was already the user's before they lent it out — or on money that is not
+    /// theirs at all and has to be given back — and inflate the budget it is added to. It
+    /// joins the budget after tax, exactly where a carried-over leftover does.
     /// <param name="recordedAfter">When set, money dated on <paramref name="from"/> only
     /// counts if it was entered after this moment — the tie-break for the day a balance was
     /// counted, matching how income is treated on that day.</param>
-    Task<decimal> ReceivedAsync(
+    Task<decimal> IntoSpendableAsync(
         DateOnly from, DateOnly to, DateTimeOffset? recordedAfter, CancellationToken ct = default);
 
     /// What debts hold back from this period's norm: only debts the user asked to reserve
@@ -46,35 +53,56 @@ public interface IDebtLedger
     Task<IReadOnlyDictionary<int, decimal>> ReserveByDebtAsync(
         BudgetPeriod period, CancellationToken ct = default);
 
-    /// Repayments taken straight out of a jar. They leave the jar the same way a withdrawal
-    /// does — without this the pot would keep showing money that has already gone to whoever
-    /// was owed it.
+    /// Everything debts have taken straight out of a jar: repayments made from one, and money
+    /// lent out of one. They leave the jar the same way a withdrawal does — without this the
+    /// pot would keep showing money that is in somebody else's hands.
     Task<IReadOnlyList<EnvelopeDebtPayment>> FromEnvelopesAsync(CancellationToken ct = default);
 }
 
 public sealed class DebtLedger(IAppDbContext db, IBudgetPeriods periods) : IDebtLedger
 {
-    public async Task<decimal> PaidFromSpendableAsync(
-        DateOnly from, DateOnly to, CancellationToken ct = default) =>
-        await db.DebtPayments
-            .Where(p => p.Source == DebtPaymentSource.Spendable
+    public async Task<decimal> OutOfSpendableAsync(
+        DateOnly from, DateOnly to, CancellationToken ct = default)
+    {
+        var repaid = await db.DebtPayments
+            .Where(p => p.Source == MoneySource.Spendable
                         && p.Debt!.Direction == DebtDirection.IOwe
                         && p.Date >= from && p.Date <= to)
             .SumAsync(p => (decimal?)p.AmountBase, ct) ?? 0m;
 
-    public async Task<decimal> ReceivedAsync(
+        // Money handed to somebody else is gone from the account exactly like a purchase is.
+        var lent = await db.Debts
+            .Where(d => d.Origin == MoneySource.Spendable
+                        && d.Direction == DebtDirection.TheyOweMe
+                        && d.Date >= from && d.Date <= to)
+            .SumAsync(d => (decimal?)d.AmountBase, ct) ?? 0m;
+
+        return repaid + lent;
+    }
+
+    public async Task<decimal> IntoSpendableAsync(
         DateOnly from, DateOnly to, DateTimeOffset? recordedAfter, CancellationToken ct = default)
     {
-        var rows = await db.DebtPayments
-            .Where(p => p.Source == DebtPaymentSource.Spendable
+        var back = await db.DebtPayments
+            .Where(p => p.Source == MoneySource.Spendable
                         && p.Debt!.Direction == DebtDirection.TheyOweMe
                         && p.Date >= from && p.Date <= to)
             .Select(p => new { p.Date, p.AmountBase, p.CreatedAt })
             .ToListAsync(ct);
 
+        // Borrowed money is in the account and can be spent, so the norm has to know about it.
+        // It is not a windfall — the whole sum is owed back, and reserving for that is what the
+        // debt's own «відкладати щоперіоду» switch is for.
+        var borrowed = await db.Debts
+            .Where(d => d.Origin == MoneySource.Spendable
+                        && d.Direction == DebtDirection.IOwe
+                        && d.Date >= from && d.Date <= to)
+            .Select(d => new { d.Date, d.AmountBase, d.CreatedAt })
+            .ToListAsync(ct);
+
         // Compared in memory rather than in SQL, like the income the same rule applies to:
         // SQLite has no real DateTimeOffset, and it only ever affects one day's rows.
-        return rows
+        return back.Concat(borrowed)
             .Where(p => recordedAfter is not { } cutoff || p.Date > from || p.CreatedAt > cutoff)
             .Sum(p => p.AmountBase);
     }
@@ -128,9 +156,18 @@ public sealed class DebtLedger(IAppDbContext db, IBudgetPeriods periods) : IDebt
     }
 
     public async Task<IReadOnlyList<EnvelopeDebtPayment>> FromEnvelopesAsync(
-        CancellationToken ct = default) =>
-        await db.DebtPayments
-            .Where(p => p.Source == DebtPaymentSource.Envelope && p.EnvelopeId != null)
+        CancellationToken ct = default)
+    {
+        var repaid = await db.DebtPayments
+            .Where(p => p.Source == MoneySource.Envelope && p.EnvelopeId != null)
             .Select(p => new EnvelopeDebtPayment(p.EnvelopeId!.Value, p.Date, p.AmountBase))
             .ToListAsync(ct);
+
+        var lent = await db.Debts
+            .Where(d => d.Origin == MoneySource.Envelope && d.OriginEnvelopeId != null)
+            .Select(d => new EnvelopeDebtPayment(d.OriginEnvelopeId!.Value, d.Date, d.AmountBase))
+            .ToListAsync(ct);
+
+        return [.. repaid, .. lent];
+    }
 }

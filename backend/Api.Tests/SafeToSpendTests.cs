@@ -146,26 +146,60 @@ public class SafeToSpendTests
         BudgetPeriods.For(date, BudgetPeriods.FirstOfMonth);
 
     /// The same money over a wider horizon, not a second budget: keep to the norm every day
-    /// and this is what the next seven days give you. Today's spending is already off it,
+    /// and this is what the rest of the week gives you. Today's spending is already off it,
     /// because the window starts today.
+    ///
+    /// The week is the calendar's — to Sunday — not a rolling seven days. MidJuly is a
+    /// Wednesday, so five days of it are left.
     [Fact]
-    public void The_week_window_is_seven_norms_less_what_today_has_taken()
+    public void The_week_runs_to_Sunday_rather_than_seven_days_ahead()
     {
         // Today's spending is part of the period's — the two arguments must agree, or the
         // norm is computed from a day that never happened.
         var r = SafeToSpendCalculator.Calculate(3_400m, spentThisPeriod: 50m, spentToday: 50m,
             reservedRecurring: 0m, today: MidJuly, period: JulyMonth);
 
-        Assert.Equal(7, r.DaysThisWeek);
+        Assert.Equal(5, r.DaysThisWeek); // Wed, Thu, Fri, Sat, Sun
         Assert.Equal(200m, r.DailyNorm); // 3400 / 17
-        Assert.Equal(200m * 7 - 50m, r.LeftThisWeek);
+        Assert.Equal(200m * 5 - 50m, r.LeftThisWeek);
     }
 
-    /// A figure for "наступні 7 днів" must never promise money that arrives with the next
-    /// payday, so the window is cut short by the end of the period.
+    /// Monday is the only day the window is a whole seven.
+    [Fact]
+    public void On_a_Monday_the_week_is_seven_whole_days()
+    {
+        var monday = new DateOnly(2026, 7, 13); // 19 days left, incl. today
+
+        var r = SafeToSpendCalculator.Calculate(3_800m, spentThisPeriod: 0m, spentToday: 0m,
+            reservedRecurring: 0m, today: monday, period: JulyMonth);
+
+        Assert.Equal(7, r.DaysThisWeek);
+        Assert.Equal(200m, r.DailyNorm); // 3800 / 19
+        Assert.Equal(1_400m, r.LeftThisWeek);
+    }
+
+    /// And Sunday is the day it is only today. That is not a bug to smooth over: on a Sunday
+    /// there is one day of the week left, and a window that quietly rolled into next week
+    /// would be answering a question the user did not ask.
+    [Fact]
+    public void On_a_Sunday_the_week_is_only_today()
+    {
+        var sunday = new DateOnly(2026, 7, 19); // 13 days left, incl. today
+
+        var r = SafeToSpendCalculator.Calculate(2_600m, spentThisPeriod: 30m, spentToday: 30m,
+            reservedRecurring: 0m, today: sunday, period: JulyMonth);
+
+        Assert.Equal(1, r.DaysThisWeek);
+        Assert.Equal(200m, r.DailyNorm); // 2600 / 13
+        Assert.Equal(r.LeftToday, r.LeftThisWeek);
+    }
+
+    /// A figure for the week must never promise money that arrives with the next payday, so
+    /// the window is cut short by the end of the period.
     [Fact]
     public void The_week_window_stops_at_the_end_of_the_period()
     {
+        // A Wednesday, so the week alone would run five days — but the period ends first.
         var threeLeft = new DateOnly(2026, 7, 29); // 29, 30, 31
 
         var r = SafeToSpendCalculator.Calculate(600m, spentThisPeriod: 0m, spentToday: 0m,
@@ -176,9 +210,9 @@ public class SafeToSpendTests
     }
 
     /// Once the window covers the whole period it IS the period, and it has to say the same
-    /// number. Seven floored norms would come out a few groszy under the period figure sitting
-    /// beside it on the same screen, and two numbers that should agree failing to is worse
-    /// than either being slightly generous.
+    /// number. A handful of floored norms would come out a few groszy under the period figure
+    /// sitting beside it on the same screen, and two numbers that should agree failing to is
+    /// worse than either being slightly generous.
     [Fact]
     public void A_week_that_covers_the_rest_of_the_period_agrees_with_it()
     {
@@ -199,6 +233,6 @@ public class SafeToSpendTests
             reservedRecurring: 0m, today: MidJuly, period: JulyMonth);
 
         Assert.Null(r.LeftThisWeek);
-        Assert.Equal(7, r.DaysThisWeek); // the window is still a real length
+        Assert.Equal(5, r.DaysThisWeek); // the window is still a real length
     }
 }

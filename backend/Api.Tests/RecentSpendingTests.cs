@@ -19,12 +19,13 @@ public class RecentSpendingTests
         var (food, taxi) = await TwoCategoriesAsync(mem);
         var today = DateOnly.FromDateTime(DateTime.Now);
 
-        // Coffee every day, one taxi. The taxi costs more.
-        for (var i = 0; i < 6; i++) Spend(mem, food, 15m, today.AddDays(-i));
+        // Six coffees and one taxi, all today so the assertion does not depend on which day of
+        // the week the suite runs on. The taxi costs more.
+        for (var i = 0; i < 6; i++) Spend(mem, food, 15m, today);
         Spend(mem, taxi, 200m, today);
         await mem.Db.SaveChangesAsync();
 
-        var r = await Sut(mem).GetRecentAsync(7);
+        var r = await Sut(mem).GetRecentAsync(StatsService.WeekWindow);
 
         Assert.Equal(200m, r.Categories[0].Amount);
         Assert.Equal(1, r.Categories[0].Count);
@@ -34,23 +35,70 @@ public class RecentSpendingTests
     }
 
     /// A weekly figure means nothing on its own: "їжа 380" is only readable next to "минулого
-    /// тижня 240".
+    /// тижня 240". Same weekday, one week back — so the two stretches are the same length.
     [Fact]
-    public async Task The_same_window_one_step_back_comes_with_it()
+    public async Task The_same_stretch_one_week_back_comes_with_it()
     {
         using var mem = new SqliteInMemory();
         var (food, _) = await TwoCategoriesAsync(mem);
         var today = DateOnly.FromDateTime(DateTime.Now);
 
         Spend(mem, food, 380m, today);
-        Spend(mem, food, 240m, today.AddDays(-8));
+        Spend(mem, food, 240m, today.AddDays(-7));
         await mem.Db.SaveChangesAsync();
 
-        var r = await Sut(mem).GetRecentAsync(7);
+        var r = await Sut(mem).GetRecentAsync(StatsService.WeekWindow);
 
         Assert.Equal(380m, r.Total);
         Assert.Equal(240m, r.PreviousTotal);
         Assert.Equal(240m, Assert.Single(r.Categories).PreviousAmount);
+    }
+
+    /// The comparison stops at the matching day. Counting the rest of last week against four
+    /// days of this one is a fall in spending that never happened — and it is the reason a
+    /// rolling window was replaced by a calendar one in the first place.
+    [Fact]
+    public async Task Last_week_is_cut_at_the_same_day_of_the_week()
+    {
+        using var mem = new SqliteInMemory();
+        var (food, _) = await TwoCategoriesAsync(mem);
+        var today = DateOnly.FromDateTime(DateTime.Now);
+
+        Spend(mem, food, 100m, today.AddDays(-7)); // the matching day — counts
+        Spend(mem, food, 900m, today.AddDays(-6)); // one day past it — does not
+        await mem.Db.SaveChangesAsync();
+
+        var r = await Sut(mem).GetRecentAsync(StatsService.WeekWindow);
+
+        Assert.Equal(100m, r.PreviousTotal);
+    }
+
+    /// The week starts on Monday. It used to be "the last seven days", which re-bases itself
+    /// every morning — so no two readings are of the same thing, and "минулого тижня" meant
+    /// something nobody else in the world means by it.
+    [Fact]
+    public async Task The_week_is_counted_from_Monday()
+    {
+        using var mem = new SqliteInMemory();
+        await TwoCategoriesAsync(mem);
+
+        var r = await Sut(mem).GetRecentAsync(StatsService.WeekWindow);
+
+        Assert.Equal(DayOfWeek.Monday, r.From.DayOfWeek);
+        Assert.Equal(DateOnly.FromDateTime(DateTime.Now), r.To);
+    }
+
+    [Fact]
+    public async Task The_month_is_counted_from_the_first()
+    {
+        using var mem = new SqliteInMemory();
+        await TwoCategoriesAsync(mem);
+
+        var r = await Sut(mem).GetRecentAsync(StatsService.MonthWindow);
+
+        Assert.Equal(1, r.From.Day);
+        Assert.Equal(1, r.PreviousFrom.Day);
+        Assert.Equal(DateOnly.FromDateTime(DateTime.Now).AddMonths(-1).Month, r.PreviousFrom.Month);
     }
 
     /// Money paid out of a jar stopped being spendable when it went in, so counting it would
@@ -73,21 +121,22 @@ public class RecentSpendingTests
         Spend(mem, food, 50m, today, status: TxStatus.Pending);
         await mem.Db.SaveChangesAsync();
 
-        var r = await Sut(mem).GetRecentAsync(7);
+        var r = await Sut(mem).GetRecentAsync(StatsService.WeekWindow);
 
         Assert.Equal(100m, r.Total);
     }
 
     /// Only the two windows worth asking about. Anything else falls back to the week rather
-    /// than answering a question about 400 days.
+    /// than answering a question nobody asked.
     [Fact]
     public async Task An_unsupported_window_falls_back_to_the_week()
     {
         using var mem = new SqliteInMemory();
         await TwoCategoriesAsync(mem);
 
-        Assert.Equal(7, (await Sut(mem).GetRecentAsync(400)).Days);
-        Assert.Equal(14, (await Sut(mem).GetRecentAsync(14)).Days);
+        Assert.Equal(StatsService.WeekWindow, (await Sut(mem).GetRecentAsync("year")).Window);
+        Assert.Equal(StatsService.WeekWindow, (await Sut(mem).GetRecentAsync(null)).Window);
+        Assert.Equal(StatsService.MonthWindow, (await Sut(mem).GetRecentAsync("month")).Window);
     }
 
     [Fact]
@@ -96,7 +145,7 @@ public class RecentSpendingTests
         using var mem = new SqliteInMemory();
         await TwoCategoriesAsync(mem);
 
-        var r = await Sut(mem).GetRecentAsync(7);
+        var r = await Sut(mem).GetRecentAsync(StatsService.WeekWindow);
 
         Assert.Empty(r.Categories);
         Assert.Equal(0m, r.Total);

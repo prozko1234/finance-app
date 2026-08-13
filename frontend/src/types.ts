@@ -155,12 +155,22 @@ export interface SaveTaxActuals {
 /// «Куди пішло за останній тиждень» — money, not counts, with the same window one step back to
 /// compare against. What gets tapped a lot is rarely what costs a lot, so this is a different
 /// question from the home screen's shortcut row.
+export type SpendWindow = 'week' | 'month'
+
 export interface RecentSpending {
   currency: string
+  /// How many days the window covers so far — 1 on a Monday, 7 on a Sunday. Both stretches
+  /// are this long, so the two totals are comparable.
   days: number
   total: number
   previousTotal: number
   categories: RecentCategory[]
+  window: SpendWindow
+  from: string
+  to: string
+  previousFrom: string
+  /// The day the earlier stretch was cut at, so the screen can say what it compared against.
+  previousTo: string
 }
 
 export interface RecentCategory {
@@ -384,8 +394,8 @@ export interface SafeToSpend {
   reservedDebts: number
   /// Subscriptions whose day has come and gone without anybody saying they were paid.
   pendingCharges: PendingCharge[]
-  /// The same money over a wider horizon: seven days from today, or fewer when the period ends
-  /// first. Drives the day/week/period switch on the home card.
+  /// The same money over a wider horizon: today through Sunday, or fewer days when the period
+  /// ends first. Drives the day/week/period switch on the home card.
   daysThisWeek: number
   leftThisWeek: number | null
 }
@@ -403,8 +413,22 @@ export interface MonthlyNeed {
   /// Null until there are two whole months to take a median of — a figure invented from a
   /// fortnight is worse than no figure.
   typical: number | null
+  /// What the month HAS to cover: standing charges, debts and usual spending. The saving plan
+  /// is NOT in it — a plan to put money away is not a bill, and folding it in made the figure
+  /// read far above what the month actually costs.
   total: number
   typicalKnown: boolean
+  /// Total plus the saving: what a month that goes fully to plan asks for.
+  withJars: number
+  /// The months the median was taken over, newest first, so the one estimate on the card can
+  /// be checked rather than believed.
+  typicalMonths: TypicalMonth[]
+}
+
+export interface TypicalMonth {
+  /// First of the month, ISO.
+  month: string
+  amount: number
 }
 
 /// A recurring charge waiting for «оплачено ✓». Its money is already held back from the daily
@@ -702,7 +726,7 @@ export type DebtDirection = 'IOwe' | 'TheyOweMe'
 /// Where the money came from — or, for money coming back, where it went. This is the whole
 /// feature: a payment on a debt is an ordinary movement with a source, and all three sources
 /// already existed in the app before debts had a screen of their own.
-export type DebtPaymentSource = 'Spendable' | 'Envelope' | 'AlreadyHappened'
+export type MoneySource = 'Spendable' | 'Envelope' | 'AlreadyHappened'
 
 export interface DebtPayment {
   id: number
@@ -710,7 +734,7 @@ export interface DebtPayment {
   amount: number
   amountOriginal: number
   currencyOriginal: string
-  source: DebtPaymentSource
+  source: MoneySource
   envelopeId: number | null
   envelopeName: string | null
   note: string | null
@@ -737,6 +761,11 @@ export interface Debt {
   closedOn: string | null
   note: string | null
   payments: DebtPayment[]
+  /// Which pocket the money came out of when it was lent, or went into when it was borrowed.
+  /// 'AlreadyHappened' for everything written down before the app started asking.
+  origin: MoneySource
+  originEnvelopeId: number | null
+  originEnvelopeName: string | null
 }
 
 export interface Debts {
@@ -757,13 +786,32 @@ export interface SaveDebt {
   deadline: string | null
   reserveFromBudget: boolean
   note: string | null
+  /// Where the money came from (lending) or went (borrowing). Without it a debt is a note
+  /// rather than a movement — and money that comes back without ever having left is money
+  /// the app invents.
+  origin: MoneySource
+  originEnvelopeId: number | null
 }
 
 export interface SaveDebtPayment {
   amount: number
   currency: string | null
   date: string | null
-  source: DebtPaymentSource
+  source: MoneySource
   envelopeId: number | null
   note: string | null
+}
+
+/// Charge reminders: whether any device on this account is signed up, and the hour of the day
+/// it wants to hear about today's charges. Null hour — off.
+export interface PushStatus {
+  enabled: boolean
+  hour: number | null
+}
+
+/// What the browser's own PushSubscription hands over. None of it is ours to invent.
+export interface SavePushSubscription {
+  endpoint: string
+  p256dh: string
+  auth: string
 }

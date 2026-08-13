@@ -38,13 +38,16 @@ function recent(over: Partial<RecentSpending> = {}): RecentSpending {
       { categoryId: 2, name: 'Таксі', icon: '🚕', amount: 380, count: 2, previousAmount: 240 },
       { categoryId: 1, name: 'Кава', icon: '☕', amount: 90, count: 6, previousAmount: 60 },
     ],
+    window: 'week',
+    from: '2026-08-10', to: '2026-08-13',
+    previousFrom: '2026-08-03', previousTo: '2026-08-06',
     ...over,
   }
 }
 
 const props = {
   selected: null, recurring: [], onSelectMonth: vi.fn(), onBack: vi.fn(),
-  recent: recent(), recentDays: 7, onRecentDays: vi.fn(),
+  recent: recent(), window: 'week' as const, onWindow: vi.fn(),
 }
 
 /// The half-year cards answer "як було", not "що робити", so the screen no longer opens on
@@ -202,26 +205,37 @@ describe('Stats', () => {
 /// Money, not counts. The home screen's shortcut row already ranks recent categories by how
 /// OFTEN they are used, and that answers a different question — thirty coffees and one taxi
 /// look nothing alike in a list of counts and identical in a wallet.
-describe('останній тиждень', () => {
-  it('leads with what cost the most, and says how it compares', () => {
+describe('цей тиждень', () => {
+  /// The headline is a sentence, not a number with a percentage bolted on: a number still has
+  /// to be assembled by the reader, a sentence has already been read.
+  it('leads with the total and says in words how it compares', () => {
     render(<Stats {...props} data={data()} />)
 
-    expect(screen.getByText(/Куди пішло за 7 днів/)).toBeInTheDocument()
+    expect(screen.getByText('Цей тиждень')).toBeInTheDocument()
     expect(screen.getByText(/470,00/)).toBeInTheDocument()
-    expect(screen.getByText(/Попередні 7 днів — 300,00/)).toBeInTheDocument()
+    expect(screen.getByText(/більше, ніж за ті самі дні минулого тижня/)).toBeInTheDocument()
+    expect(screen.getByText(/300,00/)).toBeInTheDocument()
     expect(screen.getByText(/Таксі/)).toBeInTheDocument()
   })
 
-  it('asks for a fortnight when a fortnight is asked for', async () => {
-    const onRecentDays = vi.fn()
-    render(<Stats {...props} data={data()} onRecentDays={onRecentDays} />)
+  /// Which days were compared is on screen, so a figure that looks wrong can be checked
+  /// instead of argued with.
+  it('names both stretches it compared', () => {
+    render(<Stats {...props} data={data()} />)
 
-    await userEvent.click(screen.getByRole('button', { name: '14' }))
-    expect(onRecentDays).toHaveBeenCalledWith(14)
+    expect(screen.getByText(/10 серпня.*13 серпня.*проти.*3 серпня.*6 серпня/)).toBeInTheDocument()
+  })
+
+  it('asks for the month when the month is asked for', async () => {
+    const onWindow = vi.fn()
+    render(<Stats {...props} data={data()} onWindow={onWindow} />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Місяць' }))
+    expect(onWindow).toHaveBeenCalledWith('month')
   })
 
   /// A category first used this week is not "+100%", it is new — so there is nothing to say.
-  it('stays silent about a category with nothing behind it', () => {
+  it('stays silent when there is nothing to compare against', () => {
     render(
       <Stats
         {...props}
@@ -233,11 +247,26 @@ describe('останній тиждень', () => {
       />,
     )
 
-    expect(screen.queryByText(/Попередні 7 днів/)).not.toBeInTheDocument()
+    expect(screen.getByText(/порівняти поки нема з чим/)).toBeInTheDocument()
+    expect(screen.queryByText(/минулого тижня/)).not.toBeInTheDocument()
   })
 
   it('says a quiet week was quiet', () => {
     render(<Stats {...props} data={data()} recent={recent({ total: 0, previousTotal: 0, categories: [] })} />)
-    expect(screen.getByText(/За цей час витрат не було/)).toBeInTheDocument()
+    expect(screen.getByText('Витрат ще не було.')).toBeInTheDocument()
+  })
+
+  /// Three lines by default: a list of everything that moved is a wall of numbers, and by the
+  /// fourth line nobody is deciding anything. The rest is one tap away.
+  it('keeps the long tail of categories folded away', async () => {
+    const many = [1, 2, 3, 4, 5].map((i) => ({
+      categoryId: i, name: `Кат ${i}`, icon: null, amount: 100 - i, count: 1, previousAmount: 0,
+    }))
+    render(<Stats {...props} data={data()} recent={recent({ categories: many })} />)
+
+    expect(screen.queryByText('Кат 4')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /Усі категорії — ще 2/ }))
+    expect(screen.getByText('Кат 4')).toBeInTheDocument()
   })
 })

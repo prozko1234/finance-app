@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api'
 import type {
-  CarryoverDecision, Credentials, Registration, SaveAllocation, SaveCategory, SaveDebt, SaveDebtPayment, SaveEnvelope, SaveEnvelopeTarget, SaveIncome, SaveOpeningBalance, SaveRecurring, SaveSavingsEntry, SaveSavingsPlan, SaveTaxProfile, SaveTaxActuals, SaveTransaction, SaveTransfer,
+  CarryoverDecision, Credentials, Registration, SaveAllocation, SaveCategory, SaveDebt, SaveDebtPayment, SaveEnvelope, SaveEnvelopeTarget, SaveIncome, SaveOpeningBalance, SaveRecurring, SaveSavingsEntry, SaveSavingsPlan, SaveTaxProfile, SaveTaxActuals, SaveTransaction, SaveTransfer, SpendWindow,
 } from './types'
 
 export const queryKeys = {
@@ -25,6 +25,7 @@ export const queryKeys = {
   auth: ['auth'] as const,
   invites: ['invites'] as const,
   devices: ['devices'] as const,
+  push: ['push'] as const,
 }
 
 /// Any write re-reads everything, rather than a hand-picked list of keys.
@@ -136,12 +137,31 @@ export function useStats(months: number, month: string | null, enabled = true) {
 
 /// The window is part of the key, so switching between a week and a fortnight is a new fetch
 /// and the one already seen stays cached.
-export function useRecentSpending(days: number, enabled = true) {
+export function useRecentSpending(window: SpendWindow, enabled = true) {
   return useQuery({
-    queryKey: [...queryKeys.stats, 'recent', days],
-    queryFn: () => api.getRecentSpending(days),
+    queryKey: [...queryKeys.stats, 'recent', window],
+    queryFn: () => api.getRecentSpending(window),
     enabled,
   })
+}
+
+/// Charge reminders. Invalidated together with nothing else — it is a device preference, and
+/// no money figure depends on it.
+export function usePushStatus() {
+  return useQuery({ queryKey: queryKeys.push, queryFn: api.getPushStatus })
+}
+
+export function useSetReminderHour() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (hour: number | null) => api.setReminderHour(hour),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.push }),
+  })
+}
+
+export function useRefreshPush() {
+  const qc = useQueryClient()
+  return () => qc.invalidateQueries({ queryKey: queryKeys.push })
 }
 
 export function useInvites(enabled: boolean) {

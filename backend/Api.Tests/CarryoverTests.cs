@@ -112,6 +112,12 @@ public class CarryoverTests
         Assert.Equal(1_500m, entry.AmountBase);
         Assert.False(entry.IsAuto); // the scheme must stay free to re-pour its own entry
         Assert.Null(await sut.PendingAsync());
+
+        // The money came from the PREVIOUS period, and putting it in a jar is the answer that
+        // keeps it out of this one's budget. Without this flag the deposit was ALSO held back
+        // from this period's daily norm — 1 500 taken off what could be spent, out of money
+        // that was never in this period's income.
+        Assert.True(entry.AlreadySetAside);
     }
 
     /// "Не рахувати" is an answer, and an answer is what stops the card coming back — the row

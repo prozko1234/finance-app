@@ -103,25 +103,66 @@ function Line({ label, hint, children }: {
 /// loud — the standing charges lived on one screen, the jar plan on another, and nobody added
 /// them up.
 ///
-/// Only the last line is a guess, and it says so rather than quietly rounding the total.
+/// Only the "звичні витрати" line is a guess, and it says so rather than quietly rounding the
+/// total — the months it was taken from open underneath it, so the one estimate on the screen
+/// can be checked instead of believed.
+///
+/// The saving is deliberately below the total rather than inside it. Everything above is a
+/// bill; a plan to put a fifth of the income away is not, and folding it in made the headline
+/// read thousands above what the month actually costs — which is exactly the figure someone
+/// compares their bank balance against before deciding they are in trouble.
 function MonthlyNeedCard({ need }: { need: MonthlyNeed | null }) {
+  const [showMonths, setShowMonths] = useState(false)
   if (!need) return <CardSkeleton />
 
   const c = need.currency
+  const months = need.typicalMonths ?? []
 
   return (
     <Card>
       <SectionTitle>Треба на місяць</SectionTitle>
       <p className="text-3xl font-bold tabular-nums">{money(need.total, c)}</p>
+      <p className="text-xs text-neutral-400">Рахунки, борги і звичні витрати — без заощаджень.</p>
 
       <dl className="space-y-1.5 text-sm">
         <Line label="Підписки й регулярне">{money(need.recurring, c)}</Line>
-        <Line label="Відкладати за планом">{money(need.jars, c)}</Line>
         {need.debts > 0 && <Line label="Борги">{money(need.debts, c)}</Line>}
-        <Line label="Звичні витрати" hint={need.typicalKnown ? 'медіана 3 міс.' : undefined}>
+        <Line label="Звичні витрати" hint={need.typicalKnown ? 'медіана 6 міс.' : undefined}>
           {need.typicalKnown ? money(need.typical ?? 0, c) : '—'}
         </Line>
       </dl>
+
+      {need.typicalKnown && months.length > 0 && (
+        <div>
+          <button
+            onClick={() => setShowMonths(!showMonths)}
+            className="text-xs text-neutral-400 underline"
+          >
+            {showMonths ? 'Сховати місяці' : 'З яких місяців ця цифра'}
+          </button>
+          {showMonths && (
+            <dl className="mt-2 space-y-1 text-xs text-neutral-500">
+              {months.map((m) => (
+                <div key={m.month} className="flex justify-between gap-3">
+                  <dt>{monthLabel(m.month)}</dt>
+                  <dd className="tabular-nums">{money(m.amount, c)}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </div>
+      )}
+
+      {/* Its own total, not a line in the one above: the plan is the only figure on this card
+          the user can decide against, and it has to be readable as a choice. */}
+      {need.jars > 0 && (
+        <p className="border-t border-neutral-100 dark:border-neutral-800 pt-2 text-sm text-neutral-500">
+          Ще {money(need.jars, c)} схема відкладає в банки — разом{' '}
+          <span className="font-medium text-neutral-900 dark:text-neutral-100 tabular-nums">
+            {money(need.withJars, c)}
+          </span>
+        </p>
+      )}
 
       {!need.typicalKnown && (
         <p className="text-xs text-neutral-400">
@@ -131,6 +172,15 @@ function MonthlyNeedCard({ need }: { need: MonthlyNeed | null }) {
       )}
     </Card>
   )
+}
+
+/// "2026-07-01" → "лип 26". Parsed by hand: `new Date('2026-07-01')` is UTC-midnight, which in
+/// a negative-offset zone is the previous month.
+function monthLabel(iso: string): string {
+  const [year, m] = iso.split('-').map(Number)
+  if (!year || !m) return iso
+  return new Intl.DateTimeFormat('uk-UA', { month: 'short', year: '2-digit' })
+    .format(new Date(year, m - 1, 1))
 }
 
 /// The answer to "чому в банку інша цифра". The app's own figure is broken out above it, so a

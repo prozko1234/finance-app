@@ -2,7 +2,7 @@ import type {
   AuthStatus, AppSettings, CarryoverDecision, Category, Credentials, Envelope, FrequentCategory, Invite, NewInvite, Registration, EnvelopePeriod, SaveEnvelope, SaveEnvelopeTarget, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
   Allocation, SaveAllocation, IncomePreview, OpeningBalance, SaveOpeningBalance, SaveSavingsEntry, SaveSavingsPlan, Savings, SaveTransfer, Stats, TaxDefaults, TaxProfile, Transaction,
   ImportPreview, ImportResult, ImportRowToSave,
-  Debts, SaveDebt, SaveDebtPayment, MonthlyNeed, CategoryKind, RecentSpending,
+  Debts, SaveDebt, SaveDebtPayment, MonthlyNeed, CategoryKind, RecentSpending, SpendWindow, PushStatus, SavePushSubscription,
   TaxActuals as TaxActualsType, SaveTaxActuals,
 } from './types'
 import {
@@ -209,7 +209,17 @@ export const api = {
   confirmCharge: (transactionId: number) =>
     http<void>(`/api/recurring/charges/${transactionId}/confirm`, { method: 'POST' }),
 
-  getRecentSpending: (days: number) => http<RecentSpending>(`/api/stats/recent?days=${days}`),
+  getRecentSpending: (window: SpendWindow) =>
+    http<RecentSpending>(`/api/stats/recent?window=${window}`),
+
+  getPushKey: () => http<{ publicKey: string | null }>('/api/push/key'),
+  getPushStatus: () => http<PushStatus>('/api/push'),
+  subscribePush: (s: SavePushSubscription) =>
+    http<void>('/api/push', { method: 'POST', body: JSON.stringify(s) }),
+  unsubscribePush: (endpoint: string) =>
+    http<void>(`/api/push?endpoint=${encodeURIComponent(endpoint)}`, { method: 'DELETE' }),
+  setReminderHour: (hour: number | null) =>
+    http<PushStatus>('/api/push/hour', { method: 'PUT', body: JSON.stringify({ hour }) }),
 
   getTaxProfile: () => http<TaxProfile>('/api/tax/profile'),
   saveTaxProfile: (p: SaveTaxProfile) =>

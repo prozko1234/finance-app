@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type {
-  Debt, DebtDirection, DebtPaymentSource, Debts as DebtsData, EnvelopeSummary, SaveDebt, SaveDebtPayment,
+  Debt, DebtDirection, MoneySource, Debts as DebtsData, EnvelopeSummary, SaveDebt, SaveDebtPayment,
 } from '../types'
 import { BASE_CURRENCY, CURRENCIES, todayIso } from '../types'
 import { dayMonth, money, parseAmount } from '../format'
@@ -141,7 +141,15 @@ function Side({
         {adding ? 'Не додавати' : '+ Додати'}
       </button>
 
-      {adding && <NewDebt direction={direction} onCreate={onCreate} onDone={onAdd} />}
+      {adding && (
+        <NewDebt
+          direction={direction}
+          // Only jars with something in them: an empty jar is a source that can lend nothing.
+          envelopes={envelopes.filter((e) => e.balance > 0)}
+          onCreate={onCreate}
+          onDone={onAdd}
+        />
+      )}
     </div>
   )
 }
@@ -167,6 +175,12 @@ function DebtCard({ debt, currency, envelopes, onDelete, onSetClosed, onPay }: {
                 says nothing about whether that is nearly done or barely started. */}
             з {money(debt.amount, currency)}
             {debt.deadline && <> · до {dayMonth(debt.deadline)}</>}
+            {/* Says at a glance whether this debt ever touched the budget — the difference
+                between a loan that cost the norm and one written down after the fact. */}
+            {debt.origin === 'Envelope' && debt.originEnvelopeName && (
+              <> · з «{debt.originEnvelopeName}»</>
+            )}
+            {debt.origin === 'AlreadyHappened' && <> · було раніше</>}
           </p>
         </div>
         <p className="text-xl font-bold tabular-nums shrink-0">{money(debt.outstanding, currency)}</p>
@@ -272,13 +286,13 @@ function PaymentForm({ debt, envelopes, onPay, onDone }: {
   const [amount, setAmount] = useState('')
   const [currency, setCurrency] = useState(BASE_CURRENCY)
   const [date, setDate] = useState(todayIso())
-  const [source, setSource] = useState<DebtPaymentSource>('Spendable')
+  const [source, setSource] = useState<MoneySource>('Spendable')
   const [envelopeId, setEnvelopeId] = useState<number | null>(envelopes[0]?.id ?? null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
   // Money coming back is arriving, not leaving: there is no jar to take it out of.
-  const sources: { value: DebtPaymentSource; label: string }[] = incoming
+  const sources: { value: MoneySource; label: string }[] = incoming
     ? [
       { value: 'Spendable', label: 'Повернули зараз' },
       { value: 'AlreadyHappened', label: 'Повернули раніше' },
@@ -386,19 +400,46 @@ function PaymentForm({ debt, envelopes, onPay, onDone }: {
   )
 }
 
-function NewDebt({ direction, onCreate, onDone }: {
+/// A debt is a movement, not a note. Money lent has to leave something and money borrowed has
+/// to arrive somewhere — until this question was asked, handing somebody 500 zł changed nothing
+/// on screen, and then the 500 coming back was added to the budget, so the app printed money on
+/// every loan that got repaid.
+///
+/// Asked with words for the same reason the payment form asks with words: each answer is a
+/// different thing happening to the daily norm, and only the user knows which happened.
+function NewDebt({ direction, envelopes, onCreate, onDone }: {
   direction: DebtDirection
+  envelopes: EnvelopeSummary[]
   onCreate: (d: SaveDebt) => Promise<void>
   onDone: () => void
 }) {
+  const outgoing = direction === 'TheyOweMe'
   const [person, setPerson] = useState('')
   const [amount, setAmount] = useState('')
   const [currency, setCurrency] = useState(BASE_CURRENCY)
   const [date, setDate] = useState(todayIso())
   const [deadline, setDeadline] = useState('')
   const [reserve, setReserve] = useState(false)
+  // Defaults to the money really moving. The old behaviour is still one tap away as «Це вже
+  // було раніше», which is what every debt entered before this question existed means.
+  const [origin, setOrigin] = useState<MoneySource>('Spendable')
+  const [envelopeId, setEnvelopeId] = useState<number | null>(envelopes[0]?.id ?? null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+
+  // Money arriving does not come out of a jar — the mirror of the rule the payment form
+  // follows. Borrowing and then putting it away is two movements, and one form doing both
+  // would make money appear in a jar with no deposit behind it.
+  const origins: { value: MoneySource; label: string }[] = outgoing
+    ? [
+      { value: 'Spendable', label: 'З поточних грошей' },
+      ...(envelopes.length > 0 ? [{ value: 'Envelope' as const, label: 'З банки' }] : []),
+      { value: 'AlreadyHappened', label: 'Позичив раніше' },
+    ]
+    : [
+      { value: 'Spendable', label: 'Гроші прийшли зараз' },
+      { value: 'AlreadyHappened', label: 'Взяв раніше' },
+    ]
 
   async function save() {
     const value = parseAmount(amount)
@@ -423,6 +464,8 @@ function NewDebt({ direction, onCreate, onDone }: {
         deadline: deadline || null,
         reserveFromBudget: reserve && deadline !== '',
         note: null,
+        origin,
+        originEnvelopeId: origin === 'Envelope' ? envelopeId : null,
       })
       onDone()
     } catch (e) {
@@ -470,6 +513,45 @@ function NewDebt({ direction, onCreate, onDone }: {
           className="mt-1 w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-transparent px-3 py-2 text-base text-neutral-900 dark:text-neutral-100"
         />
       </label>
+
+      <div className="space-y-2">
+        <p className="text-xs text-neutral-400">{outgoing ? 'Звідки ці гроші' : 'Куди пішли гроші'}</p>
+        <div className="flex flex-wrap gap-2">
+          {origins.map((o) => (
+            <button
+              key={o.value}
+              onClick={() => setOrigin(o.value)}
+              aria-pressed={origin === o.value}
+              className={`rounded-lg px-3 py-1.5 text-sm ${
+                origin === o.value
+                  ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+                  : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500'
+              }`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+
+        {origin === 'Envelope' && (
+          <select
+            value={envelopeId ?? ''}
+            onChange={(e) => setEnvelopeId(Number(e.target.value))}
+            aria-label="Банка"
+            className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-transparent px-3 py-2"
+          >
+            {envelopes.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+        )}
+
+        <p className="text-xs text-neutral-400">
+          {origin === 'Spendable' && (outgoing
+            ? 'Денна норма впаде на цю суму — гроші пішли з твоїх.'
+            : 'Ці гроші додадуться в бюджет періоду. Податків на них немає — вони не дохід.')}
+          {origin === 'Envelope' && 'Норма не впаде: ці гроші вже були відкладені. Банка схудне.'}
+          {origin === 'AlreadyHappened' && 'Цей період за них не платить — рух був раніше.'}
+        </p>
+      </div>
 
       <label className="block text-xs text-neutral-400">
         До якого числа (не обов'язково)

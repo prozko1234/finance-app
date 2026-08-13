@@ -16,9 +16,11 @@ public interface IStatsService
     /// null means the current month.
     Task<StatsResponse> GetAsync(int months, string? month, CancellationToken ct = default);
 
-    /// Where money went over the last <paramref name="days"/>, in money rather than in counts,
-    /// with the same window one step back to compare against.
-    Task<RecentSpendingResponse> GetRecentAsync(int days, CancellationToken ct = default);
+    /// Where money went so far this week or this month, in money rather than in counts, with
+    /// the SAME STRETCH one step back to compare against.
+    /// <param name="window">"week" (from Monday) or "month" (from the 1st). Anything else is
+    /// read as the week.</param>
+    Task<RecentSpendingResponse> GetRecentAsync(string? window, CancellationToken ct = default);
 }
 
 /// The statistics tab: income against expense per month, and where one month's expenses
@@ -48,18 +50,39 @@ public sealed class StatsService(
     /// a median can throw out an outlier from — with two, one holiday month IS the normal.
     public const int TypicalMonths = 3;
 
-    /// The windows worth asking about: the week a person actually lives in, and the fortnight
-    /// for anyone who shops on a longer rhythm. Anything wider is what the monthly view is for.
-    private static readonly int[] RecentWindows = [7, 14];
+    /// The windows worth asking about, both of them the calendar's: the week a person lives in,
+    /// and the month the bills arrive in.
+    ///
+    /// They used to be rolling — "останні 7 днів", "останні 14". A rolling window is quietly
+    /// useless for comparing: it re-bases itself every morning, so no two readings are of the
+    /// same thing, and "минулого тижня" on this screen meant something nobody else in the world
+    /// means by it. The comparison is against the SAME STRETCH one step back — Monday-to-Friday
+    /// against last Monday-to-Friday — because a full week against four days is a fall in
+    /// spending that never happened.
+    public const string WeekWindow = "week";
+    public const string MonthWindow = "month";
 
-    public async Task<RecentSpendingResponse> GetRecentAsync(int days, CancellationToken ct = default)
+    public async Task<RecentSpendingResponse> GetRecentAsync(
+        string? window, CancellationToken ct = default)
     {
         await materializer.MaterializeDueAsync(ct);
 
-        days = RecentWindows.Contains(days) ? days : RecentWindows[0];
+        var monthly = string.Equals(window, MonthWindow, StringComparison.OrdinalIgnoreCase);
         var today = DateOnly.FromDateTime(DateTime.Now);
-        var from = today.AddDays(-(days - 1));
-        var previousFrom = from.AddDays(-days);
+
+        var from = monthly
+            ? new DateOnly(today.Year, today.Month, 1)
+            : today.AddDays(-DaysSinceMonday(today));
+
+        // The same number of days, one step back. For a month that is the previous calendar
+        // month up to the same day number, clamped — 31 March compared against 31 February is
+        // not a date, and the last day of February is the honest stand-in.
+        var previousFrom = monthly ? from.AddMonths(-1) : from.AddDays(-7);
+        var previousTo = monthly
+            ? previousFrom.AddDays(Math.Min(
+                today.Day - 1,
+                DateTime.DaysInMonth(previousFrom.Year, previousFrom.Month) - 1))
+            : previousFrom.AddDays(today.DayNumber - from.DayNumber);
 
         // Money paid out of a jar is left out for the same reason the daily norm leaves it out:
         // it stopped being spendable when it went in, and it would make a quiet week look like
@@ -73,7 +96,9 @@ public sealed class StatsService(
             .ToListAsync(ct);
 
         var now = rows.Where(r => r.Date >= from).ToList();
-        var before = rows.Where(r => r.Date < from).ToList();
+        // Only up to the matching day: the gap between the two stretches is days nobody has
+        // lived yet, and counting them would compare a Wednesday against a whole week.
+        var before = rows.Where(r => r.Date < from && r.Date <= previousTo).ToList();
 
         var view = await moneyViews.CurrentAsync(ct);
         var show = (decimal v) => view.FromBaseTodayAsync(v, ct);
@@ -93,11 +118,18 @@ public sealed class StatsService(
         }
 
         return new RecentSpendingResponse(
-            view.Currency, days,
+            view.Currency,
+            today.DayNumber - from.DayNumber + 1,
             await show(now.Sum(r => r.AmountBase)),
             await show(before.Sum(r => r.AmountBase)),
-            categories);
+            categories,
+            monthly ? MonthWindow : WeekWindow,
+            from, today, previousFrom, previousTo);
     }
+
+    /// 0 on a Monday, 6 on a Sunday. `DayOfWeek` starts the week on Sunday; this app does not.
+    private static int DaysSinceMonday(DateOnly date) =>
+        ((int)date.DayOfWeek + 6) % 7;
 
     public async Task<StatsResponse> GetAsync(int months, string? month, CancellationToken ct = default)
     {
@@ -120,8 +152,13 @@ public sealed class StatsService(
         var from = earliest < firstMonth ? earliest : firstMonth;
         var lastDay = LastDayOf(thisMonth);
 
+        // Unconfirmed subscription charges are left out, exactly as the home screen and the
+        // weekly figure leave them out: nobody has said that money has gone. Without this the
+        // bars and the category breakdown counted a charge the rest of the app was still
+        // holding in reserve — so «Що вилізло за межу» could flag a category for money that had
+        // not left the account, and two screens disagreed about the same month.
         var rows = await db.Transactions
-            .Where(t => t.Date >= from && t.Date <= lastDay)
+            .Where(t => t.Date >= from && t.Date <= lastDay && t.Status == TxStatus.Posted)
             .Select(t => new Row(t.Date, t.Kind, t.AmountBase, t.CategoryId, t.Category!.Name, t.Category.Icon))
             .ToListAsync(ct);
 

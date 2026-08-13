@@ -91,8 +91,16 @@ public sealed class CarryoverService(
             // An ordinary hand-made deposit, not an IsAuto one: the scheme must be free to
             // re-pour its own entry without touching this, and taking the money back out is
             // the same withdrawal it would be for any other deposit.
+            //
+            // AlreadySetAside, though — and that is not a detail. This money came from the
+            // PREVIOUS period; choosing the jar is precisely the answer that keeps it out of
+            // this period's budget, so this period must not pay for it either. Without the
+            // flag the deposit was held back from the daily norm like any other, and a
+            // leftover of 800 quietly took 800 off what could be spent this month — money that
+            // had never been in this month's income to begin with, charged for a second time.
             db.SavingsEntries.Add(new SavingsEntry
             {
+                AlreadySetAside = true,
                 EnvelopeId = jar.Id,
                 Date = current.Start,
                 Kind = SavingsEntryKind.Deposit,

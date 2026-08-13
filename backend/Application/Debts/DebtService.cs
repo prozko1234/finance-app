@@ -103,13 +103,13 @@ public sealed class DebtService(
         var debt = await db.Debts.FirstOrDefaultAsync(d => d.Id == debtId, ct);
         if (debt is null) return Error.NotFound($"Борг {debtId} не знайдено.");
 
-        if (!Enum.TryParse<DebtPaymentSource>(req.Source, ignoreCase: true, out var source))
+        if (!Enum.TryParse<MoneySource>(req.Source, ignoreCase: true, out var source))
             return Error.Validation($"Невідоме джерело платежу: {req.Source}.");
         if (req.Amount <= 0) return Error.Validation("Сума має бути більшою за нуль.");
 
         // Money coming BACK cannot come out of a jar: it is arriving, not leaving. Letting it
         // name an envelope would quietly make the pot smaller for money that went into it.
-        if (debt.Direction == DebtDirection.TheyOweMe && source == DebtPaymentSource.Envelope)
+        if (debt.Direction == DebtDirection.TheyOweMe && source == MoneySource.Envelope)
             return Error.Validation("Гроші повертають тобі — з банки їх не беруть.");
 
         var date = req.Date ?? DateOnly.FromDateTime(DateTime.Now);
@@ -127,7 +127,7 @@ public sealed class DebtService(
                 "якщо сума боргу неправильна, виправ її.");
 
         int? envelopeId = null;
-        if (source == DebtPaymentSource.Envelope)
+        if (source == MoneySource.Envelope)
         {
             if (req.EnvelopeId is not { } wanted)
                 return Error.Validation("Не сказано, з якої банки платити.");
@@ -212,7 +212,12 @@ public sealed class DebtService(
         var conv = await fx.ConvertToBaseAsync(req.Amount, currency, date, ct);
         if (!conv.IsSuccess) return conv.Error;
 
+        var origin = await OriginAsync(debt, direction, req, conv.Value!.AmountBase, ct);
+        if (!origin.IsSuccess) return origin.Error;
+
         debt.Direction = direction;
+        debt.Origin = origin.Value!.Source;
+        debt.OriginEnvelopeId = origin.Value.EnvelopeId;
         debt.Person = person;
         debt.Date = date;
         debt.Deadline = req.Deadline;
@@ -227,6 +232,53 @@ public sealed class DebtService(
         return Result<Debt>.Ok(debt);
     }
 
+    /// Where the money for a debt came from, checked. Split out of <see cref="ApplyAsync"/>
+    /// only because it is the one part with real rules behind it.
+    ///
+    /// The rules mirror a payment's, one direction round: money the user HANDS OVER can come
+    /// out of a jar, money that ARRIVES cannot go into one. Borrowing 500 zł and putting it
+    /// straight in the holiday jar is a real thing to do, but it is two movements — take the
+    /// loan, then deposit — and letting one form do both would make the jar's history a place
+    /// where money appears without a deposit behind it.
+    private async Task<Result<(MoneySource Source, int? EnvelopeId)>> OriginAsync(
+        Debt debt, DebtDirection direction, SaveDebtRequest req, decimal amountBase,
+        CancellationToken ct)
+    {
+        // Null reads as "the money moved before the app was told". That is what every debt
+        // written down before this field existed means, and it is the only default that cannot
+        // move money behind the user's back.
+        if (string.IsNullOrWhiteSpace(req.Origin))
+            return Result<(MoneySource, int?)>.Ok((MoneySource.AlreadyHappened, null));
+
+        if (!Enum.TryParse<MoneySource>(req.Origin, ignoreCase: true, out var source))
+            return Error.Validation($"Невідоме джерело грошей: {req.Origin}.");
+
+        if (source != MoneySource.Envelope)
+            return Result<(MoneySource, int?)>.Ok((source, null));
+
+        if (direction == DebtDirection.IOwe)
+            return Error.Validation(
+                "Ці гроші приходять тобі — в банку вони так не потраплять. Поклади їх у банку окремо.");
+
+        if (req.OriginEnvelopeId is not { } wanted)
+            return Error.Validation("Не сказано, з якої банки ці гроші.");
+        if (!await db.Envelopes.AnyAsync(e => e.Id == wanted && e.ArchivedAt == null, ct))
+            return Error.NotFound($"Банку {wanted} не знайдено.");
+
+        // The jar's balance already has this debt's own draw taken out of it when the debt is
+        // being edited rather than created, so it goes back in before the check — otherwise
+        // correcting «позичив 500» to «позичив 520» would be measured against a jar that is
+        // 500 short of what it really holds.
+        var mine = debt.Origin == MoneySource.Envelope && debt.OriginEnvelopeId == wanted
+            ? debt.AmountBase
+            : 0m;
+        var balance = await envelopes.BalanceAsync(wanted, ct) + mine;
+        if (amountBase > balance)
+            return Error.Validation($"У банці лише {balance:0.00}. Стільки позичити не вийде.");
+
+        return Result<(MoneySource, int?)>.Ok((source, wanted));
+    }
+
     private async Task<decimal> PaidAsync(int debtId, CancellationToken ct) =>
         await db.DebtPayments
             .Where(p => p.DebtId == debtId)
@@ -235,6 +287,7 @@ public sealed class DebtService(
     private async Task<DebtsResponse> BuildAsync(CancellationToken ct)
     {
         var debts = await db.Debts
+            .Include(d => d.OriginEnvelope)
             .OrderBy(d => d.ClosedOn != null)
             .ThenBy(d => d.Deadline == null)
             .ThenBy(d => d.Deadline)
@@ -285,7 +338,8 @@ public sealed class DebtService(
                 // Overdue is about the debt, not about the pace: a debt with nothing left to
                 // pay is settled whether or not its date has gone by.
                 outstanding > 0 && debt.ClosedOn is null && debt.Deadline is { } due && due < today,
-                debt.ClosedOn, debt.Note, payViews));
+                debt.ClosedOn, debt.Note, payViews,
+                debt.Origin.ToString(), debt.OriginEnvelopeId, debt.OriginEnvelope?.Name));
         }
 
         var open = rows.Where(r => r.ClosedOn is null).ToList();

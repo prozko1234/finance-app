@@ -1,4 +1,5 @@
 using FinanceApp.Domain;
+using FinanceApp.Domain.Debts;
 
 namespace FinanceApp.Application.Contracts;
 
@@ -67,6 +68,16 @@ public record TransactionResponse(
 /// how little say the user has in them; only <paramref name="Typical"/> is a guess.
 /// <param name="Typical">Null until there are two whole months to take a median of — a figure
 /// invented from a fortnight is worse than no figure.</param>
+/// «Скільки мені треба грошей на місяць».
+/// <param name="Total">What the month HAS to cover: standing charges, debts and ordinary
+/// spending. Saving is deliberately not in it — a plan to put money away is not a bill, and
+/// adding it made the headline figure read far higher than the month actually costs.</param>
+/// <param name="Jars">What the allocation scheme means to put away on top. Its own line, and
+/// its own total below, because it is the one figure here the user can decide against.</param>
+/// <param name="WithJars">Total plus the saving — what a month that goes fully to plan asks
+/// for.</param>
+/// <param name="TypicalMonths">The months the median was taken over, newest first, so the one
+/// estimated line on the screen can be checked rather than believed.</param>
 public record MonthlyNeedResponse(
     string Currency,
     decimal Recurring,
@@ -74,7 +85,11 @@ public record MonthlyNeedResponse(
     decimal Debts,
     decimal? Typical,
     decimal Total,
-    bool TypicalKnown);
+    bool TypicalKnown,
+    decimal WithJars = 0m,
+    IReadOnlyList<TypicalMonthResponse>? TypicalMonths = null);
+
+public record TypicalMonthResponse(DateOnly Month, decimal Amount);
 
 /// What the bookkeeper said for one month, beside what the engine worked out for it. Null
 /// components mean "the engine's figure stands" — the bookkeeper rarely hands over all three
@@ -469,12 +484,22 @@ public record StatsResponse(
 /// Every category comes with the same window one step back, so the line can say whether this
 /// week is unusual for it. That comparison is the only reason a weekly figure is worth reading:
 /// "їжа 380 zł" means nothing without "минулого тижня 240".
+/// Where money went so far this week or this month, against the same stretch one step back.
+/// <param name="Days">How many days the window covers so far — 1 on a Monday, 7 on a Sunday.
+/// Both stretches are this long, so the two totals are comparable.</param>
+/// <param name="PreviousTo">The day the earlier stretch was cut at, so the screen can say
+/// what it compared against instead of asking to be trusted.</param>
 public record RecentSpendingResponse(
     string Currency,
     int Days,
     decimal Total,
     decimal PreviousTotal,
-    IReadOnlyList<RecentCategoryResponse> Categories);
+    IReadOnlyList<RecentCategoryResponse> Categories,
+    string Window = "week",
+    DateOnly From = default,
+    DateOnly To = default,
+    DateOnly PreviousFrom = default,
+    DateOnly PreviousTo = default);
 
 public record RecentCategoryResponse(
     int CategoryId, string Name, string? Icon, decimal Amount, int Count, decimal PreviousAmount);
@@ -597,6 +622,10 @@ public record ImportResultResponse(
 
 // --- Debts, both ways round ---
 
+/// <param name="Origin">Which pocket the money came out of when it was lent, or went into
+/// when it was borrowed — "Spendable", "Envelope" or "AlreadyHappened". Null is read as
+/// "AlreadyHappened", so an older client cannot silently move money.</param>
+/// <param name="OriginEnvelopeId">Which jar, when Origin says Envelope.</param>
 public record SaveDebtRequest(
     string Direction,
     string Person,
@@ -605,7 +634,9 @@ public record SaveDebtRequest(
     DateOnly? Date,
     DateOnly? Deadline,
     bool ReserveFromBudget,
-    string? Note);
+    string? Note,
+    string? Origin = null,
+    int? OriginEnvelopeId = null);
 
 public record SaveDebtPaymentRequest(
     decimal Amount,
@@ -649,7 +680,10 @@ public record DebtResponse(
     bool Overdue,
     DateOnly? ClosedOn,
     string? Note,
-    IReadOnlyList<DebtPaymentResponse> Payments);
+    IReadOnlyList<DebtPaymentResponse> Payments,
+    string Origin = nameof(MoneySource.AlreadyHappened),
+    int? OriginEnvelopeId = null,
+    string? OriginEnvelopeName = null);
 
 /// <param name="ReservedThisPeriod">What debts are taking out of the daily norm right now.
 /// Reported so the home screen can name it: money missing with nothing to explain it is the
@@ -663,3 +697,15 @@ public record DebtsResponse(
     IReadOnlyList<DebtResponse> TheyOweMe);
 
 public record CloseDebtRequest(bool Closed);
+
+// --- Push reminders ---
+
+/// What the browser's own PushSubscription hands over. None of it is ours to invent, and all
+/// of it is useless to anybody who is not that browser.
+public record SavePushSubscriptionRequest(string Endpoint, string P256dh, string Auth);
+
+/// <param name="Enabled">At least one device is signed up.</param>
+/// <param name="Hour">The hour of the day reminders go out, 0–23 local time. Null — off.</param>
+public record PushStatusResponse(bool Enabled, int? Hour);
+
+public record SetReminderHourRequest(int? Hour);

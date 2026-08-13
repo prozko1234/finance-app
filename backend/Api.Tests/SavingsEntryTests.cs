@@ -164,7 +164,7 @@ public class SavingsEntryTests
 
         mem.Db.DebtPayments.Add(new DebtPayment
         {
-            DebtId = debt.Id, Date = Today, Source = DebtPaymentSource.Envelope, EnvelopeId = jar.Id,
+            DebtId = debt.Id, Date = Today, Source = MoneySource.Envelope, EnvelopeId = jar.Id,
             CurrencyOriginal = "PLN", AmountOriginal = 800m, AmountBase = 800m,
             FxRate = 1m, FxDate = Today, CreatedAt = DateTimeOffset.UtcNow,
         });

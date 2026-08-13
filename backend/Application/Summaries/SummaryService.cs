@@ -67,13 +67,14 @@ public sealed class SummaryService(
                         && t.RecurringExpenseId == null)
             .SumAsync(t => (decimal?)t.AmountBase, ct) ?? 0m;
 
-        // Paying somebody back is spending: the money is gone, and a daily norm that did not
-        // feel it would be describing an account the user no longer has. Only repayments made
-        // out of spendable money count — one taken from a jar was already held back, and one
-        // that merely got written down today never left this period at all.
-        var repaid = await debts.PaidFromSpendableAsync(month.WindowStart, last, ct);
-        spent += repaid;
-        spentToday += await debts.PaidFromSpendableAsync(today, today, ct);
+        // Paying somebody back is spending, and so is lending money out: either way the money
+        // is gone, and a daily norm that did not feel it would be describing an account the
+        // user no longer has. Only movements out of spendable money count — one taken from a
+        // jar was already held back, and one marked as having happened before it was written
+        // down never left this period at all.
+        var debtsOut = await debts.OutOfSpendableAsync(month.WindowStart, last, ct);
+        spent += debtsOut;
+        spentToday += await debts.OutOfSpendableAsync(today, today, ct);
 
         var recurring = await ReservedRecurringAsync(today, period, ct);
         var debtsReserved = await debts.ReservedAsync(period, ct);

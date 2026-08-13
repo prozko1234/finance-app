@@ -69,11 +69,12 @@ public sealed class MonthlyBudget(
             // the count was made is money that came after it.
             var (later, laterTaxes) = await TakeHomeAsync(opening.Date, last, opening.UpdatedAt, ct);
 
-            // Money lent out and paid back is treated exactly like income landing after the
-            // count: before it, it is already inside the figure the user counted, and adding
-            // it again would hand them money they do not have. The same-day tie-break is the
-            // timestamp, for the same reason it is for income.
-            var back = await debts.ReceivedAsync(opening.Date, last, opening.UpdatedAt, ct);
+            // Money paid back to the user, and money borrowed from somebody, is treated
+            // exactly like income landing after the count: before it, it is already inside the
+            // figure the user counted, and adding it again would hand them money they do not
+            // have. The same-day tie-break is the timestamp, for the same reason it is for
+            // income.
+            var back = await debts.IntoSpendableAsync(opening.Date, last, opening.UpdatedAt, ct);
 
             // No carryover on top: "скільки в мене зараз є" already contains last period's
             // leftover — it is sitting in the account being counted.
@@ -90,13 +91,13 @@ public sealed class MonthlyBudget(
             .SumAsync(x => (decimal?)x.AmountBase, ct) ?? 0m;
         takeHome += carried;
 
-        // Money coming back from somebody joins the budget HERE — after the tax engine has
-        // finished, beside the carried-over leftover. It is not revenue: it was the user's
-        // before it was lent out, and putting it through the Polish engine would charge VAT,
-        // ZUS and PIT on the same money a second time and then hand back a bigger budget than
-        // actually exists. There is no transaction for it either, precisely so that no sum
-        // built on Kind == Income can pick it up by accident.
-        takeHome += await debts.ReceivedAsync(first, last, null, ct);
+        // Money coming back from somebody — and money borrowed from them — joins the budget
+        // HERE, after the tax engine has finished, beside the carried-over leftover. Neither is
+        // revenue: one was the user's before it was lent out, the other is not theirs at all,
+        // and putting either through the Polish engine would charge VAT, ZUS and PIT on it and
+        // then hand back a bigger budget than actually exists. There is no transaction for it
+        // either, precisely so that no sum built on Kind == Income can pick it up by accident.
+        takeHome += await debts.IntoSpendableAsync(first, last, null, ct);
 
         // No income and no count = no budget, and the app says so instead of inventing one.
         // There used to be a "запасний бюджет" here: a monthly amount typed once in settings

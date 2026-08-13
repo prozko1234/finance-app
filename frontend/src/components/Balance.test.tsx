@@ -34,7 +34,12 @@ function summary(over: Partial<SafeToSpend> = {}): SafeToSpend {
 function need(over: Partial<MonthlyNeed> = {}): MonthlyNeed {
   return {
     currency: 'PLN', recurring: 260, jars: 500, debts: 0,
-    typical: 1750, total: 2510, typicalKnown: true,
+    // The total is the bills; the saving sits beside it in withJars, not inside it.
+    typical: 1750, total: 2010, typicalKnown: true, withJars: 2510,
+    typicalMonths: [
+      { month: '2026-07-01', amount: 1843 },
+      { month: '2026-06-01', amount: 1657 },
+    ],
     ...over,
   }
 }
@@ -66,9 +71,33 @@ describe('Мої гроші', () => {
     render(<Balance {...props} data={data()} onSet={vi.fn()} onClear={vi.fn()} />)
 
     expect(screen.getByText('Треба на місяць')).toBeInTheDocument()
-    expect(screen.getByText(/2510,00/)).toBeInTheDocument()
+    expect(screen.getByText(/2010,00/)).toBeInTheDocument()
     expect(screen.getByText(/260,00/)).toBeInTheDocument()
-    expect(screen.getByText(/медіана 3 міс/)).toBeInTheDocument()
+    expect(screen.getByText(/медіана 6 міс/)).toBeInTheDocument()
+  })
+
+  /// The saving is a choice, not a bill. Folding it into the headline made "треба на місяць"
+  /// read thousands above what the month actually costs — and that is the figure somebody
+  /// compares their bank balance against before deciding they are in trouble.
+  it('keeps the saving plan out of the headline and adds it up separately', () => {
+    render(<Balance {...props} data={data()} onSet={vi.fn()} onClear={vi.fn()} />)
+
+    expect(screen.getByText(/Ще 500,00.*схема відкладає/)).toBeInTheDocument()
+    expect(screen.getByText(/2510,00/)).toBeInTheDocument()
+    expect(screen.queryByText('Відкладати за планом')).not.toBeInTheDocument()
+  })
+
+  /// The one estimate on the card is checkable rather than a figure to be believed.
+  it('opens the months the median was taken from', async () => {
+    const user = userEvent.setup()
+    render(<Balance {...props} data={data()} onSet={vi.fn()} onClear={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'З яких місяців ця цифра' }))
+
+    // Anchored: the month label is the whole of its element, where "до 31 липня" elsewhere on
+    // the screen sits behind a separator.
+    expect(screen.getByText(/^лип/)).toBeInTheDocument()
+    expect(screen.getByText(/1843,00/)).toBeInTheDocument()
   })
 
   /// A figure invented from a fortnight is worse than no figure, and the card has to say which

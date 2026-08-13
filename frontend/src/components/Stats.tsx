@@ -1,31 +1,38 @@
 import { useState } from 'react'
-import type { CategoryStats, RecentSpending, Recurring, Stats as StatsData } from '../types'
-import { money, plural } from '../format'
+import type {
+  CategoryStats, RecentSpending, Recurring, SpendWindow, Stats as StatsData,
+} from '../types'
+import { dayMonth, money, plural } from '../format'
 import { monthlyTotals, perMonth } from '../cadence'
 import { Card, CardSkeleton, Screen, SectionTitle } from './Screen'
 
-/// Three questions, one screen, in the order they get asked: "що з цього місяця незвично"
-/// (the overruns), "чи я виходжу в плюс" (a row per month, income against expense) and "на
-/// що пішло" (that month's expenses by category). No date pickers, no filters, no chart
-/// library — bars are divs, and a wider question is a wider screen.
+/// Statistics in two layers, because the two things people come here for are not the same size.
 ///
-/// The overruns come first because a total answers nothing on its own. "Продукти 1 800" is
-/// unreadable without knowing what продукти usually cost; "на 420 більше, ніж зазвичай" can
-/// be acted on without reading anything else on the screen — and acting on it is the only
-/// reason to open statistics at all.
+/// The top layer is one sentence and one number: how this week is going against the last one.
+/// That is the whole of what a glance can carry, it is the only thing on the screen that can
+/// still be acted on today, and it is what every app worth copying leads with — Copilot's
+/// "spent so far vs typical", Emma's "you're up 18% on last week". Under it, the two cards that
+/// name something to DO: what has run over its own normal, and what is being paid every month
+/// without being decided again.
 ///
-/// Bars are drawn with paired horizontal rows rather than vertical columns because on a
-/// phone a column chart of six months is either unreadable or scrolls sideways, and
-/// comparing two numbers within a month is the whole point.
+/// The bottom layer is history — half a year of income against expense, what stayed in the
+/// jars, and one month by category. It cannot be acted on today and it used to sit between the
+/// user and the cards that can, so it lives behind one button.
+///
+/// No date pickers, no filters, no chart library: bars are divs, and a wider question is a
+/// wider screen. Bars are paired horizontal rows rather than vertical columns because on a
+/// phone a column chart of six months is either unreadable or scrolls sideways, and comparing
+/// two numbers within a month is the whole point.
 
 const MONTHS_BACK = 6
 
 interface Props {
   data: StatsData | null
-  /// The last week or fortnight, in money. Null while it loads.
+  /// This week or this month so far, in money, against the same stretch one step back. Null
+  /// while it loads.
   recent: RecentSpending | null
-  recentDays: number
-  onRecentDays: (days: number) => void
+  window: SpendWindow
+  onWindow: (w: SpendWindow) => void
   /// Standing charges, for the one card that answers "що можна скасувати". Empty while the
   /// list is still loading — the card simply does not appear yet.
   recurring: Recurring[]
@@ -35,9 +42,9 @@ interface Props {
 }
 
 export function Stats({
-  data, recurring, recent, recentDays, onRecentDays, selected, onSelectMonth, onBack,
+  data, recurring, recent, window, onWindow, selected, onSelectMonth, onBack,
 }: Props) {
-  // Half a year of totals is a thing you look at a few times a year; the week is a thing you
+  // Half a year of totals is a thing you look at a few times a year; this week is a thing you
   // look at on a Sunday. Until this split the screen opened on the half-year and the actionable
   // half was three scrolls down.
   const [history, setHistory] = useState(false)
@@ -46,20 +53,17 @@ export function Stats({
     <Screen
       title="Статистика"
       onBack={onBack}
-      subtitle="Що незвично, що можна скасувати і куди пішло за останній тиждень."
       footnote={data
         ? `Місяці в історії переведено в ${data.currency} за курсом свого кінця місяця — тому вже закритий місяць не змінюється щодня.`
         : undefined}
     >
       {!data ? <CardSkeleton /> : (
         <>
+          <RecentCard recent={recent} window={window} onWindow={onWindow} />
           <Overruns data={data} />
-          <RecentCard recent={recent} days={recentDays} onDays={onRecentDays} />
           <Subscriptions items={recurring} />
 
-          {/* Everything below answers "як було", not "що робити". It is worth having and it is
-              not worth opening the screen on: the bars and the savings rate cannot be acted on
-              today, and they used to sit between the user and the two cards that can. */}
+          {/* Everything below answers "як було", not "що робити". */}
           {history ? (
             <>
               <MonthBars data={data} selected={selected ?? data.selectedMonth} onSelect={onSelectMonth} />
@@ -80,65 +84,85 @@ export function Stats({
   )
 }
 
-/// «Куди пішло за останній тиждень», in money. The home screen's shortcut row already ranks
-/// recent categories by how OFTEN they were used, and that answers a different question: what
-/// gets tapped a lot is rarely what costs a lot — thirty coffees and one taxi look nothing
-/// alike in a list of counts and identical in a wallet.
+/// The headline: how this week — or this month — is going, against the same stretch one step
+/// back. It leads because it is the only thing on the screen that can still be acted on today,
+/// and because a total on its own answers nothing: "їжа 380 zł" means nothing without
+/// "минулого тижня 240".
 ///
-/// Every line carries the same window one step back, because that comparison is the only reason
-/// a weekly figure is worth reading. "Їжа 380 zł" means nothing without "минулого тижня 240".
-function RecentCard({ recent, days, onDays }: {
+/// Both windows are the CALENDAR's. They used to be "останні 7 днів" and "останні 14", which
+/// re-base themselves every morning — so no two readings are of the same thing, and "минулого
+/// тижня" meant something nobody else in the world means by it. The comparison stops at the
+/// matching day of the earlier stretch, because a Wednesday against a whole week is a fall in
+/// spending that never happened.
+///
+/// The categories underneath rank by MONEY, not by how often. The home screen's shortcut row
+/// already ranks by frequency, and that answers a different question — thirty coffees and one
+/// taxi look nothing alike in a list of counts and identical in a wallet.
+function RecentCard({ recent, window, onWindow }: {
   recent: RecentSpending | null
-  days: number
-  onDays: (days: number) => void
+  window: SpendWindow
+  onWindow: (w: SpendWindow) => void
 }) {
+  const [detail, setDetail] = useState(false)
   if (!recent) return <CardSkeleton />
 
   const c = recent.currency
   const diff = recent.total - recent.previousTotal
+  const comparable = recent.previousTotal > 0
+  const share = comparable ? Math.round((diff / recent.previousTotal) * 100) : 0
 
   return (
     <Card>
       <div className="flex items-baseline justify-between gap-3">
-        <SectionTitle>Куди пішло за {days} {plural(days, 'день', 'дні', 'днів')}</SectionTitle>
+        <SectionTitle>{window === 'week' ? 'Цей тиждень' : 'Цей місяць'}</SectionTitle>
         <div className="flex gap-1">
-          {[7, 14].map((d) => (
+          {([['week', 'Тиждень'], ['month', 'Місяць']] as const).map(([key, label]) => (
             <button
-              key={d}
-              onClick={() => onDays(d)}
-              aria-pressed={days === d}
+              key={key}
+              onClick={() => onWindow(key)}
+              aria-pressed={window === key}
               className={`rounded-lg px-2 py-1 text-xs ${
-                days === d
+                window === key
                   ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 font-medium'
                   : 'text-neutral-400'
               }`}
             >
-              {d}
+              {label}
             </button>
           ))}
         </div>
       </div>
 
-      {recent.categories.length === 0 ? (
-        <p className="text-sm text-neutral-500">За цей час витрат не було.</p>
-      ) : (
-        <>
-          <p className="text-2xl font-bold tabular-nums">
-            {money(recent.total, c)}
-            {recent.previousTotal > 0 && (
-              <span className={`ml-2 text-sm font-medium ${diff > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
-                {diff > 0 ? '+' : '−'}{money(Math.abs(diff), c)}
-              </span>
-            )}
-          </p>
-          {recent.previousTotal > 0 && (
-            <p className="text-xs text-neutral-400">
-              Попередні {days} {plural(days, 'день', 'дні', 'днів')} — {money(recent.previousTotal, c)}
-            </p>
-          )}
+      <p className="text-3xl font-bold tabular-nums">{money(recent.total, c)}</p>
 
+      {/* One sentence, and it is the point of the card. A number with a percentage bolted onto
+          it still has to be assembled by the reader; a sentence has already been read. */}
+      <p className="text-sm text-neutral-500">
+        {recent.total === 0
+          ? 'Витрат ще не було.'
+          : !comparable
+            ? `За ${recent.days} ${plural(recent.days, 'день', 'дні', 'днів')} — порівняти поки нема з чим.`
+            : (
+              <>
+                Це на{' '}
+                <span className={diff > 0 ? 'font-medium text-amber-600' : 'font-medium text-emerald-600'}>
+                  {money(Math.abs(diff), c)}
+                  {Math.abs(share) > 0 && ` (${Math.abs(share)}%)`}
+                </span>{' '}
+                {diff > 0 ? 'більше' : 'менше'}, ніж{' '}
+                {window === 'week' ? 'за ті самі дні минулого тижня' : 'за ті самі дні минулого місяця'}
+                {' '}— {money(recent.previousTotal, c)}.
+              </>
+            )}
+      </p>
+
+      {recent.categories.length > 0 && (
+        <>
           <div className="space-y-1.5">
-            {recent.categories.map((r) => {
+            {/* Three lines by default. A list of everything that moved is a wall of numbers,
+                and by the fourth line nobody is deciding anything — but the rest is one tap
+                away, because "куди ж воно все пішло" is a real question. */}
+            {(detail ? recent.categories : recent.categories.slice(0, 3)).map((r) => {
               const moved = r.amount - r.previousAmount
               return (
                 <div key={r.categoryId} className="flex items-baseline justify-between gap-3 text-sm">
@@ -160,7 +184,25 @@ function RecentCard({ recent, days, onDays }: {
               )
             })}
           </div>
+
+          {recent.categories.length > 3 && (
+            <button
+              onClick={() => setDetail(!detail)}
+              className="text-xs text-neutral-400 underline"
+            >
+              {detail ? 'Згорнути' : `Усі категорії — ще ${recent.categories.length - 3}`}
+            </button>
+          )}
         </>
+      )}
+
+      {/* Says which days were compared, so a figure that looks wrong can be checked instead of
+          argued with. */}
+      {comparable && (
+        <p className="text-xs text-neutral-400">
+          {dayMonth(recent.from)} – {dayMonth(recent.to)} проти{' '}
+          {dayMonth(recent.previousFrom)} – {dayMonth(recent.previousTo)}
+        </p>
       )}
     </Card>
   )

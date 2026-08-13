@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Debts } from './Debts'
-import type { Debt, Debts as DebtsData, EnvelopeSummary, SaveDebtPayment } from '../types'
+import type { Debt, Debts as DebtsData, EnvelopeSummary, SaveDebt, SaveDebtPayment } from '../types'
 
 function debt(over: Partial<Debt> = {}): Debt {
   return {
@@ -11,6 +11,8 @@ function debt(over: Partial<Debt> = {}): Debt {
     date: '2026-07-01', deadline: null, reserveFromBudget: false,
     paid: 0, outstanding: 1000, perPeriod: 0, periodsLeft: 0,
     overdue: false, closedOn: null, note: null, payments: [],
+    // The ordinary case: the money really moved out of spendable when the debt was written.
+    origin: 'Spendable', originEnvelopeId: null, originEnvelopeName: null,
     ...over,
   }
 }
@@ -32,12 +34,13 @@ const jar: EnvelopeSummary = {
 function renderScreen(d: DebtsData, handlers: Partial<{
   onPay: (id: number, p: SaveDebtPayment) => Promise<void>
   onSetClosed: (id: number, closed: boolean) => Promise<void>
+  onCreate: (d: SaveDebt) => Promise<void>
 }> = {}) {
   render(
     <Debts
       data={d}
       envelopes={[jar]}
-      onCreate={vi.fn()}
+      onCreate={handlers.onCreate ?? vi.fn()}
       onDelete={vi.fn()}
       onSetClosed={handlers.onSetClosed ?? vi.fn()}
       onPay={handlers.onPay ?? vi.fn()}
@@ -152,5 +155,38 @@ describe('Debts', () => {
     renderScreen(data({ iOwe: [debt({ deadline: '2026-07-01', overdue: true })] }))
 
     expect(screen.getByText(/Дедлайн минув/)).toBeInTheDocument()
+  })
+
+  /// Lending money has to take it out of something. Until the form asked, handing somebody
+  /// 500 zł changed nothing on screen — and the 500 coming back was then ADDED to the budget,
+  /// so a loan that got repaid left the user richer than they started.
+  it('sends where the lent money came from', async () => {
+    const onCreate = vi.fn().mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    renderScreen(data(), { onCreate })
+
+    // The second "+ Додати" is the «Мені винні» side — money going out.
+    await user.click(screen.getAllByRole('button', { name: '+ Додати' })[1])
+    await user.type(screen.getByLabelText('Людина'), 'Оля')
+    await user.type(screen.getByLabelText('Сума боргу'), '500')
+    await user.click(screen.getByRole('button', { name: 'З банки' }))
+    await user.click(screen.getByRole('button', { name: 'Додати' }))
+
+    await waitFor(() => expect(onCreate).toHaveBeenCalled())
+    expect(onCreate.mock.calls[0][0]).toMatchObject({
+      direction: 'TheyOweMe', amount: 500, origin: 'Envelope', originEnvelopeId: jar.id,
+    })
+  })
+
+  /// Money arriving does not come out of a jar — the mirror of the rule the payment form
+  /// already follows.
+  it('does not offer a jar for money being borrowed', async () => {
+    const user = userEvent.setup()
+    renderScreen(data())
+
+    await user.click(screen.getAllByRole('button', { name: '+ Додати' })[0])
+
+    expect(screen.getByRole('button', { name: 'Гроші прийшли зараз' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'З банки' })).not.toBeInTheDocument()
   })
 })

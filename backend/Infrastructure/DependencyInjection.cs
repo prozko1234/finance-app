@@ -3,6 +3,8 @@ using FinanceApp.Domain.Auth;
 using FinanceApp.Domain.Fx;
 using FinanceApp.Infrastructure.Auth;
 using FinanceApp.Infrastructure.Fx;
+using FinanceApp.Infrastructure.Push;
+using Lib.Net.Http.WebPush;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -35,6 +37,15 @@ public static class DependencyInjection
         services.AddScoped<IFxRateProvider>(sp => sp.GetRequiredService<NbpRateProvider>());
         services.AddScoped<IFxRateProvider>(sp => sp.GetRequiredService<EcbRateProvider>());
         services.AddScoped<IFxConverter, CachingFxConverter>();
+
+        // Charge reminders. The options bind even when the keys are absent — the background
+        // service says so once at startup and stops, rather than throwing on every tick.
+        services.AddOptions<VapidOptions>().BindConfiguration(VapidOptions.Section);
+        // A typed HttpClient rather than the library's own extension: it does not ship one,
+        // and this way the push service gets the same short timeout everything else external
+        // has — a slow push endpoint must never hold up the reminder round.
+        services.AddHttpClient<PushServiceClient>(c => c.Timeout = TimeSpan.FromSeconds(10));
+        services.AddHostedService<ChargeReminderService>();
 
         return services;
     }

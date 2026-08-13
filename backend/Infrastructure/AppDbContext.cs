@@ -4,6 +4,7 @@ using FinanceApp.Domain;
 using FinanceApp.Domain.Auth;
 using FinanceApp.Domain.Budgeting;
 using FinanceApp.Domain.Debts;
+using FinanceApp.Domain.Push;
 using FinanceApp.Domain.Savings;
 using FinanceApp.Domain.Tax;
 using Microsoft.EntityFrameworkCore;
@@ -39,6 +40,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
     public DbSet<RecurringSkip> RecurringSkips => Set<RecurringSkip>();
     public DbSet<Debt> Debts => Set<Debt>();
     public DbSet<DebtPayment> DebtPayments => Set<DebtPayment>();
+    public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -181,8 +183,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
             e.Property(x => x.FxRate).HasPrecision(18, 6);
             e.Property(x => x.CurrencyOriginal).HasMaxLength(3).IsRequired();
             e.Property(x => x.Direction).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.Origin).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.Note).HasMaxLength(500);
             e.HasIndex(x => x.Date);
+            // SetNull for the same reason a payment's jar is: losing the envelope must not lose
+            // the debt. The row falls back to having been lent out of ordinary money.
+            e.HasOne(x => x.OriginEnvelope)
+                .WithMany()
+                .HasForeignKey(x => x.OriginEnvelopeId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         b.Entity<DebtPayment>(e =>
@@ -207,6 +216,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
                 .WithMany()
                 .HasForeignKey(x => x.EnvelopeId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        b.Entity<PushSubscription>(e =>
+        {
+            e.Property(x => x.Endpoint).HasMaxLength(500).IsRequired();
+            e.Property(x => x.P256dh).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Auth).HasMaxLength(100).IsRequired();
+            // A browser that re-subscribes gets the same endpoint back, and a second row for
+            // it would deliver the same reminder twice.
+            e.HasIndex(x => x.Endpoint).IsUnique();
         });
 
         b.Entity<FxRate>(e =>

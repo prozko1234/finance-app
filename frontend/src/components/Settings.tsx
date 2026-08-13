@@ -1,13 +1,18 @@
 import { useState } from 'react'
-import type { AppSettings } from '../types'
+import type { AppSettings, PushStatus } from '../types'
 import { CURRENCIES, todayIso } from '../types'
 import { dayMonth } from '../format'
+import { disablePush, enablePush, pushSupported, type PushProblem } from '../push'
 import { Card, FormError, Screen, SectionTitle } from './Screen'
 
 interface Props {
   settings: AppSettings | null
+  push: PushStatus | null
   onPickCurrency: (currency: string) => Promise<void>
   onPickPeriodStartDay: (day: number) => Promise<void>
+  onPickReminderHour: (hour: number | null) => Promise<void>
+  /// Re-reads the push status after the browser side of subscribing has finished.
+  onPushChanged: () => void
   onBack: () => void
 }
 
@@ -19,17 +24,137 @@ interface Props {
 /// over whenever income was missing. It was a second answer to "скільки в мене грошей",
 /// free to disagree with the first one for months. The budget now comes from money that
 /// actually arrived, and nothing here can override it.
-export function Settings({ settings, onPickCurrency, onPickPeriodStartDay, onBack }: Props) {
+export function Settings({
+  settings, push, onPickCurrency, onPickPeriodStartDay, onPickReminderHour, onPushChanged, onBack,
+}: Props) {
   return (
     <Screen
       title="Налаштування"
       onBack={onBack}
-      subtitle="Коли приходять гроші і в якій валюті все читати."
+      subtitle="Коли приходять гроші, в якій валюті все читати і коли нагадувати."
       footnote="Бюджет береться з доходів за період. Банківський синк — у майбутніх версіях."
     >
       <PaydayCard settings={settings} onPick={onPickPeriodStartDay} />
+      <RemindersCard status={push} onPickHour={onPickReminderHour} onChanged={onPushChanged} />
       <CurrencyCard settings={settings} onPick={onPickCurrency} />
     </Screen>
+  )
+}
+
+/// «Нагадай, коли сьогодні щось списується».
+///
+/// The hour is the whole feature. A charge falls due at midnight, and midnight is exactly the
+/// wrong moment to say so: the notification is read the next morning with the rest of the
+/// night's noise, by which time the money has gone and there is nothing left to decide.
+///
+/// Every way this can fail is a way the user cannot see, so each one gets a sentence: an
+/// iPhone will not subscribe a page that lives in a tab, a refused permission is refused in the
+/// browser and not here, and a server with no keys simply cannot send anything.
+const PROBLEMS: Record<PushProblem, string> = {
+  unsupported: 'Цей браузер не вміє пуш-сповіщень.',
+  'needs-install':
+    'На айфоні спершу додай застосунок на екран «Додому» — інакше Safari не дає підписатись.',
+  denied: 'Сповіщення заборонені в налаштуваннях браузера. Дозволь їх там і спробуй ще раз.',
+  'no-server-key': 'На сервері не налаштовані ключі для сповіщень — поки що нема чим слати.',
+  failed: 'Не вийшло підписатись. Спробуй ще раз.',
+}
+
+/// The hours worth offering. A full 0–23 picker is a decision with twenty-four answers; these
+/// four are the times a phone is actually in a hand.
+const HOURS = [8, 10, 14, 19]
+
+function RemindersCard({ status, onPickHour, onChanged }: {
+  status: PushStatus | null
+  onPickHour: (hour: number | null) => Promise<void>
+  onChanged: () => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const supported = pushSupported()
+  const on = status?.enabled === true && status.hour !== null
+
+  async function toggle() {
+    setBusy(true)
+    setError(null)
+    try {
+      if (on) {
+        await disablePush()
+        await onPickHour(null)
+      } else {
+        const problem = await enablePush()
+        if (problem) setError(PROBLEMS[problem])
+      }
+      onChanged()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не вийшло змінити сповіщення.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function pick(hour: number) {
+    if (busy || hour === status?.hour) return
+    setBusy(true)
+    setError(null)
+    try {
+      await onPickHour(hour)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не вийшло змінити годину.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card>
+      <SectionTitle>Нагадувати про списання</SectionTitle>
+
+      <p className="text-sm text-neutral-500">
+        Раз на день, якщо сьогодні щось має списатись. Одне сповіщення, не по одному на платіж.
+      </p>
+
+      <button
+        onClick={toggle}
+        disabled={busy || !supported}
+        className={`w-full rounded-xl px-4 py-2.5 text-sm font-medium disabled:opacity-40 ${
+          on
+            ? 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500'
+            : 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+        }`}
+      >
+        {busy ? '…' : on ? 'Вимкнути' : 'Увімкнути сповіщення'}
+      </button>
+
+      {on && (
+        <div className="space-y-2">
+          <p className="text-xs text-neutral-400">О котрій</p>
+          <div className="flex gap-2">
+            {HOURS.map((h) => (
+              <button
+                key={h}
+                onClick={() => pick(h)}
+                disabled={busy}
+                aria-pressed={status?.hour === h}
+                className={`flex-1 rounded-xl px-3 py-2 text-sm font-medium disabled:opacity-40 ${
+                  status?.hour === h
+                    ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+                    : 'bg-neutral-100 dark:bg-neutral-800'
+                }`}
+              >
+                {String(h).padStart(2, '0')}:00
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <FormError>{error}</FormError>
+
+      {!supported && (
+        <p className="text-xs text-neutral-400">{PROBLEMS.unsupported}</p>
+      )}
+    </Card>
   )
 }
 

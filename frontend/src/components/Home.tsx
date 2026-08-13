@@ -252,9 +252,9 @@ function QuickRow({ categories, onPick }: {
 /// there was no way to see it, so planning anything more than a day out meant multiplying in
 /// your head and getting the end of the period wrong.
 ///
-/// Three scales, not three budgets. The week is seven norms less what today has taken; the
-/// period is what is left outright. Nothing is reallocated, nothing carries over between
-/// scales, and the choice is remembered per device.
+/// Three scales, not three budgets. The week is the norms left until Sunday less what today
+/// has taken; the period is what is left outright. Nothing is reallocated, nothing carries
+/// over between scales, and the choice is remembered per device.
 const HORIZONS: { key: Horizon; label: string }[] = [
   { key: 'day', label: 'День' },
   { key: 'week', label: 'Тиждень' },
@@ -276,9 +276,13 @@ function horizonView(s: SafeToSpend, horizon: Horizon): HorizonView {
   if (horizon === 'week') {
     return {
       left: s.leftThisWeek ?? 0,
-      title: `Можна витратити за ${days(s.daysThisWeek)}`,
-      over: `Понад норму на ${days(s.daysThisWeek)}`,
-      sub: `По ${money(norm, c)} на день`,
+      title: 'Можна витратити до кінця тижня',
+      over: 'Понад норму до кінця тижня',
+      // Sunday is the whole of what is left of the week, and saying "лишився 1 день" under a
+      // figure that equals today's would read as a bug rather than as the calendar.
+      sub: s.daysThisWeek === 1
+        ? `Неділя — останній день тижня · норма ${money(norm, c)}`
+        : `Лишилось ${days(s.daysThisWeek)} · по ${money(norm, c)} на день`,
     }
   }
 
