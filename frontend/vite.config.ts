@@ -13,12 +13,6 @@ export default defineConfig({
       registerType: 'autoUpdate',
       // Generate all icons (favicon, apple-touch, maskable) from one SVG source.
       pwaAssets: { image: 'public/logo.svg' },
-      workbox: {
-        // Charge reminders, pulled into the generated worker. Kept as an imported script
-        // rather than switching the whole build to `injectManifest`: two event listeners are
-        // not worth putting the app's offline behaviour at risk.
-        importScripts: ['push-sw.js'],
-      },
       manifest: {
         name: 'finance',
         short_name: 'finance',

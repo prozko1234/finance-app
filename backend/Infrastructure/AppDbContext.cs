@@ -4,7 +4,6 @@ using FinanceApp.Domain;
 using FinanceApp.Domain.Auth;
 using FinanceApp.Domain.Budgeting;
 using FinanceApp.Domain.Debts;
-using FinanceApp.Domain.Push;
 using FinanceApp.Domain.Savings;
 using FinanceApp.Domain.Tax;
 using Microsoft.EntityFrameworkCore;
@@ -40,7 +39,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
     public DbSet<RecurringSkip> RecurringSkips => Set<RecurringSkip>();
     public DbSet<Debt> Debts => Set<Debt>();
     public DbSet<DebtPayment> DebtPayments => Set<DebtPayment>();
-    public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -216,16 +214,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
                 .WithMany()
                 .HasForeignKey(x => x.EnvelopeId)
                 .OnDelete(DeleteBehavior.SetNull);
-        });
-
-        b.Entity<PushSubscription>(e =>
-        {
-            e.Property(x => x.Endpoint).HasMaxLength(500).IsRequired();
-            e.Property(x => x.P256dh).HasMaxLength(200).IsRequired();
-            e.Property(x => x.Auth).HasMaxLength(100).IsRequired();
-            // A browser that re-subscribes gets the same endpoint back, and a second row for
-            // it would deliver the same reminder twice.
-            e.HasIndex(x => x.Endpoint).IsUnique();
         });
 
         b.Entity<FxRate>(e =>

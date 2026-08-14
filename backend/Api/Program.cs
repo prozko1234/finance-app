@@ -278,7 +278,6 @@ app.MapDebtEndpoints();
 app.MapEnvelopeEndpoints();
 app.MapAllocationEndpoints();
 app.MapSettingsEndpoints();
-app.MapPushEndpoints();
 
 // Reset/seed helpers — local development only, never in a deployed build.
 if (app.Environment.IsDevelopment()) app.MapDevEndpoints();

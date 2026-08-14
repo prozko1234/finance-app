@@ -19,7 +19,6 @@ import {
   useInvites, useCreateInvite, useRevokeInvite,
   useImportPreview, useCommitImport,
   useOpeningBalance, useSetOpeningBalance, useClearOpeningBalance, useDecideCarryover,
-  usePushStatus, useSetReminderHour, useRefreshPush,
 } from './hooks'
 import { Onboarding } from './components/Onboarding'
 import { Home } from './components/Home'
@@ -125,9 +124,6 @@ function App() {
   const settings = useSettings()
   const setDisplayCurrency = useSetDisplayCurrency()
   const setPeriodStartDay = useSetPeriodStartDay()
-  const pushStatus = usePushStatus()
-  const setReminderHour = useSetReminderHour()
-  const refreshPush = useRefreshPush()
   const taxProfile = useTaxProfile()
   const taxDefaults = useTaxDefaults()
   const saveTaxProfile = useSaveTaxProfile()
@@ -365,9 +361,6 @@ function App() {
             settings={settings.data ?? null}
             onPickCurrency={(c) => setDisplayCurrency.mutateAsync(c).then(() => {})}
             onPickPeriodStartDay={(d) => setPeriodStartDay.mutateAsync(d).then(() => {})}
-            push={pushStatus.data ?? null}
-            onPickReminderHour={(h) => setReminderHour.mutateAsync(h).then(() => {})}
-            onPushChanged={refreshPush}
             onBack={() => go('home')}
           />
         )}

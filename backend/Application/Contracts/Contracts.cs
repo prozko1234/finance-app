@@ -64,11 +64,9 @@ public record TransactionResponse(
     /// list says so, or a row nobody agreed to would sit among the ones they did.
     string Status = nameof(TxStatus.Posted));
 
-/// What the month will ask for, whatever is in the account. Four lines in descending order of
-/// how little say the user has in them; only <paramref name="Typical"/> is a guess.
+/// «Скільки мені треба грошей на місяць», whatever is in the account.
 /// <param name="Typical">Null until there are two whole months to take a median of — a figure
 /// invented from a fortnight is worse than no figure.</param>
-/// «Скільки мені треба грошей на місяць».
 /// <param name="Total">What the month HAS to cover: standing charges, debts and ordinary
 /// spending. Saving is deliberately not in it — a plan to put money away is not a bill, and
 /// adding it made the headline figure read far higher than the month actually costs.</param>
@@ -697,15 +695,3 @@ public record DebtsResponse(
     IReadOnlyList<DebtResponse> TheyOweMe);
 
 public record CloseDebtRequest(bool Closed);
-
-// --- Push reminders ---
-
-/// What the browser's own PushSubscription hands over. None of it is ours to invent, and all
-/// of it is useless to anybody who is not that browser.
-public record SavePushSubscriptionRequest(string Endpoint, string P256dh, string Auth);
-
-/// <param name="Enabled">At least one device is signed up.</param>
-/// <param name="Hour">The hour of the day reminders go out, 0–23 local time. Null — off.</param>
-public record PushStatusResponse(bool Enabled, int? Hour);
-
-public record SetReminderHourRequest(int? Hour);

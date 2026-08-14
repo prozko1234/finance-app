@@ -25,7 +25,6 @@ export const queryKeys = {
   auth: ['auth'] as const,
   invites: ['invites'] as const,
   devices: ['devices'] as const,
-  push: ['push'] as const,
 }
 
 /// Any write re-reads everything, rather than a hand-picked list of keys.
@@ -143,25 +142,6 @@ export function useRecentSpending(window: SpendWindow, enabled = true) {
     queryFn: () => api.getRecentSpending(window),
     enabled,
   })
-}
-
-/// Charge reminders. Invalidated together with nothing else — it is a device preference, and
-/// no money figure depends on it.
-export function usePushStatus() {
-  return useQuery({ queryKey: queryKeys.push, queryFn: api.getPushStatus })
-}
-
-export function useSetReminderHour() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (hour: number | null) => api.setReminderHour(hour),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.push }),
-  })
-}
-
-export function useRefreshPush() {
-  const qc = useQueryClient()
-  return () => qc.invalidateQueries({ queryKey: queryKeys.push })
 }
 
 export function useInvites(enabled: boolean) {

@@ -801,17 +801,3 @@ export interface SaveDebtPayment {
   envelopeId: number | null
   note: string | null
 }
-
-/// Charge reminders: whether any device on this account is signed up, and the hour of the day
-/// it wants to hear about today's charges. Null hour — off.
-export interface PushStatus {
-  enabled: boolean
-  hour: number | null
-}
-
-/// What the browser's own PushSubscription hands over. None of it is ours to invent.
-export interface SavePushSubscription {
-  endpoint: string
-  p256dh: string
-  auth: string
-}
