@@ -36,6 +36,21 @@ public class TaxProfile : IOwnedByUser
     public bool StudentUnder26 { get; set; }
 
     /// Year these amounts apply to — rates go stale annually.
+    /// The VAT rate that actually applies, which is not the same thing as the rate stored.
+    ///
+    /// <see cref="VatPayer"/> defaults to true and is remembered independently of the regime,
+    /// so that switching away from ryczałt and back does not lose the setting. Nothing may read
+    /// it on its own: under "Просто гроші" and under both employment contracts there is no VAT
+    /// at all — <see cref="TakeHomeCalculator"/> has always said so, returning a zero VAT line
+    /// for them.
+    ///
+    /// Income storage read the flag instead and stripped 23% from every figure typed, while the
+    /// same screen reported "VAT 0,00 zł". A real user lost 2 950 zł that way over one period:
+    /// the money vanished between writing it down and reading it back, and nothing on screen
+    /// could explain where it went.
+    public decimal EffectiveVatRate =>
+        Regime == TaxRegime.Ryczalt && VatPayer ? VatRate : 0m;
+
     public DateOnly ValidFrom { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }

@@ -28,10 +28,77 @@ public class IncomeEditTests
     }
 
     /// A VAT payer at 23%, which is what makes the gross and the revenue two different numbers.
+    ///
+    /// The regime matters as much as the flag: VAT exists under ryczałt and nowhere else. This
+    /// fixture used to leave the regime at its default of None and still expect VAT to be
+    /// stripped — which is precisely the bug it was hiding.
     private static async Task VatPayerAsync(SqliteInMemory mem)
     {
-        mem.Db.TaxProfiles.Add(new TaxProfile { VatPayer = true, VatRate = 0.23m });
+        mem.Db.TaxProfiles.Add(new TaxProfile
+        {
+            Regime = TaxRegime.Ryczalt, VatPayer = true, VatRate = 0.23m,
+        });
         await mem.Db.SaveChangesAsync();
+    }
+
+    /// «Просто гроші» means what it says on the screen: what you typed is what you have.
+    ///
+    /// `VatPayer` defaults to TRUE and is remembered apart from the regime, so choosing this
+    /// regime left the flag on — and income storage read the flag alone. Every figure typed
+    /// lost 23% on the way into the database while the tax screen reported "VAT 0,00 zł" for
+    /// the same money. A real user lost 2 950 zł over one period this way.
+    [Fact]
+    public async Task Under_just_money_nothing_is_taken_off_what_was_typed()
+    {
+        using var mem = new SqliteInMemory();
+        mem.Db.TaxProfiles.Add(new TaxProfile
+        {
+            Regime = TaxRegime.None, VatPayer = true, VatRate = 0.23m,
+        });
+        await mem.Db.SaveChangesAsync();
+
+        // The toggle is ON, exactly as it sits on the form by default.
+        var income = (await Sut(mem).CreateIncomeAsync(Invoice(15_308.43m))).Value!;
+
+        Assert.Equal(15_308.43m, income.AmountBase);
+        Assert.Equal(0m, income.VatAmount);
+    }
+
+    /// Employment contracts have no VAT either — the take-home engine has always said so,
+    /// ignoring the gross/net toggle outright for them.
+    [Fact]
+    public async Task An_employment_contract_has_no_vat_to_take_off()
+    {
+        using var mem = new SqliteInMemory();
+        mem.Db.TaxProfiles.Add(new TaxProfile
+        {
+            Regime = TaxRegime.UoP, VatPayer = true, VatRate = 0.23m,
+        });
+        await mem.Db.SaveChangesAsync();
+
+        var income = (await Sut(mem).CreateIncomeAsync(Invoice(10_000m))).Value!;
+
+        Assert.Equal(10_000m, income.AmountBase);
+    }
+
+    /// The rows written before the regime changed are exactly the ones that need correcting,
+    /// so a regime without VAT does not pin the old split either. Under ryczałt the pin stays:
+    /// there the figure is one the tax office has seen.
+    [Fact]
+    public async Task An_old_split_is_not_pinned_once_the_regime_has_no_vat()
+    {
+        using var mem = new SqliteInMemory();
+        await VatPayerAsync(mem);
+        var created = (await Sut(mem).CreateIncomeAsync(Invoice(15_308.43m))).Value!;
+        Assert.Equal(12_445.88m, created.AmountBase); // stripped, correctly, under ryczałt
+
+        var profile = mem.Db.TaxProfiles.First();
+        profile.Regime = TaxRegime.None;
+        await mem.Db.SaveChangesAsync();
+
+        var fixedUp = (await Sut(mem).UpdateIncomeAsync(created.Id, Invoice(15_308.43m))).Value!;
+
+        Assert.Equal(15_308.43m, fixedUp.AmountBase);
     }
 
     private static SaveIncomeRequest Invoice(decimal amount, bool withVat = true, string? note = null) =>

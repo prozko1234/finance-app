@@ -197,13 +197,25 @@ public sealed class TransactionService(
     /// follows. Re-splitting an old invoice at today's rate because the user has since
     /// registered for VAT (or stopped) would rewrite a figure the tax office has already seen.
     /// A row that has no VAT figures of its own is new, so the profile decides.
+    ///
+    /// Both halves ask the PROFILE whether VAT exists at all, rather than reading
+    /// <see cref="TaxProfile.VatPayer"/> — that flag defaults to true and is kept independently
+    /// of the regime, so under "Просто гроші" this used to strip 23% from every figure typed
+    /// while the tax screen reported "VAT 0,00 zł" for the same money.
+    ///
+    /// Nothing is pinned under a regime that has no VAT either: there is no figure the tax
+    /// office has seen to protect, and the rows written before the regime changed are exactly
+    /// the ones the user needs to be able to correct.
     private async Task<decimal> VatRateForAsync(Transaction tx, CancellationToken ct)
     {
+        var profile = await db.TaxProfiles.OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
+        var rate = profile?.EffectiveVatRate ?? 0m;
+        if (rate == 0m) return 0m;
+
         if (tx.GrossWithVat is { } gross && tx.AmountBase > 0m)
             return Math.Round(gross / tx.AmountBase - 1m, 4, MidpointRounding.AwayFromZero);
 
-        var profile = await db.TaxProfiles.OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
-        return profile is { VatPayer: true } ? profile.VatRate : 0m;
+        return rate;
     }
 
     public async Task<Result<TransactionResponse>> UpdateAsync(int id, SaveTransactionRequest req, CancellationToken ct = default)
