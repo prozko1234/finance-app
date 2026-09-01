@@ -148,6 +148,50 @@ public class EnvelopeTests
         Assert.Single(mem.Db.SavingsEntries.Where(x => x.IsAuto && x.EnvelopeId == poured.EnvelopeId).ToList());
     }
 
+    /// Taking money out of a jar has to give it back to the daily norm.
+    ///
+    /// It did not. "Скільки відкладено цього періоду" is a NET figure, so a withdrawal pushed
+    /// it down — and the reservation was computed as "goal minus that", which put the same
+    /// amount straight back. The total held was pinned at the goal whatever the user did, so
+    /// the one lever they have over their own plan did nothing, silently. A real user withdrew
+    /// 3 467 zł and stayed 2 770 zł "over budget" with the money in their account.
+    [Fact]
+    public async Task Taking_money_back_out_of_a_pot_gives_it_back_to_the_norm()
+    {
+        using var mem = new SqliteInMemory();
+        await ActivateAsync(mem, "60-solution");
+
+        // The scheme pours its 10% — 600 of a 6 000 budget — and holds it back.
+        var filled = (await Sut(mem).StatusAsync(Month(Budget))).Single(e => e.Name == "Пенсія");
+        Assert.Equal(600m, filled.HeldBack);
+
+        var jar = mem.Db.Envelopes.First(e => e.Name == "Пенсія");
+        mem.Db.SavingsEntries.Add(new SavingsEntry
+        {
+            EnvelopeId = jar.Id, Date = Today, Kind = SavingsEntryKind.Withdrawal,
+            CurrencyOriginal = "PLN", AmountOriginal = 400m, AmountBase = 400m,
+            FxRate = 1m, FxDate = Today, CreatedAt = DateTimeOffset.UtcNow,
+        });
+        await mem.Db.SaveChangesAsync();
+
+        var after = (await Sut(mem).StatusAsync(Month(Budget))).Single(e => e.Name == "Пенсія");
+
+        Assert.Equal(200m, after.Balance);
+        Assert.Equal(200m, after.HeldBack); // not 600
+        Assert.Equal(0m, after.StillToReserve);
+    }
+
+    /// The other half of the same rule: while the scheme has NOT poured, the goal is still a
+    /// claim on the money. Nothing here may free a norm for a plan that has not happened.
+    [Fact]
+    public async Task A_goal_the_scheme_has_not_poured_yet_is_still_held_back()
+    {
+        var status = SavingsCalculator.Status(
+            goal: 600m, balance: 0m, depositedThisMonth: 0m, pouredByScheme: 0m);
+
+        Assert.Equal(600m, status.StillToReserve);
+    }
+
     /// A second invoice raises the budget, so the goal rises with it. The app keeps its own
     /// deposit in step instead of leaving a trail of correcting top-ups.
     [Fact]

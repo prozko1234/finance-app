@@ -153,6 +153,17 @@ public sealed class EnvelopeService(
             })
             .ToDictionaryAsync(x => x.EnvelopeId, x => x.Net, ct);
 
+        // What the SCHEME itself moved this period, apart from the net above. The reservation
+        // is measured against this rather than against the net: a withdrawal pushes the net
+        // down, and reserving the difference again would pin the held-back amount at the goal
+        // whatever the user does — so taking money out of a jar freed nothing.
+        var poured = await db.SavingsEntries
+            .Where(x => x.Date >= from && x.Date <= last && x.IsAuto
+                        && x.Kind == SavingsEntryKind.Deposit)
+            .GroupBy(x => x.EnvelopeId)
+            .Select(g => new { EnvelopeId = g.Key, Amount = g.Sum(x => x.AmountBase) })
+            .ToDictionaryAsync(x => x.EnvelopeId, x => x.Amount, ct);
+
         // Money spent straight out of an envelope leaves it the same way a withdrawal does.
         // Without this the pot would keep showing money that has already been paid to a shop
         // — and the expense, which the summary excludes precisely because the envelope
@@ -171,12 +182,21 @@ public sealed class EnvelopeService(
                 .Select(p => new { p.EnvelopeId, p.Date, p.AmountBase }))
             .ToList();
 
+        // Only the balance. Paying a shop out of a jar and taking money back out of one look
+        // identical to the pot — both leave it lighter — but they are opposites for the daily
+        // norm, and this is where the two part company.
+        //
+        // A withdrawal puts money back where it can be spent, so the period should stop
+        // holding it. An expense paid FROM the jar is money already gone, and the summary
+        // leaves such expenses out of «витрачено» precisely because the jar is holding them —
+        // so the jar has to go on holding them, or the user is handed back money they have
+        // already spent.
+        //
+        // Subtracting these here as well used to blur the two together. It happened to give
+        // the right total anyway, because whatever it took off came straight back as "still to
+        // reserve" — which is also why a withdrawal freed nothing at all.
         foreach (var group in spentFrom.GroupBy(t => t.EnvelopeId))
-        {
             balances[group.Key] = balances.GetValueOrDefault(group.Key) - group.Sum(t => t.AmountBase);
-            thisMonth[group.Key] = thisMonth.GetValueOrDefault(group.Key)
-                - group.Where(t => t.Date >= from && t.Date <= last).Sum(t => t.AmountBase);
-        }
 
         // Bucket order first, then whatever is left over from an older scheme: an envelope
         // whose bucket is gone keeps its balance but no longer reserves anything.
@@ -202,7 +222,8 @@ public sealed class EnvelopeService(
         {
             var goal = goals.GetValueOrDefault(e.Name);
             var deposited = thisMonth.GetValueOrDefault(e.Id);
-            var status = SavingsCalculator.Status(goal, balances.GetValueOrDefault(e.Id), deposited);
+            var status = SavingsCalculator.Status(
+                goal, balances.GetValueOrDefault(e.Id), deposited, poured.GetValueOrDefault(e.Id));
             result.Add(new EnvelopeStatus(
                 e.Id, e.Name, e.Kind, e.IsDefault,
                 status.Balance, status.MonthGoal, status.DepositedThisMonth, status.StillToReserve,
