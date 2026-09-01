@@ -7,7 +7,7 @@ import { Login, inviteCodeFromUrl } from './components/Login'
 import type { Horizon, Recurring as RecurringType, SaveCategory, SaveIncome, SaveTransaction, SpendWindow, Transaction } from './types'
 import { readHorizon, writeLastUsed } from './lastUsed'
 import {
-  useCategories, useIncomeCategories, useConfirmCharge, useCreateRecurring, useCreateTransaction, useDeleteRecurring, useMonthlyNeed,
+  useCategories, useIncomeCategories, useConfirmCharge, useUnconfirmCharge, useCreateRecurring, useCreateTransaction, useDeleteRecurring, useMonthlyNeed,
   useCreateCategory, useCreateIncome, useUpdateTransaction, useUpdateIncome, useDeleteCategory, useDeleteTransaction, useFrequentCategories, useRecurring, useUpdateCategory, useSafeToSpend, useTransactions,
   useUpdateRecurring, useTaxProfile, useTaxDefaults, useSaveTaxProfile,
   useAllocations, useSaveAllocation, useSettings, useSetDisplayCurrency, useSetPeriodStartDay,
@@ -94,6 +94,7 @@ function App() {
   const clearOpeningBalance = useClearOpeningBalance()
   const decideCarryover = useDecideCarryover()
   const confirmCharge = useConfirmCharge()
+  const unconfirmCharge = useUnconfirmCharge()
   const monthlyNeed = useMonthlyNeed()
   // Read once at mount and kept in state: localStorage is the store, this is the value.
   const [horizon, setHorizon] = useState<Horizon>(readHorizon)
@@ -462,6 +463,12 @@ function App() {
             onToggle={toggleRecurring}
             onDelete={async (id) =>
               recurringUndo.request(id, 'Підписку видалено', () => deleteRecurring.mutate(id))}
+            onConfirmCharge={(id) => confirmCharge.mutate(id)}
+            onUnconfirmCharge={(id) => unconfirmCharge.mutate(id)}
+            // The same delete the home card uses: removing the charge is what records the
+            // skip, and it comes with the undo bar.
+            onSkipCharge={(id) =>
+              txUndo.request(id, 'Це списання прибрано', () => deleteTx.mutate(id))}
             onBack={() => go('home')}
           />
         )}

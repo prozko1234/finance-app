@@ -36,6 +36,13 @@ public static class RecurringEndpoints
             return r.IsSuccess ? Results.NoContent() : r.Error.ToProblem();
         });
 
+        g.MapPost("/charges/{transactionId:int}/unconfirm",
+            async (int transactionId, IRecurringService svc, CancellationToken ct) =>
+        {
+            var r = await svc.UnconfirmChargeAsync(transactionId, ct);
+            return r.IsSuccess ? Results.NoContent() : r.Error.ToProblem();
+        });
+
         g.MapDelete("/{id:int}", async (int id, IRecurringService svc, CancellationToken ct) =>
         {
             var r = await svc.DeleteAsync(id, ct);

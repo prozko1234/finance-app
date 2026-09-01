@@ -18,6 +18,11 @@ public interface IRecurringService
 
     /// «Оплачено ✓» for one charge the schedule wrote and nobody had confirmed yet.
     Task<Result<bool>> ConfirmChargeAsync(int transactionId, CancellationToken ct = default);
+
+    /// Takes «Оплачено ✓» back. The tick is one tap on a card that appears unbidden at the top
+    /// of the home screen, so it gets mis-tapped — and until now the only way out was to delete
+    /// the charge, which says something else entirely: that it never happened.
+    Task<Result<bool>> UnconfirmChargeAsync(int transactionId, CancellationToken ct = default);
 }
 
 public sealed class RecurringService(IAppDbContext db, IBudgetPeriods periods) : IRecurringService
@@ -41,11 +46,24 @@ public sealed class RecurringService(IAppDbContext db, IBudgetPeriods periods) :
         // not silent either — an unanswered question on the row is the whole point.
         var written = await db.Transactions
             .Where(t => t.RecurringExpenseId != null && t.Date >= start && t.Date <= end)
-            .Select(t => new { Id = t.RecurringExpenseId!.Value, t.Status })
+            .Select(t => new { Id = t.RecurringExpenseId!.Value, t.Status, t.Date, TxId = t.Id })
             .ToListAsync(ct);
 
         var chargedIds = written.Where(t => t.Status == TxStatus.Posted).Select(t => t.Id).ToHashSet();
         var awaitingIds = written.Where(t => t.Status == TxStatus.Pending).Select(t => t.Id).ToHashSet();
+
+        // The one charge a row's buttons operate on. A weekly charge can have several in a
+        // period with different answers, so the unanswered one comes first — that is the
+        // question worth asking — and only when there is none does the last confirmed one
+        // stand in, which is what makes «Оплачено ✓» reversible after a mis-tap.
+        var actionable = written
+            .GroupBy(t => t.Id)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderBy(t => t.Status == TxStatus.Pending ? 0 : 1)
+                      .ThenBy(t => t.Status == TxStatus.Pending ? t.Date : DateOnly.MaxValue)
+                      .ThenByDescending(t => t.Date)
+                      .First());
 
         return items
             .Select(r => r.ToResponse() with
@@ -53,6 +71,8 @@ public sealed class RecurringService(IAppDbContext db, IBudgetPeriods periods) :
                 NextChargeOn = NextChargeOn(r),
                 ChargedThisPeriod = chargedIds.Contains(r.Id),
                 AwaitingConfirmation = awaitingIds.Contains(r.Id),
+                ChargeId = actionable.TryGetValue(r.Id, out var c) ? c.TxId : null,
+                ChargeOn = actionable.TryGetValue(r.Id, out var d) ? d.Date : null,
             })
             .ToList();
     }
@@ -183,6 +203,24 @@ public sealed class RecurringService(IAppDbContext db, IBudgetPeriods periods) :
         if (tx.Status == TxStatus.Pending)
         {
             tx.Status = TxStatus.Posted;
+            await db.SaveChangesAsync(ct);
+        }
+
+        return Result<bool>.Ok(true);
+    }
+
+    /// The mirror of confirming, and forgiving in the same way: a charge already waiting is
+    /// already in the state being asked for.
+    public async Task<Result<bool>> UnconfirmChargeAsync(
+        int transactionId, CancellationToken ct = default)
+    {
+        var tx = await db.Transactions
+            .FirstOrDefaultAsync(t => t.Id == transactionId && t.RecurringExpenseId != null, ct);
+        if (tx is null) return Error.NotFound($"Списання {transactionId} не знайдено.");
+
+        if (tx.Status == TxStatus.Posted)
+        {
+            tx.Status = TxStatus.Pending;
             await db.SaveChangesAsync(ct);
         }
 

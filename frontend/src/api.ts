@@ -208,6 +208,10 @@ export const api = {
   /// occurrence still waiting behind this one.
   confirmCharge: (transactionId: number) =>
     http<void>(`/api/recurring/charges/${transactionId}/confirm`, { method: 'POST' }),
+  /// Takes «Оплачено ✓» back. The tick is one tap on a card that appears unbidden, so it gets
+  /// mis-tapped — and deleting the charge says something else entirely: that it never happened.
+  unconfirmCharge: (transactionId: number) =>
+    http<void>(`/api/recurring/charges/${transactionId}/unconfirm`, { method: 'POST' }),
 
   getRecentSpending: (window: SpendWindow) =>
     http<RecentSpending>(`/api/stats/recent?window=${window}`),

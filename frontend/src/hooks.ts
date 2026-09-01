@@ -374,6 +374,14 @@ export function useConfirmCharge() {
   })
 }
 
+export function useUnconfirmCharge() {
+  const invalidate = useInvalidateEverything()
+  return useMutation({
+    mutationFn: (transactionId: number) => api.unconfirmCharge(transactionId),
+    onSuccess: invalidate,
+  })
+}
+
 export function useTaxProfile() {
   return useQuery({ queryKey: queryKeys.taxProfile, queryFn: () => api.getTaxProfile() })
 }

@@ -15,6 +15,12 @@ interface Props {
   onUpdate: (id: number, r: SaveRecurring) => Promise<void>
   onToggle: (r: RecurringType) => void
   onDelete: (id: number) => Promise<void>
+  /// «Оплачено ✓» for this period's charge, and taking that back. Both act on the charge the
+  /// server nominated, never on the subscription: a rule has no status, an occurrence does.
+  onConfirmCharge: (transactionId: number) => void
+  onUnconfirmCharge: (transactionId: number) => void
+  /// «Не пішло» — the charge is deleted, which is what records the skip.
+  onSkipCharge: (transactionId: number) => void
   onBack: () => void
 }
 
@@ -27,7 +33,10 @@ interface Draft extends SaveRecurring {
 
 let nextDraftKey = 1
 
-export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onDelete, onBack }: Props) {
+export function Recurring({
+  categories, items, onCreate, onUpdate, onToggle, onDelete,
+  onConfirmCharge, onUnconfirmCharge, onSkipCharge, onBack,
+}: Props) {
   const [amount, setAmount] = useState('')
   const [currency, setCurrency] = useState('PLN')
   const [categoryId, setCategoryId] = useState<number | null>(categories[0]?.id ?? null)
@@ -299,10 +308,11 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
           {items.map((r) => (
             <li
               key={r.id}
-              className={`flex items-center gap-3 rounded-xl px-4 py-3 shadow-sm bg-white dark:bg-neutral-900 ${
+              className={`rounded-xl px-4 py-3 shadow-sm bg-white dark:bg-neutral-900 ${
                 r.active ? '' : 'opacity-50'
               }`}
             >
+              <div className="flex items-center gap-3">
               <button onClick={() => edit(r)} className="flex-1 min-w-0 text-left">
                 <p className="font-medium truncate">{r.note || r.categoryName}</p>
                 <p className="text-xs text-neutral-400">
@@ -328,6 +338,14 @@ export function Recurring({ categories, items, onCreate, onUpdate, onToggle, onD
               >
                 ✕
               </button>
+              </div>
+
+              <ChargeStatus
+                item={r}
+                onConfirm={onConfirmCharge}
+                onUnconfirm={onUnconfirmCharge}
+                onSkip={onSkipCharge}
+              />
             </li>
           ))}
         </ul>
@@ -395,26 +413,129 @@ function MonthlyCost({ items }: { items: RecurringType[] }) {
         {items.length > live.length && ` · ${items.length - live.length} призупинено`}
         {' · тижневі й річні перераховані на місяць'}
       </p>
+
+      <ThisPeriod items={live} />
     </div>
   )
 }
 
-/// When this happens next — and whether it already happened this period. A subscription that
-/// has already charged looked exactly like one still ahead: "кожного 5-го" is equally true the
-/// day before and the day after, and the money has gone by then.
+/// «Скільки вже сплачено цього періоду» — the count first, because that is what the question
+/// "які вже пішли" actually asks. The money follows for the part still to come, since that is
+/// the half still standing between the user and the end of the period.
+function ThisPeriod({ items }: { items: RecurringType[] }) {
+  const due = items.filter((r) => r.kind !== 'Income')
+  if (due.length === 0) return null
+
+  const paid = due.filter((r) => r.chargedThisPeriod).length
+  const waiting = due.filter((r) => r.awaitingConfirmation).length
+  const left = due.filter((r) => !r.chargedThisPeriod)
+
+  const byCurrency = new Map<string, number>()
+  for (const r of left) {
+    byCurrency.set(r.currencyOriginal, (byCurrency.get(r.currencyOriginal) ?? 0) + r.amountOriginal)
+  }
+
+  return (
+    <div className="mt-3 border-t border-neutral-100 dark:border-neutral-800 pt-3">
+      <p className="text-sm">
+        <span className="text-neutral-400">Цього періоду сплачено </span>
+        <span className="font-medium tabular-nums">{paid} з {due.length}</span>
+        {waiting > 0 && (
+          <span className="text-amber-600"> · {waiting} чекає підтвердження</span>
+        )}
+      </p>
+      {left.length > 0 && (
+        <p className="text-xs text-neutral-400 tabular-nums">
+          Ще має піти{' '}
+          {[...byCurrency].map(([c, sum]) => money(sum, c)).join(' · ')}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/// What this period did with one subscription, and the buttons that change it.
+///
+/// The home screen only ever asks about charges whose day has already passed, and only until
+/// they are answered — so a subscription answered by mistake, or one still ahead, had nowhere
+/// to be seen at all. "Які вже сплачені, які ні" was a question the app held the answer to and
+/// never showed anywhere.
+///
+/// Four states, and only two of them have anything to press. Confirming and un-confirming are
+/// exact opposites and neither loses anything, so neither asks twice. "Не пішло" deletes the
+/// charge — that is what records the skip — and arrives with the app-wide undo bar.
+function ChargeStatus({ item, onConfirm, onUnconfirm, onSkip }: {
+  item: RecurringType
+  onConfirm: (transactionId: number) => void
+  onUnconfirm: (transactionId: number) => void
+  onSkip: (transactionId: number) => void
+}) {
+  // A paused rule has no occurrence this period, and income is not something one "pays".
+  if (!item.active || item.kind === 'Income') return null
+
+  // The state comes from the flags, never from whether a button can be drawn: a charge the
+  // server could not nominate is still a charge that happened, and calling it "ще не
+  // списувалось" would be the row lying about money that has gone.
+  const charge = item.chargeId ?? null
+  const on = item.chargeOn ? ` · ${dayMonth(item.chargeOn)}` : ''
+  const line = 'mt-2 flex items-center gap-2 border-t border-neutral-100 dark:border-neutral-800 pt-2'
+
+  if (item.awaitingConfirmation) {
+    return (
+      <div className={line}>
+        <span className="flex-1 text-xs text-amber-600">Чекає підтвердження{on}</span>
+        {charge !== null && (
+          <>
+            <button
+              onClick={() => onSkip(charge)}
+              className="rounded-lg bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1 text-xs text-neutral-500"
+            >
+              Не пішло
+            </button>
+            <button
+              onClick={() => onConfirm(charge)}
+              className="rounded-lg bg-neutral-900 dark:bg-white px-2.5 py-1 text-xs font-medium text-white dark:text-neutral-900"
+            >
+              Оплачено ✓
+            </button>
+          </>
+        )}
+      </div>
+    )
+  }
+
+  if (item.chargedThisPeriod) {
+    return (
+      <div className={line}>
+        <span className="flex-1 text-xs text-emerald-600">Оплачено{on}</span>
+        {charge !== null && (
+          <button
+            onClick={() => onUnconfirm(charge)}
+            className="rounded-lg px-2.5 py-1 text-xs text-neutral-400 underline"
+          >
+            Скасувати
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <p className="mt-2 border-t border-neutral-100 dark:border-neutral-800 pt-2 text-xs text-neutral-400">
+      Цього періоду ще не списувалось{item.nextChargeOn && ` · ${dayMonth(item.nextChargeOn)}`}
+    </p>
+  )
+}
+
+/// When this happens next. What this PERIOD did with it belongs to ChargeStatus, which sits
+/// under the row and can act on it — saying it here as well left the same fact in two places,
+/// one of them a dead end.
 function whenNext(r: RecurringType): string {
   if (!r.active) return 'на паузі'
 
-  const when = r.nextChargeOn
+  return r.nextChargeOn
     ? `${dayMonth(r.nextChargeOn)}${untilWords(r.nextChargeOn)}`
     : scheduleSummary(r.unit, r.interval, r.startsOn)
-
-  // Three states, not two: still ahead, gone, and "the day passed and nobody said". The third
-  // one used to read exactly like the first, which is how a subscription could look like it
-  // was still coming while its money was already being held.
-  if (r.awaitingConfirmation) return `чекає підтвердження · далі ${when}`
-
-  return r.chargedThisPeriod ? `цього періоду вже пішло · далі ${when}` : when
 }
 
 function untilWords(iso: string): string {

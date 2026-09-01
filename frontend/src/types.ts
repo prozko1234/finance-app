@@ -496,6 +496,11 @@ export interface Recurring {
   /// Its day has passed and nobody has said whether it went through. The money is held, not
   /// spent — the row is a question, and the home screen is where it gets answered.
   awaitingConfirmation?: boolean
+  /// This period's charge the row's buttons act on: the earliest one still unanswered, or the
+  /// last one confirmed once everything is answered — which is what makes «Оплачено ✓»
+  /// reversible. Null when the schedule has written nothing for this period yet.
+  chargeId?: number | null
+  chargeOn?: string | null
 }
 
 export interface SaveRecurring {

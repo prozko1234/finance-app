@@ -21,7 +21,14 @@ function item(over: Partial<RecurringType> = {}): RecurringType {
 
 /// Mocks stay typed as mocks (not as the plain prop signatures) so the assertions
 /// can read `.mock.calls` without casting.
-function props(over: { items?: RecurringType[]; onCreate?: Mock; onUpdate?: Mock } = {}) {
+function props(over: {
+  items?: RecurringType[]
+  onCreate?: Mock
+  onUpdate?: Mock
+  onConfirmCharge?: Mock
+  onUnconfirmCharge?: Mock
+  onSkipCharge?: Mock
+} = {}) {
   return {
     categories,
     items: over.items ?? [],
@@ -29,6 +36,9 @@ function props(over: { items?: RecurringType[]; onCreate?: Mock; onUpdate?: Mock
     onUpdate: over.onUpdate ?? vi.fn<(id: number, r: SaveRecurring) => Promise<void>>().mockResolvedValue(undefined),
     onToggle: vi.fn(),
     onDelete: vi.fn<(id: number) => Promise<void>>().mockResolvedValue(undefined),
+    onConfirmCharge: over.onConfirmCharge ?? vi.fn(),
+    onUnconfirmCharge: over.onUnconfirmCharge ?? vi.fn(),
+    onSkipCharge: over.onSkipCharge ?? vi.fn(),
     onBack: vi.fn(),
   }
 }
@@ -190,9 +200,11 @@ describe('Recurring — when it next goes out', () => {
       item({ id: 3, note: 'Spotify', active: false, nextChargeOn: null }),
     ] })} />)
 
-    expect(screen.getByText(/цього періоду вже пішло/)).toBeInTheDocument()
-    expect(screen.getByText(/5 січня/)).toBeInTheDocument()
+    // The row itself says only WHEN. What this period did with it is the status line below,
+    // which is the one that can be acted on.
+    expect(screen.getAllByText(/5 січня/).length).toBeGreaterThan(0)
     expect(screen.getByText(/на паузі/)).toBeInTheDocument()
+    expect(screen.getByText(/^Оплачено/)).toBeInTheDocument()
   })
 })
 
@@ -265,12 +277,82 @@ describe('editing a rule that has already charged', () => {
 /// coming while its money was already being held.
 describe('what the row says about this period', () => {
   it('names a charge waiting to be confirmed', () => {
-    render(<Recurring {...props({ items: [item({ awaitingConfirmation: true, nextChargeOn: '2026-09-05' })] })} />)
-    expect(screen.getByText(/чекає підтвердження/)).toBeInTheDocument()
+    render(<Recurring {...props({ items: [item({ awaitingConfirmation: true, chargeId: 9, nextChargeOn: '2026-09-05' })] })} />)
+    expect(screen.getByText(/Чекає підтвердження/)).toBeInTheDocument()
   })
 
   it('still says when a confirmed charge has gone', () => {
-    render(<Recurring {...props({ items: [item({ chargedThisPeriod: true, nextChargeOn: '2026-09-05' })] })} />)
-    expect(screen.getByText(/цього періоду вже пішло/)).toBeInTheDocument()
+    render(<Recurring {...props({ items: [item({ chargedThisPeriod: true, chargeId: 9, nextChargeOn: '2026-09-05' })] })} />)
+    expect(screen.getByText(/^Оплачено/)).toBeInTheDocument()
+  })
+})
+
+/// «Які підписки вже сплачені, які ні» — a question the app held the answer to and showed
+/// nowhere. The home screen only ever asks about charges whose day has passed, and only until
+/// they are answered, so one answered by mistake had no way back at all.
+describe('Recurring — статус за період', () => {
+  const netflix = (over: Partial<RecurringType> = {}): RecurringType => ({
+    id: 1, amountOriginal: 45.99, currencyOriginal: 'PLN', categoryId: 1,
+    categoryName: 'Підписки', startsOn: '2026-01-05', unit: 'Month', interval: 1,
+    active: true, note: 'Netflix', kind: 'Expense', amountIncludesVat: false,
+    nextChargeOn: '2026-09-05', chargedThisPeriod: false, ...over,
+  })
+
+  it('asks about a charge whose day has passed, and confirms it', async () => {
+    const onConfirmCharge = vi.fn()
+    const user = userEvent.setup()
+    render(<Recurring {...props({
+      items: [netflix({ awaitingConfirmation: true, chargeId: 77, chargeOn: '2026-08-05' })],
+      onConfirmCharge,
+    })} />)
+
+    expect(screen.getByText(/Чекає підтвердження/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Оплачено ✓' }))
+
+    expect(onConfirmCharge).toHaveBeenCalledWith(77)
+  })
+
+  /// The tick is one tap on a card that appears unbidden at the top of the home screen, so it
+  /// gets mis-tapped. Deleting the charge is not the way back: that says it never happened.
+  it('takes a confirmation back', async () => {
+    const onUnconfirmCharge = vi.fn()
+    const user = userEvent.setup()
+    render(<Recurring {...props({
+      items: [netflix({ chargedThisPeriod: true, chargeId: 77, chargeOn: '2026-08-05' })],
+      onUnconfirmCharge,
+    })} />)
+
+    expect(screen.getByText(/^Оплачено/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Скасувати' }))
+
+    expect(onUnconfirmCharge).toHaveBeenCalledWith(77)
+  })
+
+  it('says when nothing has been taken yet this period', () => {
+    render(<Recurring {...props({ items: [netflix()] })} />)
+
+    expect(screen.getByText(/Цього періоду ще не списувалось/)).toBeInTheDocument()
+  })
+
+  /// The count first, because that is what "які вже пішли" actually asks; the money follows
+  /// for the part still standing between the user and the end of the period.
+  it('counts what is paid and what is still to come', () => {
+    render(<Recurring {...props({
+      items: [
+        netflix({ id: 1, chargedThisPeriod: true, chargeId: 1 }),
+        netflix({ id: 2, note: 'Spotify', amountOriginal: 28.56 }),
+        netflix({ id: 3, note: 'Google One', amountOriginal: 8.99 }),
+      ],
+    })} />)
+
+    expect(screen.getByText('1 з 3')).toBeInTheDocument()
+    expect(screen.getByText(/Ще має піти.*37,55/)).toBeInTheDocument()
+  })
+
+  /// A paused rule has no occurrence this period, and income is not something one "pays".
+  it('says nothing about a paused subscription', () => {
+    render(<Recurring {...props({ items: [netflix({ active: false })] })} />)
+
+    expect(screen.queryByText(/Цього періоду ще не списувалось/)).not.toBeInTheDocument()
   })
 })

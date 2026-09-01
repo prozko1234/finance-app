@@ -285,4 +285,73 @@ public class RecurringConfirmationTests
 
     private static RecurringService Recurring(SqliteInMemory mem) =>
         new(mem.Db, new BudgetPeriodResolver(mem.Db));
+
+    /// «Оплачено ✓» is one tap on a card that appears unbidden at the top of the home screen,
+    /// so it gets mis-tapped. Deleting the charge was the only way out, and that says something
+    /// else entirely: that it never happened, which leaves a skip behind.
+    [Fact]
+    public async Task A_confirmation_can_be_taken_back()
+    {
+        using var mem = new SqliteInMemory();
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        await SubscriptionAsync(mem, 100m, today);
+
+        var charge = Assert.Single((await TestSummary.Sut(mem).GetSafeToSpendAsync()).PendingCharges!);
+        Assert.True((await Recurring(mem).ConfirmChargeAsync(charge.TransactionId)).IsSuccess);
+        Assert.Equal(TxStatus.Posted, mem.Db.Transactions.Single(t => t.Id == charge.TransactionId).Status);
+
+        Assert.True((await Recurring(mem).UnconfirmChargeAsync(charge.TransactionId)).IsSuccess);
+        Assert.Equal(TxStatus.Pending, mem.Db.Transactions.Single(t => t.Id == charge.TransactionId).Status);
+    }
+
+    /// Forgiving in the same way confirming is: a charge already waiting is already in the
+    /// state being asked for, and a stale screen must not be shown a problem that is not one.
+    [Fact]
+    public async Task Taking_back_a_confirmation_that_never_happened_is_not_an_error()
+    {
+        using var mem = new SqliteInMemory();
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        await SubscriptionAsync(mem, 100m, today);
+
+        var charge = Assert.Single((await TestSummary.Sut(mem).GetSafeToSpendAsync()).PendingCharges!);
+
+        Assert.True((await Recurring(mem).UnconfirmChargeAsync(charge.TransactionId)).IsSuccess);
+        Assert.Equal(TxStatus.Pending, mem.Db.Transactions.Single(t => t.Id == charge.TransactionId).Status);
+    }
+
+    /// The subscriptions screen acts on a CHARGE, so it has to be told which one — the rule's
+    /// own id is no use, and the same rule can have another occurrence behind this one.
+    /// Without this the screen could show a status and do nothing about it.
+    [Fact]
+    public async Task The_list_names_the_charge_its_buttons_act_on()
+    {
+        using var mem = new SqliteInMemory();
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        await SubscriptionAsync(mem, 100m, today);
+
+        var charge = Assert.Single((await TestSummary.Sut(mem).GetSafeToSpendAsync()).PendingCharges!);
+        var row = Assert.Single(await Recurring(mem).GetAllAsync());
+
+        Assert.True(row.AwaitingConfirmation);
+        Assert.False(row.ChargedThisPeriod);
+        Assert.Equal(charge.TransactionId, row.ChargeId);
+        Assert.Equal(today, row.ChargeOn);
+    }
+
+    /// And it keeps naming it once confirmed, which is what makes the tick reversible.
+    [Fact]
+    public async Task A_confirmed_charge_is_still_named_so_it_can_be_undone()
+    {
+        using var mem = new SqliteInMemory();
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        await SubscriptionAsync(mem, 100m, today);
+
+        var charge = Assert.Single((await TestSummary.Sut(mem).GetSafeToSpendAsync()).PendingCharges!);
+        await Recurring(mem).ConfirmChargeAsync(charge.TransactionId);
+
+        var row = Assert.Single(await Recurring(mem).GetAllAsync());
+
+        Assert.True(row.ChargedThisPeriod);
+        Assert.Equal(charge.TransactionId, row.ChargeId);
+    }
 }

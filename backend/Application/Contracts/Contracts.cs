@@ -448,7 +448,12 @@ public record RecurringResponse(
     bool ChargedThisPeriod = false,
     /// Its day has passed and nobody has said whether it went through. Distinct from charged:
     /// the money is held, not spent, and the row is a question rather than a fact.
-    bool AwaitingConfirmation = false);
+    bool AwaitingConfirmation = false,
+    /// This period's charge the user can act on: the earliest one still unanswered, or — once
+    /// everything is answered — the last one confirmed, so a mis-tap can be taken back. Null
+    /// when the schedule has written nothing for this period yet.
+    int? ChargeId = null,
+    DateOnly? ChargeOn = null);
 
 /// App-wide settings. <paramref name="BaseCurrency"/> is what the app stores in; the user
 /// only chooses what to read. <paramref name="TaxesInBaseCurrency"/> tells the UI it must
