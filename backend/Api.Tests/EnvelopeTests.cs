@@ -112,6 +112,42 @@ public class EnvelopeTests
         Assert.Equal(600m, pension.Balance);
     }
 
+    /// Reading a screen WRITES, and the home page fires several queries at once — so two
+    /// requests can both find no scheme deposit and both insert one. The second was then never
+    /// looked at again (the lookup only ever took the first), so it sat in the jar for good:
+    /// the balance was overstated by it, AND it was held back from the daily norm a second
+    /// time. That is what put a real user 3 231 zł "over budget" while the money was in the
+    /// bank in front of them.
+    ///
+    /// Healed on the next read rather than merely prevented, because every database that had
+    /// already raced would otherwise stay wrong forever.
+    [Fact]
+    public async Task A_pot_filled_twice_by_a_race_is_put_back_to_one_deposit()
+    {
+        using var mem = new SqliteInMemory();
+        await ActivateAsync(mem, "60-solution");
+
+        // The first read fills the pots the way it always does.
+        await Sut(mem).StatusAsync(Month(Budget));
+
+        // The duplicate a racing request would have left behind.
+        var poured = mem.Db.SavingsEntries.First(x => x.IsAuto);
+        mem.Db.SavingsEntries.Add(new SavingsEntry
+        {
+            EnvelopeId = poured.EnvelopeId, Date = poured.Date, Kind = SavingsEntryKind.Deposit,
+            CurrencyOriginal = "PLN", AmountOriginal = 600m, AmountBase = 600m,
+            FxRate = 1m, FxDate = poured.Date, IsAuto = true,
+            Note = poured.Note, CreatedAt = DateTimeOffset.UtcNow,
+        });
+        await mem.Db.SaveChangesAsync();
+
+        var pension = (await Sut(mem).StatusAsync(Month(Budget))).Single(e => e.Name == "Пенсія");
+
+        Assert.Equal(600m, pension.Balance);
+        Assert.Equal(600m, pension.HeldBack);
+        Assert.Single(mem.Db.SavingsEntries.Where(x => x.IsAuto && x.EnvelopeId == poured.EnvelopeId).ToList());
+    }
+
     /// A second invoice raises the budget, so the goal rises with it. The app keeps its own
     /// deposit in step instead of leaving a trail of correcting top-ups.
     [Fact]

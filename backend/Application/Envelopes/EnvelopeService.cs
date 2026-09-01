@@ -481,7 +481,32 @@ public sealed class EnvelopeService(
         foreach (var envelope in envelopes)
         {
             var amount = goals.GetValueOrDefault(envelope.Name);
-            var auto = entries.FirstOrDefault(x => x.EnvelopeId == envelope.Id && x.IsAuto);
+
+            // There must be exactly one of these per envelope per period. There can be more,
+            // because reading a screen writes: the home page fires several queries at once and
+            // every one of them resolves the envelopes, so two requests can both find nothing
+            // here and both insert. Whichever landed second was then never looked at again —
+            // the lookup below only ever took the first — so it sat in the jar for good,
+            // inflating the balance AND holding its amount back from the daily norm a second
+            // time. That is a plan the user never made, taking money they can see in the bank.
+            //
+            // Cleaned up rather than merely prevented: locking would only stop the next one,
+            // and every database that already raced would stay wrong forever.
+            var mine = entries
+                .Where(x => x.EnvelopeId == envelope.Id && x.IsAuto)
+                .OrderBy(x => x.Id)
+                .ToList();
+
+            foreach (var duplicate in mine.Skip(1))
+            {
+                db.SavingsEntries.Remove(duplicate);
+                changed = true;
+                log.LogWarning(
+                    "Envelopes: «{Envelope}» had {Count} scheme deposits for the period — removed a duplicate of {Amount}",
+                    envelope.Name, mine.Count, duplicate.AmountBase);
+            }
+
+            var auto = mine.FirstOrDefault();
 
             if (auto is null)
             {
