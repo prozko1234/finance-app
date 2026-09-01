@@ -101,4 +101,79 @@ public class MerchantKeyTests
 
         Assert.All(BuiltInMerchants.ByKey.Values, name => Assert.Contains(name, seeded));
     }
+
+    /// PKO does not write a merchant name — it writes a small form:
+    /// "Lokalizacja: Adres: SHELL Miasto: Rzeszow Kraj: POLSKA". Tokenising that whole string
+    /// took its FIRST word, which is the label "Tytuł" — so every card payment in a statement
+    /// keyed identically and the import screen showed one group of 62 rows called
+    /// "TYTUŁ LOKALIZACJA". Grouping by shop is the entire point of that screen.
+    [Fact]
+    public void A_shop_is_read_out_of_the_labelled_form_a_bank_writes()
+    {
+        const string pko =
+            "Płatność kartą · Tytuł:  74838496243381684421864 · " +
+            "Lokalizacja: Adres: SHELL Miasto: Rzeszow Kraj: POLSKA";
+
+        Assert.Equal("SHELL", MerchantKey.From(pko));
+        Assert.Equal("SHELL", MerchantKey.Clean(pko));
+    }
+
+    /// The city and the country come after the shop in the same field and change nothing about
+    /// which shop it is — the value has to stop at the next label.
+    [Fact]
+    public void The_city_and_country_are_not_part_of_the_name()
+    {
+        const string pko = "Lokalizacja: Adres: ZABKA Z7655 K.1 Miasto: RZESZOW Kraj: POLSKA";
+
+        Assert.DoesNotContain("RZESZOW", MerchantKey.Clean(pko));
+        Assert.Equal("ZABKA", MerchantKey.From(pko));
+    }
+
+    /// A transfer has no shop. The person on the other side is the thing worth grouping by —
+    /// and the title, which is usually a reference number, is the last thing to fall back on.
+    [Fact]
+    public void A_transfer_keys_on_the_person_rather_than_on_its_title()
+    {
+        const string outgoing =
+            "Przelew z rachunku · Rachunek odbiorcy: 44 1020 4405 0000 2202 0562 9938 · " +
+            "Nazwa odbiorcy: BOHDAN FILIMONYUK · Tytuł: PRZELEW IKO NA NUMER RACHUNKU";
+        const string incoming =
+            "Przelew na telefon przychodz. zew. · Rachunek nadawcy: 08 1090 2750 · " +
+            "Nazwa nadawcy: MYKOLA MARCHUK · Tytuł: PALIWO";
+
+        Assert.Equal("BOHDAN", MerchantKey.From(outgoing));
+        Assert.Equal("MYKOLA", MerchantKey.From(incoming));
+    }
+
+    /// "Adres:" is the shop; "Adres nadawcy:" is a postcode and a city. The colon sits in a
+    /// different place, which is what keeps the two apart — worth a test, because merging them
+    /// would key every incoming transfer on the sender's town.
+    [Fact]
+    public void A_senders_postal_address_is_not_a_shop()
+    {
+        const string salary =
+            "Przelew na konto · Nazwa nadawcy: SII SP. Z O.O. ALEJA NIEPODLEGŁOŚCI 69 · " +
+            "Adres nadawcy: 02-626 WARSZAWA PL · Tytuł: 0720261";
+
+        Assert.Equal("SII", MerchantKey.From(salary));
+    }
+
+    /// Plenty of banks write a plain merchant name and no labels at all. That must go on
+    /// working exactly as it did.
+    [Fact]
+    public void A_description_without_labels_is_read_as_before()
+    {
+        Assert.Equal("BIEDRONKA", MerchantKey.From("BIEDRONKA 1234 KRAKOW"));
+    }
+
+    /// All initials and legal form, so nothing survives tokenising. Showing the named field
+    /// beats showing the whole form the bank wrote.
+    [Fact]
+    public void A_name_that_tokenises_to_nothing_still_reads_as_itself()
+    {
+        const string pko = "Płatność kartą · Lokalizacja: Adres: J&R SP. Z O.O. Miasto: RZESZOW";
+
+        Assert.Equal("", MerchantKey.From(pko));
+        Assert.Equal("J&R SP. Z O.O.", MerchantKey.Clean(pko));
+    }
 }

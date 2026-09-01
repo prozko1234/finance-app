@@ -60,18 +60,83 @@ public static class MerchantKey
     public static string Clean(string? description)
     {
         var tokens = Tokenize(description);
-        if (tokens.Count == 0) return (description ?? "").Trim();
+        // Nothing survived tokenising — "J&R SP. Z O.O." is all initials and legal form. The
+        // named field is still far better to look at than the whole labelled form the bank
+        // wrote, so that is what falls through rather than the raw description.
+        if (tokens.Count == 0)
+            return string.IsNullOrWhiteSpace(description) ? "" : Named(description).Trim();
 
         // Two tokens, not one: "ORLEN STACJA" reads better than "ORLEN", and "CARREFOUR
         // EXPRESS" is a different shop from "CARREFOUR" to the person reading the list.
         return string.Join(' ', tokens.Take(2)).ToUpperInvariant();
     }
 
+    /// The labelled fields Polish banks assemble a description out of. PKO does not write a
+    /// merchant name — it writes a small form: "Lokalizacja: Adres: SHELL Miasto: Rzeszow
+    /// Kraj: POLSKA". Every one of these has to be known, so a value can be cut at the next
+    /// label rather than running on into the city and the country.
+    private static readonly string[] Labels =
+    [
+        "tytuł:", "tytul:", "lokalizacja:", "adres:", "miasto:", "kraj:",
+        "nazwa odbiorcy:", "nazwa nadawcy:", "adres odbiorcy:", "adres nadawcy:",
+        "rachunek odbiorcy:", "rachunek nadawcy:", "numer karty:",
+        "data wykonania operacji:", "data przetworzenia:", "oryginalna kwota operacji:",
+        "referencje własne zleceniodawcy:", "referencje wlasne zleceniodawcy:",
+        "nazwa i nr identyfikatora:", "symbol formularza:", "okres płatności:",
+        "okres platnosci:",
+    ];
+
+    /// The fields that actually name the other side, best first. "Adres" is the shop on a card
+    /// payment; the two "Nazwa" fields are the person or company on a transfer; the title is a
+    /// last resort because it is free text and often just a reference number.
+    ///
+    /// Note that "adres:" cannot match "adres nadawcy:" — the colon is in a different place —
+    /// so a sender's postal address never gets mistaken for a shop.
+    private static readonly string[] NameLabels =
+    [
+        "adres:", "nazwa odbiorcy:", "nazwa nadawcy:", "tytuł:", "tytul:",
+    ];
+
+    /// The part of a labelled description that names the other side.
+    ///
+    /// Without this every PKO card payment tokenised to the same first word — the label
+    /// "Tytuł" — so all of them landed in one group called "TYTUŁ LOKALIZACJA", and the import
+    /// screen, whose whole purpose is to categorise a shop at a time, had nothing to group by.
+    ///
+    /// A description with no labels in it is returned untouched: plenty of banks do write a
+    /// plain merchant name, and this must not get in their way.
+    private static string Named(string description)
+    {
+        foreach (var label in NameLabels)
+        {
+            var at = description.IndexOf(label, StringComparison.OrdinalIgnoreCase);
+            if (at < 0) continue;
+
+            var value = description[(at + label.Length)..];
+
+            // Cut at whatever comes next — another field, or the separator between the parts
+            // the reader joined together.
+            var end = value.Length;
+            foreach (var other in Labels)
+            {
+                var i = value.IndexOf(other, StringComparison.OrdinalIgnoreCase);
+                if (i >= 0 && i < end) end = i;
+            }
+            var separator = value.IndexOf('·');
+            if (separator >= 0 && separator < end) end = separator;
+
+            var named = value[..end].Trim();
+            if (named.Length > 0) return named;
+        }
+
+        return description;
+    }
+
     private static List<string> Tokenize(string? description)
     {
         if (string.IsNullOrWhiteSpace(description)) return [];
 
-        var text = description.ToLowerInvariant();
+        var text = Named(description).ToLowerInvariant();
         foreach (var noise in BankNoise) text = text.Replace(noise, " ");
 
         // Digits go with the letters they are glued to: "z1234" is a Żabka branch, and
