@@ -6,6 +6,7 @@ using FinanceApp.Application.Categories;
 using FinanceApp.Application.Debts;
 using FinanceApp.Application.Import;
 using FinanceApp.Application.Common;
+using FinanceApp.Application.Export;
 using FinanceApp.Application.Recurring;
 using FinanceApp.Application.Dev;
 using FinanceApp.Application.Envelopes;
@@ -50,6 +51,7 @@ public static class DependencyInjection
         services.AddScoped<IMoneyViewFactory, MoneyViewFactory>();
         services.AddScoped<IRecurringMaterializer, RecurringMaterializer>();
         services.AddScoped<ITaxService, TaxService>();
+        services.AddScoped<IExportService, ExportService>();
 
         // Register every AbstractValidator<T> found in this assembly.
         services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());

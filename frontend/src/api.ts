@@ -212,6 +212,33 @@ export const api = {
   getRecentSpending: (window: SpendWindow) =>
     http<RecentSpending>(`/api/stats/recent?window=${window}`),
 
+  /// Downloads an export and hands it to the browser as a file.
+  ///
+  /// Fetched rather than linked to: the native build authenticates with a Bearer token the
+  /// `http` helper adds, and a plain <a href> would arrive without it and be refused. The
+  /// filename comes from the server's Content-Disposition, so the date in it is the server's.
+  downloadExport: async (what: 'ledger.csv' | 'backup.json') => {
+    const token = await readDeviceToken()
+    const res = await fetch(`${apiBase()}/api/export/${what}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (res.status === 401) onUnauthorized()
+    if (!res.ok) throw new Error(`Не вийшло вивантажити (HTTP ${res.status})`)
+
+    const disposition = res.headers.get('Content-Disposition') ?? ''
+    const named = /filename="?([^";]+)"?/.exec(disposition)?.[1]
+    const url = URL.createObjectURL(await res.blob())
+    try {
+      const a = document.createElement('a')
+      a.href = url
+      a.download = named ?? `finance-${what}`
+      a.click()
+    } finally {
+      // Revoked on the next tick: doing it synchronously can cancel the download in Safari.
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    }
+  },
+
   getTaxProfile: () => http<TaxProfile>('/api/tax/profile'),
   saveTaxProfile: (p: SaveTaxProfile) =>
     http<TaxProfile>('/api/tax/profile', { method: 'PUT', body: JSON.stringify(p) }),

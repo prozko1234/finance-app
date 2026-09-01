@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { MonthlyNeed, OpeningBalance, SafeToSpend, SaveOpeningBalance } from '../types'
 import { CURRENCIES, todayIso } from '../types'
 import { dayMonth, money, parseAmount } from '../format'
+import { api } from '../api'
 import { Card, CardSkeleton, FormError, PrimaryButton, Screen, SectionTitle } from './Screen'
 
 interface Props {
@@ -46,7 +47,70 @@ export function Balance({ data, summary, need, currency, onSet, onClear, onRecor
           <CountInForce data={data} onClear={onClear} />
         </>
       )}
+      <ExportCard />
     </Screen>
+  )
+}
+
+/// The way out of "не сходиться, і я не бачу чому".
+///
+/// The reconcile card above answers a difference by writing it down; this one hands over
+/// everything the app knows so the difference can be FOUND instead. One flat table, in date
+/// order, with a column saying whether each movement touched «можна витратити» — because the
+/// usual answer is a movement that deliberately did not: a charge nobody confirmed, something
+/// paid out of a jar, a deposit marked as set aside earlier.
+///
+/// Debts and jar movements are in it precisely because they are not transactions and appear
+/// nowhere else in the app as a list.
+function ExportCard() {
+  const [busy, setBusy] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  async function download(what: 'ledger.csv' | 'backup.json') {
+    setBusy(what)
+    setError(null)
+    try {
+      await api.downloadExport(what)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не вийшло вивантажити.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <Card>
+      <SectionTitle>Вивантажити все</SectionTitle>
+      <p className="text-sm text-neutral-500">
+        Кожен рух грошей одним списком, по датах — разом із тим, що не є транзакціями: банки,
+        борги, залишки. У таблиці є колонка «впливає на можна витратити»: якщо на руках більше,
+        ніж каже застосунок, різниця майже завжди саме там.
+      </p>
+
+      <div className="flex gap-2">
+        <button
+          onClick={() => download('ledger.csv')}
+          disabled={busy !== null}
+          className="flex-1 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 px-3 py-2.5 text-sm font-medium disabled:opacity-40"
+        >
+          {busy === 'ledger.csv' ? '…' : 'Таблиця (CSV)'}
+        </button>
+        <button
+          onClick={() => download('backup.json')}
+          disabled={busy !== null}
+          className="flex-1 rounded-xl bg-neutral-100 dark:bg-neutral-800 px-3 py-2.5 text-sm disabled:opacity-40"
+        >
+          {busy === 'backup.json' ? '…' : 'Повна копія (JSON)'}
+        </button>
+      </div>
+
+      <FormError>{error}</FormError>
+
+      <p className="text-xs text-neutral-400">
+        CSV — крапка з комою і коми в числах, щоб Excel і Numbers відкрили його без діалогу.
+        JSON — усе як є, на випадок якщо база колись пропаде.
+      </p>
+    </Card>
   )
 }
 
