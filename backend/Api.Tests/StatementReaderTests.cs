@@ -145,4 +145,38 @@ public class StatementReaderTests
         Assert.Single(result.Problems);
         Assert.Equal(3, result.Problems[0].Line);
     }
+
+    /// A card payment that has not settled yet is exported by PKO with "Data operacji" blank
+    /// and only "Data waluty" filled in. Those rows are the most RECENT purchases in the file
+    /// — exactly the ones somebody catching up on a week needs — and they used to be dropped
+    /// as unreadable, so real money vanished out of an import that reported nothing worth
+    /// reading.
+    [Fact]
+    public void A_row_dated_only_in_the_second_column_still_imports()
+    {
+        const string pending = """
+            "Data operacji","Data waluty","Typ transakcji","Kwota","Waluta","Opis transakcji"
+            "2026-08-30","2026-08-30","Płatność kartą","-24.49","PLN","SHELL"
+            "","2026-08-31","Blokada","-156.28","PLN","GLOVO"
+            """;
+
+        var result = Read(pending);
+
+        Assert.Empty(result.Problems);
+        Assert.Equal(2, result.Rows.Count);
+        Assert.Equal(new DateOnly(2026, 8, 31), result.Rows[1].Date);
+    }
+
+    /// Only ever a fallback. When the booking date is there it wins, whatever the value date
+    /// says — otherwise a file whose two dates differ would silently import on the wrong one.
+    [Fact]
+    public void The_chosen_date_column_wins_whenever_it_has_anything_in_it()
+    {
+        const string both = """
+            "Data operacji","Data waluty","Typ transakcji","Kwota","Waluta","Opis transakcji"
+            "2026-08-30","2026-09-02","Płatność kartą","-24.49","PLN","SHELL"
+            """;
+
+        Assert.Equal(new DateOnly(2026, 8, 30), Assert.Single(Read(both).Rows).Date);
+    }
 }

@@ -77,7 +77,7 @@ public static class StatementReader
 
         foreach (var (line, raw, cells) in body)
         {
-            if (!DateText.TryParse(At(cells, columns.DateAt), out var date))
+            if (!TryDate(cells, columns, out var date))
             {
                 problems.Add(new StatementProblem(line, "Не вдалось прочитати дату", raw));
                 continue;
@@ -111,6 +111,27 @@ public static class StatementReader
         }
 
         return string.Join(" · ", parts).Trim();
+    }
+
+    /// The row's date, from the date column — or from any other column holding one when that
+    /// cell is empty.
+    ///
+    /// A card payment that has not settled yet is exported by PKO with "Data operacji" blank
+    /// and only "Data waluty" filled in. Those rows are the most RECENT purchases in the file,
+    /// which makes them the ones somebody catching up on a week actually needs, and dropping
+    /// them let real money vanish out of an import that reported no error worth reading.
+    ///
+    /// Only ever a fallback: the chosen column still wins whenever it has anything in it, so a
+    /// file where booking and value dates differ keeps importing by the booking date.
+    private static bool TryDate(IReadOnlyList<string> cells, StatementColumns columns, out DateOnly date)
+    {
+        if (DateText.TryParse(At(cells, columns.DateAt), out date)) return true;
+
+        for (var i = 0; i < cells.Count; i++)
+            if (i != columns.DateAt && DateText.TryParse(cells[i], out date)) return true;
+
+        date = default;
+        return false;
     }
 
     private static string At(IReadOnlyList<string> cells, int index) =>
