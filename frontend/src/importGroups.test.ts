@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  groupRows, rowsAsPlainExpenses, rowsToCommit, subscriptionDecisions,
-  subscriptionRowsToCommit, undecidedCount,
-} from './importGroups'
+import { groupRows, rowsToCommit, unansweredGuesses, undecidedCount } from './importGroups'
 import type { ImportRow, RecurringMatch } from './types'
 
 function row(over: Partial<ImportRow> = {}): ImportRow {
@@ -107,66 +104,58 @@ describe('rowsToCommit', () => {
 /// exactly when it matters. Claude went 99,16 → 502,67 in one month.
 describe('subscription rows', () => {
   const match = (over: Partial<RecurringMatch> = {}): RecurringMatch => ({
-    recurringId: 7, name: 'Claude', ruleAmount: 99.16, ruleCurrency: 'PLN',
-    learned: true, canUpdateAmount: true,
-    chargeId: 55, chargeOn: '2026-09-14', chargeAmount: 99.16, chargeStatus: 'Pending',
+    recurringId: 7, name: 'Spotify', ruleAmount: 6.63, ruleCurrency: 'EUR',
+    learned: true, canUpdateAmount: false,
+    chargeId: 55, chargeOn: '2026-09-17', chargeAmount: 28.93, chargeStatus: 'Pending',
     ...over,
   })
 
-  const claude = (over: Partial<ImportRow> = {}, m: Partial<RecurringMatch> = {}) =>
-    row({ line: 9, amount: -502.67, merchant: 'ANTHROPIC', merchantKey: 'ANTHROPIC',
-          recurring: match(m), ...over })
+  const sub = (over: Partial<ImportRow> = {}, m: Partial<RecurringMatch> | null = {}) =>
+    row({ line: 9, amount: -29.6, merchant: 'SPOTIFY', merchantKey: 'SPOTIFY',
+          recurring: m === null ? null : match(m), ...over })
 
-  it('keeps them out of the shop groups', () => {
-    const groups = groupRows([row({ line: 1 }), claude()])
+  /// A learned match is a fact, so it is acted on without being asked.
+  it('links a shop the server recognised for certain', () => {
+    const [g] = groupRows([sub()])
 
-    expect(groups).toHaveLength(1)
-    expect(groups[0].merchant).toBe('ZABKA')
+    expect(g.recurringId).toBe(7)
+    expect(rowsToCommit([g])[0]).toMatchObject({ recurringId: 7, updateRecurringAmount: false })
   })
 
-  /// A learned match whose price moved is answered "reprice" without being asked: the shop is
-  /// known for a fact, and the new figure is right there on the statement.
-  it('offers to reprice a known subscription that got dearer', () => {
-    const [d] = subscriptionDecisions([claude()])
+  /// A guess is not. The server matched on the numbers alone, and linking the wrong
+  /// subscription would confirm a bill that never arrived and leave the real one unpaid.
+  it('leaves a guess for the user to answer', () => {
+    const [g] = groupRows([sub({}, { learned: false })])
 
-    expect(d.choice).toBe('reprice')
-    expect(subscriptionRowsToCommit([d], null)).toEqual([expect.objectContaining({
+    expect(g.recurringId).toBeNull()
+    expect(unansweredGuesses([g])).toBe(1)
+  })
+
+  /// A linked shop needs no category — nothing is created for it — so the usual "no category,
+  /// no import" rule must not drop exactly the rows that matter.
+  it('imports a linked shop that has no category', () => {
+    const [g] = groupRows([sub({ suggestedCategoryId: null })])
+
+    expect(g.categoryId).toBeNull()
+    expect(rowsToCommit([g])).toHaveLength(1)
+    expect(undecidedCount([g])).toBe(0)
+  })
+
+  /// Linked by hand, for the case the app cannot guess: a price that moved too far.
+  it('can be linked to a subscription the server did not match', () => {
+    const [g] = groupRows([row({ merchantKey: 'ANTHROPIC', merchant: 'ANTHROPIC', amount: -502.67 })])
+    expect(g.recurringId).toBeNull()
+
+    const linked = { ...g, recurringId: 7, updateAmount: true }
+    expect(rowsToCommit([linked])[0]).toMatchObject({
       recurringId: 7, updateRecurringAmount: true,
-    })])
+    })
   })
 
-  it('just confirms one whose price has not moved', () => {
-    const [d] = subscriptionDecisions([claude({ amount: -99.16 })])
+  /// Unlinking leaves it an ordinary expense, and it must not carry the flags onwards.
+  it('sends nothing about subscriptions for an ordinary shop', () => {
+    const [g] = groupRows([row()])
 
-    expect(d.choice).toBe('confirm')
-    expect(subscriptionRowsToCommit([d], null)[0].updateRecurringAmount).toBe(false)
-  })
-
-  /// A guess is never acted on silently. Matched on the date alone, it could be the wrong
-  /// subscription — and that would confirm a bill that never arrived while the real one stays
-  /// unpaid.
-  it('leaves a guess unanswered', () => {
-    const [d] = subscriptionDecisions([claude({}, { learned: false })])
-
-    expect(d.choice).toBeNull()
-    expect(subscriptionRowsToCommit([d], null)).toEqual([])
-  })
-
-  /// A rule in euro seen as złoty must not have its price set from the converted figure —
-  /// 6,63 EUR would become 29,60 EUR. It is confirmed, not repriced.
-  it('does not reprice across currencies', () => {
-    const [d] = subscriptionDecisions([
-      claude({ amount: -29.6 }, { name: 'Spotify', ruleAmount: 6.63, ruleCurrency: 'EUR', canUpdateAmount: false }),
-    ])
-
-    expect(d.choice).toBe('confirm')
-  })
-
-  /// Answered "окрема витрата", the row goes back among the shops rather than vanishing.
-  it('hands a rejected row back to the ordinary groups', () => {
-    const decisions = subscriptionDecisions([claude()]).map((d) => ({ ...d, choice: 'expense' as const }))
-
-    expect(subscriptionRowsToCommit(decisions, null)).toEqual([])
-    expect(groupRows(rowsAsPlainExpenses(decisions))).toHaveLength(1)
+    expect(rowsToCommit([g])[0]).not.toHaveProperty('recurringId')
   })
 })

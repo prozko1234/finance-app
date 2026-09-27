@@ -1,15 +1,18 @@
 import { useState } from 'react'
-import type { Category, ImportPreview, ImportResult, ImportRow, ImportRowToSave } from '../types'
+import type { Category, ImportPreview, ImportResult, ImportRow, ImportRowToSave, Recurring } from '../types'
 import { money, plural } from '../format'
 import {
-  groupRows, rowsAsPlainExpenses, rowsToCommit, subscriptionDecisions, subscriptionRowsToCommit,
-  undecidedCount, type ImportGroup, type SubscriptionChoice, type SubscriptionDecision,
+  groupRows, rowsToCommit, undecidedCount, unansweredGuesses, type ImportGroup,
 } from '../importGroups'
 import { dayMonth } from '../format'
 import { Card, FormError, PrimaryButton, Screen, SectionTitle } from './Screen'
 
 interface Props {
   categories: Category[]
+  /// The active subscriptions a shop can be linked to. Needed because a price that moved too
+  /// far to recognise — Claude going 99,16 → 502,67 — has to be linkable by hand, or the row
+  /// imports as an ordinary expense on top of a charge the app is already holding.
+  recurring: Recurring[]
   onPreview: (file: File) => Promise<ImportPreview>
   onCommit: (rows: ImportRowToSave[]) => Promise<ImportResult>
   onDone: () => void
@@ -20,10 +23,9 @@ interface Props {
 ///
 /// The middle step is the whole point. It shows 25 shops rather than 300 rows: a month has
 /// about that many, and a decision is made per shop, not per purchase.
-export function Import({ categories, onPreview, onCommit, onDone, onBack }: Props) {
+export function Import({ categories, recurring, onPreview, onCommit, onDone, onBack }: Props) {
   const [preview, setPreview] = useState<ImportPreview | null>(null)
   const [groups, setGroups] = useState<ImportGroup[]>([])
-  const [subs, setSubs] = useState<SubscriptionDecision[]>([])
   const [duplicatesCategory, setDuplicatesCategory] = useState<number | null>(null)
   const [result, setResult] = useState<ImportResult | null>(null)
   const [busy, setBusy] = useState(false)
@@ -38,7 +40,6 @@ export function Import({ categories, onPreview, onCommit, onDone, onBack }: Prop
       const read = await onPreview(file)
       setPreview(read)
       setGroups(groupRows(read.rows))
-      setSubs(subscriptionDecisions(read.rows))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Не вдалося прочитати файл')
     } finally {
@@ -50,25 +51,11 @@ export function Import({ categories, onPreview, onCommit, onDone, onBack }: Prop
     setGroups((gs) => gs.map((g) => (g.key === key ? { ...g, ...patch } : g)))
   }
 
-  /// Answering a row "окрема витрата" moves it into the ordinary groups, so it is filed by
-  /// shop like anything else — the row does not simply disappear from the import.
-  function answer(line: number, choice: SubscriptionChoice) {
-    const next = subs.map((d) => (d.row.line === line ? { ...d, choice } : d))
-    setSubs(next)
-    setGroups(groupRows([
-      ...(preview?.rows ?? []).filter((r) => !r.recurring),
-      ...rowsAsPlainExpenses(next),
-    ]))
-  }
-
   async function commit() {
     setBusy(true)
     setError(null)
     try {
-      setResult(await onCommit([
-        ...rowsToCommit(groups, duplicates, duplicatesCategory),
-        ...subscriptionRowsToCommit(subs, categories[0]?.id ?? null),
-      ]))
+      setResult(await onCommit(rowsToCommit(groups, duplicates, duplicatesCategory)))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Не вдалося імпортувати')
     } finally {
@@ -134,9 +121,8 @@ export function Import({ categories, onPreview, onCommit, onDone, onBack }: Prop
   }
 
   const undecided = undecidedCount(groups)
-  const unanswered = subs.filter((d) => d.choice === null).length
+  const guesses = unansweredGuesses(groups)
   const willImport = rowsToCommit(groups, duplicates, duplicatesCategory).length
-    + subscriptionRowsToCommit(subs, null).length
 
   return (
     <Screen
@@ -158,8 +144,15 @@ export function Import({ categories, onPreview, onCommit, onDone, onBack }: Prop
         </Card>
       )}
 
-      {subs.length > 0 && (
-        <Subscriptions decisions={subs} unanswered={unanswered} onAnswer={answer} />
+      {guesses > 0 && (
+        <Card>
+          <p className="text-sm">
+            <span className="font-medium">{guesses}</span>{' '}
+            {plural(guesses, 'крамниця схожа', 'крамниці схожі', 'крамниць схожі')} на
+            регулярний платіж — я зіставив їх за сумою й датою, тож підтвердь або відхиль. Ці
+            гроші апка вже тримає з норми: якщо це те саме списання, нової витрати не буде.
+          </p>
+        </Card>
       )}
 
       <div className="space-y-2">
@@ -168,6 +161,7 @@ export function Import({ categories, onPreview, onCommit, onDone, onBack }: Prop
             key={g.key}
             group={g}
             categories={categories}
+            recurring={recurring}
             onChange={(patch) => update(g.key, patch)}
           />
         ))}
@@ -192,111 +186,19 @@ export function Import({ categories, onPreview, onCommit, onDone, onBack }: Prop
   )
 }
 
-/// The rows that look like a subscription's charge.
-///
-/// They are kept out of the shop groups on purpose: the app is ALREADY holding this money, so
-/// the question is not where to file the row but whether it is that charge. Importing it as an
-/// ordinary expense makes the period pay the same bill twice — and the app's own duplicate
-/// check cannot catch it when the price has changed, which is exactly when it matters.
-function Subscriptions({ decisions, unanswered, onAnswer }: {
-  decisions: SubscriptionDecision[]
-  unanswered: number
-  onAnswer: (line: number, choice: SubscriptionChoice) => void
-}) {
-  return (
-    <div className="space-y-2">
-      <SectionTitle>Схоже на регулярні платежі</SectionTitle>
-      <p className="text-sm text-neutral-500">
-        Ці гроші апка вже тримає з норми. Скажи, чи це те саме списання — тоді воно
-        підтвердиться, а нової витрати не з'явиться.
-        {unanswered > 0 && ' Здогадки треба підтвердити: я зіставив їх за датою.'}
-      </p>
-      {decisions.map((d) => (
-        <SubscriptionRow key={d.row.line} decision={d} onAnswer={onAnswer} />
-      ))}
-    </div>
-  )
-}
-
-function SubscriptionRow({ decision, onAnswer }: {
-  decision: SubscriptionDecision
-  onAnswer: (line: number, choice: SubscriptionChoice) => void
-}) {
-  const { row, choice } = decision
-  const m = row.recurring!
-  const paid = Math.abs(row.amount)
-  const differs = Math.abs(paid - m.ruleAmount) >= 0.01
-
-  const pick = (value: SubscriptionChoice, label: string, primary = false) => (
-    <button
-      key={value}
-      onClick={() => onAnswer(row.line, value)}
-      aria-pressed={choice === value}
-      className={`rounded-lg px-2.5 py-1.5 text-xs ${
-        choice === value
-          ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 font-medium'
-          : primary
-            ? 'bg-neutral-100 dark:bg-neutral-800'
-            : 'text-neutral-500'
-      }`}
-    >
-      {label}
-    </button>
-  )
-
-  return (
-    <div className={`rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm space-y-2 ${
-      choice === null ? 'ring-1 ring-amber-400' : ''
-    }`}>
-      <div className="flex items-baseline justify-between gap-3">
-        <p className="font-medium truncate">
-          {m.name}
-          {!m.learned && <span className="text-xs text-amber-600"> · здогадка</span>}
-        </p>
-        <p className="tabular-nums shrink-0">{money(paid, row.currency)}</p>
-      </div>
-
-      <p className="text-xs text-neutral-400">
-        {dayMonth(row.date)} · {row.merchant}
-        {m.chargeOn && ` · в апці ${dayMonth(m.chargeOn)}`}
-      </p>
-
-      {/* The pair of amounts, only when they differ — that is the whole reason this row is
-          here rather than quietly deduplicated. */}
-      {differs && (
-        <p className="text-xs">
-          <span className="text-neutral-400">в апці </span>
-          <span className="tabular-nums">{money(m.ruleAmount, m.ruleCurrency)}</span>
-          <span className={paid > m.ruleAmount ? ' text-amber-600' : ' text-emerald-600'}>
-            {' '}{paid > m.ruleAmount ? 'подорожчало' : 'подешевшало'}
-          </span>
-        </p>
-      )}
-
-      <div className="flex flex-wrap gap-2">
-        {differs && m.canUpdateAmount && pick('reprice', 'Оновити ціну й підтвердити', true)}
-        {pick('confirm', differs ? 'Підтвердити, ціну не чіпати' : 'Це воно', true)}
-        {pick('expense', 'Окрема витрата')}
-      </div>
-
-      {differs && !m.canUpdateAmount && (
-        <p className="text-xs text-neutral-400">
-          Підписка в {m.ruleCurrency}, а виписка в {row.currency} — ціну звідси взяти не вийде,
-          виправ її на екрані підписок.
-        </p>
-      )}
-    </div>
-  )
-}
-
 /// One shop: how many times, for how much, and where it goes.
-function GroupRow({ group, categories, onChange }: {
+function GroupRow({ group, categories, recurring, onChange }: {
   group: ImportGroup
   categories: Category[]
+  recurring: Recurring[]
   onChange: (patch: Partial<ImportGroup>) => void
 }) {
   const [open, setOpen] = useState(false)
-  const undecided = group.categoryId === null
+  const linked = group.recurringId !== null
+  // A guess nobody has answered: the app matched on the numbers alone, and acting on that
+  // unasked would confirm a bill that never arrived.
+  const guess = group.match !== null && !group.match.learned && !linked
+  const undecided = (group.categoryId === null && !linked) || guess
 
   return (
     <div className={`rounded-2xl bg-white dark:bg-neutral-900 p-4 shadow-sm space-y-3 ${
@@ -323,21 +225,27 @@ function GroupRow({ group, categories, onChange }: {
         </span>
       </div>
 
-      <div className="flex gap-2 flex-wrap">
-        {categories.map((c) => (
-          <button
-            key={c.id}
-            onClick={() => onChange({ categoryId: c.id })}
-            className={`rounded-xl px-3 py-1.5 text-sm ${
-              group.categoryId === c.id
-                ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
-                : 'bg-neutral-100 dark:bg-neutral-800'
-            }`}
-          >
-            {c.icon} {c.name}
-          </button>
-        ))}
-      </div>
+      <AsSubscription group={group} recurring={recurring} onChange={onChange} />
+
+      {/* A linked shop needs no category: nothing is created for it — the charge the app
+          already wrote is what records the payment. */}
+      {!linked && (
+        <div className="flex gap-2 flex-wrap">
+          {categories.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => onChange({ categoryId: c.id })}
+              className={`rounded-xl px-3 py-1.5 text-sm ${
+                group.categoryId === c.id
+                  ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+                  : 'bg-neutral-100 dark:bg-neutral-800'
+              }`}
+            >
+              {c.icon} {c.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {open && (
         <ul className="space-y-1 pt-1">
@@ -349,6 +257,111 @@ function GroupRow({ group, categories, onChange }: {
             </li>
           ))}
         </ul>
+      )}
+    </div>
+  )
+}
+
+/// Whether this shop's rows are a subscription's charge rather than new expenses.
+///
+/// The app is already holding that money, so importing the row as an ordinary expense makes
+/// the period pay the same bill twice — and its own duplicate check cannot catch it when the
+/// price has changed, which is exactly when it matters.
+///
+/// Always offered, not only where the server matched something. A price that moved too far to
+/// recognise — Claude going 99,16 → 502,67 — is precisely the case that must be linkable, and
+/// it is the one the app cannot guess.
+function AsSubscription({ group, recurring, onChange }: {
+  group: ImportGroup
+  recurring: Recurring[]
+  onChange: (patch: Partial<ImportGroup>) => void
+}) {
+  const [picking, setPicking] = useState(false)
+  const live = recurring.filter((r) => r.active && r.kind !== 'Income')
+  if (live.length === 0) return null
+
+  const m = group.match
+  const chosen = live.find((r) => r.id === group.recurringId) ?? null
+  const paid = Math.abs(group.total)
+  // Compared against the CHARGE, not the rule: the charge is in the currency the statement is
+  // in, where a rule kept in euro is not.
+  const differs = m?.chargeAmount != null && Math.abs(paid - m.chargeAmount) >= 0.01
+
+  if (chosen === null && m === null && !picking) {
+    return (
+      <button onClick={() => setPicking(true)} className="text-xs text-neutral-400 underline">
+        Це регулярний платіж
+      </button>
+    )
+  }
+
+  return (
+    <div className="space-y-2 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 p-3">
+      {chosen ? (
+        <p className="text-sm">
+          <span className="text-neutral-400">Списання </span>
+          <span className="font-medium">{chosen.note || chosen.categoryName}</span>
+          {m && !m.learned && <span className="text-xs text-amber-600"> · за здогадкою</span>}
+        </p>
+      ) : (
+        <p className="text-sm">
+          {m ? (
+            <>
+              <span className="text-neutral-400">Схоже на </span>
+              <span className="font-medium">{m.name}</span>
+              <span className="text-xs text-amber-600"> · здогадка</span>
+            </>
+          ) : 'Який саме платіж?'}
+        </p>
+      )}
+
+      {/* The two amounts, only when they differ — that is the whole reason this is a question
+          rather than a silent deduplication. */}
+      {m && differs && (
+        <p className="text-xs">
+          <span className="text-neutral-400">в апці </span>
+          <span className="tabular-nums">{money(m.chargeAmount!, group.rows[0].currency)}</span>
+          <span className={paid > m.chargeAmount! ? ' text-amber-600' : ' text-emerald-600'}>
+            {' '}{paid > m.chargeAmount! ? 'подорожчало' : 'подешевшало'}
+          </span>
+          {m.chargeOn && <span className="text-neutral-400"> · {dayMonth(m.chargeOn)}</span>}
+        </p>
+      )}
+
+      <select
+        value={group.recurringId ?? (m && !chosen ? '' : '')}
+        onChange={(e) => onChange({
+          recurringId: e.target.value === '' ? null : Number(e.target.value),
+          updateAmount: false,
+        })}
+        aria-label="Регулярний платіж"
+        className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-transparent px-3 py-2 text-sm"
+      >
+        <option value="">— не регулярний платіж —</option>
+        {live.map((r) => (
+          <option key={r.id} value={r.id}>
+            {r.note || r.categoryName} · {money(r.amountOriginal, r.currencyOriginal)}
+          </option>
+        ))}
+      </select>
+
+      {chosen && differs && (
+        m?.canUpdateAmount ? (
+          <label className="flex items-start gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={group.updateAmount}
+              onChange={(e) => onChange({ updateAmount: e.target.checked })}
+              className="mt-0.5"
+            />
+            <span>Оновити ціну підписки на {money(paid, group.rows[0].currency)}</span>
+          </label>
+        ) : (
+          <p className="text-xs text-neutral-400">
+            Підписка в {chosen.currencyOriginal}, а виписка в {group.rows[0].currency} — ціну
+            звідси взяти не вийде, виправ її на екрані підписок.
+          </p>
+        )
       )}
     </div>
   )

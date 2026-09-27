@@ -388,6 +388,7 @@ function App() {
         {view === 'import' && (
           <Import
             categories={categories.data ?? []}
+            recurring={recurring.data ?? []}
             onPreview={(file) => importPreview.mutateAsync(file)}
             onCommit={(rows) => commitImport.mutateAsync(rows)}
             onDone={() => go('home')}

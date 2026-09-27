@@ -258,16 +258,29 @@ public sealed class ImportService(
             .ToList();
     }
 
+    /// How far a row's amount may sit from the charge's and still be guessed as the same
+    /// payment. A card is settled at the bank's rate on its own day, so even an unchanged
+    /// subscription lands a few percent off when it is billed in another currency: Spotify's
+    /// charge of 28,93 arrived as 29,60.
+    private const decimal GuessTolerance = 0.15m;
+
     /// The subscription a statement row is a charge for, if any.
     ///
-    /// Matched on the SHOP and the date, never on the amount — the amount is the thing that
-    /// changes, and it is the whole reason this matters. A subscription whose price rose writes
-    /// its charge at the old figure, so the row does not look like a duplicate of it, and
-    /// importing it as an ordinary expense makes the period pay twice at two prices.
+    /// A key stored on the subscription is a FACT and matches outright, whatever the amount —
+    /// that is the point, since the amount is what changes.
     ///
-    /// A key stored on the subscription is a fact and matches outright. Without one the date is
-    /// all there is, so the nearest unanswered charge is offered as a GUESS for the user to
-    /// confirm — and confirming is what teaches the key, so each shop is asked about once.
+    /// Without a key there is nothing to go on but the numbers, and a guess has to be worth
+    /// something. The first version guessed on the date alone: every card payment in a month
+    /// matched whatever subscription had a charge nearby, so 47 of 123 rows — parking fees,
+    /// Żabka runs — came back as «Терапія», which charges fortnightly and was therefore always
+    /// close to something. A guess that fires on everything is worse than none: it teaches the
+    /// user to tap past the question.
+    ///
+    /// So a guess now needs the amount too, compared against the CHARGE rather than the rule.
+    /// The charge is in base currency, like the statement; the rule may be in euro, and 45 EUR
+    /// against 196,48 PLN compares nothing. Anything further out than the tolerance — Claude
+    /// going 99,16 → 502,67 — is left to be linked by hand, which is honest: at that distance
+    /// the app has no business claiming to recognise it.
     private static RecurringMatchResponse? MatchSubscription(
         StatementRow row, string key, List<Subscription> subscriptions, string currency)
     {
@@ -275,29 +288,35 @@ public sealed class ImportService(
             ? subscriptions.FirstOrDefault(s => string.Equals(s.MerchantKey, key, StringComparison.OrdinalIgnoreCase))
             : null;
 
+        var amount = Math.Abs(row.Amount);
         var subscription = learned;
-        if (subscription is null)
+        (int Id, DateOnly Date, decimal Amount, TxStatus Status)? charge = null;
+
+        if (subscription is not null)
         {
-            // Only subscriptions nothing is known about yet: one with a key of its own has
+            charge = Nearest(subscription, row.Date);
+        }
+        else
+        {
+            // Only subscriptions nothing is known about yet: one carrying a key of its own has
             // already said which shop it is, and it is not this one.
-            subscription = subscriptions
-                .Where(s => string.IsNullOrEmpty(s.MerchantKey))
-                .Where(s => s.Charges.Any(c => Near(c.Date, row.Date)))
-                .OrderBy(s => s.Charges.Where(c => Near(c.Date, row.Date))
-                    .Min(c => Math.Abs(c.Date.DayNumber - row.Date.DayNumber)))
-                .FirstOrDefault();
+            foreach (var candidate in subscriptions.Where(s => string.IsNullOrEmpty(s.MerchantKey)))
+            {
+                var near = Nearest(candidate, row.Date);
+                if (near is null || near.Value.Amount <= 0) continue;
+                if (Math.Abs(amount - near.Value.Amount) / near.Value.Amount > GuessTolerance) continue;
+
+                if (charge is null
+                    || Math.Abs(near.Value.Date.DayNumber - row.Date.DayNumber)
+                       < Math.Abs(charge.Value.Date.DayNumber - row.Date.DayNumber))
+                {
+                    subscription = candidate;
+                    charge = near;
+                }
+            }
+
             if (subscription is null) return null;
         }
-
-        // The unanswered charge first: that is the one worth acting on. Nearest by date after
-        // that. A learned subscription with no charge in range is still reported — it names
-        // the shop, and the row must not be imported as an ordinary expense on its own.
-        var charge = subscription.Charges
-            .Where(c => Near(c.Date, row.Date))
-            .OrderBy(c => c.Status == TxStatus.Pending ? 0 : 1)
-            .ThenBy(c => Math.Abs(c.Date.DayNumber - row.Date.DayNumber))
-            .Cast<(int Id, DateOnly Date, decimal Amount, TxStatus Status)?>()
-            .FirstOrDefault();
 
         return new RecurringMatchResponse(
             subscription.Id,
@@ -313,6 +332,17 @@ public sealed class ImportService(
             charge?.Amount,
             charge?.Status.ToString());
     }
+
+    /// The charge of this subscription nearest the row's date. Unanswered ones first: that is
+    /// the one worth acting on.
+    private static (int Id, DateOnly Date, decimal Amount, TxStatus Status)? Nearest(
+        Subscription subscription, DateOnly on) =>
+        subscription.Charges
+            .Where(c => Near(c.Date, on))
+            .OrderBy(c => c.Status == TxStatus.Pending ? 0 : 1)
+            .ThenBy(c => Math.Abs(c.Date.DayNumber - on.DayNumber))
+            .Cast<(int Id, DateOnly Date, decimal Amount, TxStatus Status)?>()
+            .FirstOrDefault();
 
     private static bool Near(DateOnly a, DateOnly b) =>
         Math.Abs(a.DayNumber - b.DayNumber) <= ChargeWindowDays;

@@ -73,24 +73,68 @@ public class ImportSubscriptionTests
         return Assert.Single(preview.Value!.Rows);
     }
 
-    /// The price rose, so the amounts differ and the app's own duplicate check — same day, same
-    /// money — cannot see it. This is the row that would otherwise be imported on top of a
-    /// charge already being held.
+    /// A charge settled a few percent off — which is what happens to anything billed in
+    /// another currency — is still guessed, because the amount is the only anchor there is
+    /// before the shop has been learned.
     [Fact]
-    public async Task A_row_whose_price_has_risen_is_still_recognised_as_the_subscription()
+    public async Task A_charge_a_few_percent_off_is_still_guessed()
     {
         using var mem = new SqliteInMemory();
-        var id = await SubscriptionAsync(mem, 99.16m, "Claude");
+        var id = await SubscriptionAsync(mem, 28.93m, "Spotify");
+
+        var row = await RowAsync(mem, Statement(29.60m, "PAYPAL *SPOTIFY"));
+
+        Assert.NotNull(row.Recurring);
+        Assert.Equal(id, row.Recurring!.RecurringId);
+        Assert.False(row.Recurring.Learned); // nothing has taught the shop yet — it is a guess
+    }
+
+    /// The guess used to fire on the date alone, so every card payment in a month matched
+    /// whatever subscription had a charge nearby: 47 of 123 real rows — parking fees, Żabka
+    /// runs — came back as «Терапія», which charges fortnightly and is therefore always close
+    /// to something. A guess that fires on everything is worse than none.
+    [Fact]
+    public async Task An_unrelated_payment_on_the_same_day_is_not_guessed()
+    {
+        using var mem = new SqliteInMemory();
+        await SubscriptionAsync(mem, 196.15m, "Терапія");
+
+        var parking = await RowAsync(mem, Statement(5.50m, "SUPER PARKING RZESZOW"));
+        var shop = await RowAsync(mem, Statement(69.00m, "MIX MARKT 4816"));
+
+        Assert.Null(parking.Recurring);
+        Assert.Null(shop.Recurring);
+    }
+
+    /// And a price that moved too far to recognise is left alone rather than claimed. At that
+    /// distance the app has no business saying it knows — the row is linked by hand instead.
+    [Fact]
+    public async Task A_price_that_moved_too_far_is_not_guessed()
+    {
+        using var mem = new SqliteInMemory();
+        await SubscriptionAsync(mem, 99.16m, "Claude");
 
         var row = await RowAsync(mem, Statement(502.67m, "ANTHROPIC* CLAUDE SUB"));
 
-        Assert.Null(row.DuplicateOfId); // the amounts differ, so nothing else would catch it
+        Assert.Null(row.Recurring);
+    }
+
+    /// Once the shop IS learned, the amount stops mattering — which is the whole point, since
+    /// the amount is what changes.
+    [Fact]
+    public async Task A_learned_shop_matches_however_far_the_price_has_moved()
+    {
+        using var mem = new SqliteInMemory();
+        var id = await SubscriptionAsync(mem, 99.16m, "Claude");
+        mem.Db.RecurringExpenses.Single(r => r.Id == id).MerchantKey = "ANTHROPIC";
+        await mem.Db.SaveChangesAsync();
+
+        var row = await RowAsync(mem, Statement(502.67m, "ANTHROPIC* CLAUDE SUB"));
+
         Assert.NotNull(row.Recurring);
-        Assert.Equal(id, row.Recurring!.RecurringId);
-        Assert.Equal("Claude", row.Recurring.Name);
+        Assert.True(row.Recurring!.Learned);
         Assert.Equal(99.16m, row.Recurring.RuleAmount);
         Assert.Equal("Pending", row.Recurring.ChargeStatus);
-        Assert.False(row.Recurring.Learned); // nothing has taught the shop yet — it is a guess
     }
 
     /// Answering the row confirms the charge the app wrote and creates NOTHING. One payment,
@@ -102,6 +146,7 @@ public class ImportSubscriptionTests
         var id = await SubscriptionAsync(mem, 99.16m, "Claude");
         var row = await RowAsync(mem, Statement(502.67m, "ANTHROPIC* CLAUDE SUB"));
         var before = await mem.Db.Transactions.CountAsync();
+        Assert.Null(row.Recurring); // too far off to guess — this is the hand-linked path
 
         var result = await Sut(mem).CommitAsync(new CommitImportRequest([
             new ImportRowRequest(row.Line, row.Date, row.Amount, row.Currency,
@@ -150,6 +195,10 @@ public class ImportSubscriptionTests
         var id = await SubscriptionAsync(mem, 6.63m, "Spotify");
         var rule = mem.Db.RecurringExpenses.Single(r => r.Id == id);
         rule.CurrencyOriginal = "EUR";
+        // Learned, so the match is a fact and the amounts need not be close — which is the
+        // state this guard has to hold in: the row is złoty, the rule is euro. The key is
+        // SPOTIFY, not PAYPAL: the payment processor is bank noise and MerchantKey drops it.
+        rule.MerchantKey = "SPOTIFY";
         await mem.Db.SaveChangesAsync();
 
         var row = await RowAsync(mem, Statement(29.60m, "PAYPAL *SPOTIFY"));
