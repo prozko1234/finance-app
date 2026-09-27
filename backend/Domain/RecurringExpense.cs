@@ -32,6 +32,19 @@ public class RecurringExpense : IOwnedByUser
     /// Above this a schedule stops being a repeat and starts being a typo.
     public const int MaxInterval = 60;
     public bool Active { get; set; } = true;
+
+    /// The shop this charge shows up as on a bank statement, as
+    /// <see cref="Import.MerchantKey"/> keys it — "ANTHROPIC", "SYLWIA".
+    ///
+    /// Learned on import, the same way a category is: the user says once that a statement row
+    /// IS this subscription, and every later statement recognises it without being asked. Null
+    /// until then, and null forever for anything never imported.
+    ///
+    /// It exists because the amount cannot do this job. The whole reason to match a statement
+    /// row against a subscription is that the price may have changed — Claude went from 99,16
+    /// to 502,67 in one month — so matching on the figure would miss exactly the cases worth
+    /// catching, and the app would write the charge twice.
+    public string? MerchantKey { get; set; }
     public string? Note { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }

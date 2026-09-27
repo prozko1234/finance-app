@@ -155,6 +155,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
             e.Property(r => r.Kind).HasConversion<string>().HasMaxLength(10);
             e.Property(r => r.Unit).HasConversion<string>().HasMaxLength(10);
             e.Property(r => r.Note).HasMaxLength(500);
+            e.Property(r => r.MerchantKey).HasMaxLength(60);
+            // Looked up once per import, per row.
+            e.HasIndex(r => r.MerchantKey);
             e.HasOne(r => r.Category)
                 .WithMany()
                 .HasForeignKey(r => r.CategoryId)

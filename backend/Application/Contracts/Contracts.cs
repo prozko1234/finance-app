@@ -592,7 +592,35 @@ public record ImportRowPreview(
     int? DuplicateOfId,
     /// Where this shop was filed last time, or where the built-in list expects it. Null means
     /// nothing knows — and then the screen asks instead of guessing.
-    int? SuggestedCategoryId);
+    int? SuggestedCategoryId,
+    /// The subscription this row looks like a charge for, when there is one. Null means it is
+    /// an ordinary expense as far as the app can tell.
+    RecurringMatchResponse? Recurring = null);
+
+/// A statement row that looks like a subscription's charge, and what the app already thinks
+/// about that charge.
+///
+/// The point is the pair of amounts. A subscription whose price has risen writes a charge at
+/// the OLD figure, so the statement row does not look like a duplicate of it — and importing
+/// the row as an ordinary expense leaves the period paying for the same thing twice, once at
+/// each price. Claude went 99,16 → 502,67 in a month; that is not an edge case.
+/// <param name="Learned">The row was recognised by a merchant key stored on the subscription,
+/// so this is a fact. False means the app is guessing from the date and wants confirmation
+/// before it links anything.</param>
+/// <param name="CanUpdateAmount">Whether the subscription's price may be set from this row.
+/// False when the two are in different currencies: a rule of 6,63 EUR seen as 29,60 PLN on a
+/// statement would have its price overwritten with 29,60 EUR.</param>
+public record RecurringMatchResponse(
+    int RecurringId,
+    string Name,
+    decimal RuleAmount,
+    string RuleCurrency,
+    bool Learned,
+    bool CanUpdateAmount,
+    int? ChargeId = null,
+    DateOnly? ChargeOn = null,
+    decimal? ChargeAmount = null,
+    string? ChargeStatus = null);
 
 public record ImportProblemResponse(int Line, string Reason, string Raw);
 
@@ -607,6 +635,11 @@ public record ImportPreviewResponse(
     IReadOnlyList<string> Columns);
 
 /// <param name="Amount">Signed, as in the preview: negative is an expense.</param>
+/// <param name="RecurringId">Set to treat this row as that subscription's charge instead of
+/// as a new expense: nothing is created, the charge the app already wrote is confirmed, and
+/// the subscription remembers this shop for next time.</param>
+/// <param name="UpdateRecurringAmount">Also set the subscription's price to this row's amount.
+/// Refused across currencies — see <see cref="RecurringMatchResponse.CanUpdateAmount"/>.</param>
 public record ImportRowRequest(
     int Line,
     DateOnly Date,
@@ -614,14 +647,22 @@ public record ImportRowRequest(
     string Currency,
     int CategoryId,
     string? Note,
-    bool AmountIncludesVat = true);
+    bool AmountIncludesVat = true,
+    int? RecurringId = null,
+    bool UpdateRecurringAmount = false);
 
 public record CommitImportRequest(IReadOnlyList<ImportRowRequest> Rows);
 
+/// <param name="Confirmed">Rows answered as a subscription's charge rather than created as
+/// new expenses. Reported apart from Created because nothing was written for them — and a
+/// screen saying "створено 128" after 10 of them only ticked a box would be lying.</param>
+/// <param name="Repriced">Subscriptions whose price this import changed.</param>
 public record ImportResultResponse(
     int Created,
     int Failed,
-    IReadOnlyList<ImportProblemResponse> Problems);
+    IReadOnlyList<ImportProblemResponse> Problems,
+    int Confirmed = 0,
+    int Repriced = 0);
 
 // --- Debts, both ways round ---
 

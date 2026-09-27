@@ -691,6 +691,29 @@ export interface ImportRow {
   /// Where this shop went last time, or what the built-in dictionary says. Null — nobody
   /// knows, and then the screen asks rather than guesses.
   suggestedCategoryId: number | null
+  /// The subscription this row looks like a charge for. Null — an ordinary expense.
+  recurring?: RecurringMatch | null
+}
+
+/// A statement row that looks like a subscription's charge, with what the app already thinks
+/// about it. The pair of amounts is the point: a subscription whose price rose wrote its
+/// charge at the OLD figure, so the row is not a duplicate by amount — and importing it as an
+/// ordinary expense makes the period pay for the same bill twice.
+export interface RecurringMatch {
+  recurringId: number
+  name: string
+  ruleAmount: number
+  ruleCurrency: string
+  /// Recognised by a shop stored on the subscription, so this is a fact. False — the app is
+  /// guessing from the date and wants confirmation before it links anything.
+  learned: boolean
+  /// Whether the subscription's price may be set from this row. False across currencies: a
+  /// rule of 6,63 EUR seen as 29,60 PLN would have its price overwritten with 29,60 EUR.
+  canUpdateAmount: boolean
+  chargeId: number | null
+  chargeOn: string | null
+  chargeAmount: number | null
+  chargeStatus: 'Posted' | 'Pending' | null
 }
 
 export interface ImportProblem {
@@ -716,12 +739,22 @@ export interface ImportRowToSave {
   currency: string
   categoryId: number
   note?: string | null
+  /// Treat this row as that subscription's charge instead of a new expense: nothing is
+  /// created, the charge the app already wrote is confirmed, and the shop is remembered.
+  recurringId?: number | null
+  /// Also set the subscription's price to this row's amount.
+  updateRecurringAmount?: boolean
 }
 
 export interface ImportResult {
   created: number
   failed: number
   problems: ImportProblem[]
+  /// Rows answered as a subscription's charge. Counted apart from created, because nothing was
+  /// written for them — "створено 128" after ten of them only ticked a box would be a lie.
+  confirmed?: number
+  /// Subscriptions whose price this import changed.
+  repriced?: number
 }
 
 // --- Debts, both ways round ---
