@@ -34,7 +34,7 @@ public class ImportSubscriptionTests
             new TransactionService(mem.Db, fx, materializer, new MoneyViewFactory(mem.Db, fx),
                 new UserProvisioningService(mem.Db)),
             new SettingsService(mem.Db, fx),
-            new RecurringService(mem.Db, periods),
+            new RecurringService(mem.Db, periods, fx),
             materializer);
     }
 

@@ -206,7 +206,7 @@ public sealed class ImportService(
                 $"Для «{rule.Note ?? rule.Id.ToString()}» немає списання біля {row.Date:dd.MM} — " +
                 "підтверджувати нічого.");
 
-        var confirmed = await recurring.ConfirmChargeAsync(charge.Id, ct);
+        var confirmed = await recurring.ConfirmChargeAsync(charge.Id, null, ct);
         return confirmed.IsSuccess ? Result<bool>.Ok(repriced) : confirmed.Error;
     }
 

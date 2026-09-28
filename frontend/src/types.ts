@@ -503,6 +503,16 @@ export interface Recurring {
   chargeOn?: string | null
 }
 
+/// «Оплачено ✓», optionally for a different amount than the schedule expected.
+/// <c>always</c> also makes it the subscription's price from now on; without it the correction
+/// touches this one charge, which is the common case — one odd month should not rewrite what
+/// the app expects every month after.
+export interface ConfirmCharge {
+  amount?: number | null
+  currency?: string | null
+  always?: boolean
+}
+
 export interface SaveRecurring {
   amount: number
   currency: string

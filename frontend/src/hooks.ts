@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api'
 import type {
-  CarryoverDecision, Credentials, Registration, SaveAllocation, SaveCategory, SaveDebt, SaveDebtPayment, SaveEnvelope, SaveEnvelopeTarget, SaveIncome, SaveOpeningBalance, SaveRecurring, SaveSavingsEntry, SaveSavingsPlan, SaveTaxProfile, SaveTaxActuals, SaveTransaction, SaveTransfer, SpendWindow,
+  CarryoverDecision, Credentials, Registration, SaveAllocation, SaveCategory, SaveDebt, SaveDebtPayment, SaveEnvelope, SaveEnvelopeTarget, SaveIncome, SaveOpeningBalance, SaveRecurring, SaveSavingsEntry, SaveSavingsPlan, SaveTaxProfile, SaveTaxActuals, SaveTransaction, SaveTransfer, SpendWindow, ConfirmCharge,
 } from './types'
 
 export const queryKeys = {
@@ -369,7 +369,8 @@ export function useDeleteRecurring() {
 export function useConfirmCharge() {
   const invalidate = useInvalidateEverything()
   return useMutation({
-    mutationFn: (transactionId: number) => api.confirmCharge(transactionId),
+    mutationFn: ({ id, correction }: { id: number; correction?: ConfirmCharge }) =>
+      api.confirmCharge(id, correction),
     onSuccess: invalidate,
   })
 }

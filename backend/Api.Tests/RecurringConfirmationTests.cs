@@ -1,3 +1,4 @@
+using FinanceApp.Api.Tests.Integration;
 using FinanceApp.Application.Common;
 using FinanceApp.Application.Contracts;
 using FinanceApp.Application.Recurring;
@@ -284,7 +285,7 @@ public class RecurringConfirmationTests
     }
 
     private static RecurringService Recurring(SqliteInMemory mem) =>
-        new(mem.Db, new BudgetPeriodResolver(mem.Db));
+        new(mem.Db, new BudgetPeriodResolver(mem.Db), new FakeFxConverter());
 
     /// «Оплачено ✓» is one tap on a card that appears unbidden at the top of the home screen,
     /// so it gets mis-tapped. Deleting the charge was the only way out, and that says something
@@ -353,5 +354,90 @@ public class RecurringConfirmationTests
 
         Assert.True(row.ChargedThisPeriod);
         Assert.Equal(charge.TransactionId, row.ChargeId);
+    }
+
+    /// A standing charge is not always the same size — a therapist takes a double session, a
+    /// utility bill swings with the season. Until this the only ways out were to confirm a
+    /// figure that was wrong or to delete the charge and type the expense by hand, and the
+    /// second one loses the link to the subscription.
+    [Fact]
+    public async Task A_charge_can_be_confirmed_for_a_different_amount()
+    {
+        using var mem = new SqliteInMemory();
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        await SubscriptionAsync(mem, 100m, today);
+
+        var charge = Assert.Single((await TestSummary.Sut(mem).GetSafeToSpendAsync()).PendingCharges!);
+        var done = await Recurring(mem).ConfirmChargeAsync(
+            charge.TransactionId, new ConfirmChargeRequest(Amount: 180m));
+
+        Assert.True(done.IsSuccess);
+        var tx = mem.Db.Transactions.Single(t => t.Id == charge.TransactionId);
+        Assert.Equal(TxStatus.Posted, tx.Status);
+        Assert.Equal(180m, tx.AmountOriginal);
+        Assert.Equal(180m, tx.AmountBase);
+    }
+
+    /// One odd month must not rewrite what the app expects every month after. That is the
+    /// whole reason the correction and the price are two different answers.
+    [Fact]
+    public async Task Correcting_one_charge_leaves_the_subscription_alone()
+    {
+        using var mem = new SqliteInMemory();
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var id = await SubscriptionAsync(mem, 100m, today);
+
+        var charge = Assert.Single((await TestSummary.Sut(mem).GetSafeToSpendAsync()).PendingCharges!);
+        await Recurring(mem).ConfirmChargeAsync(charge.TransactionId, new ConfirmChargeRequest(180m));
+
+        Assert.Equal(100m, mem.Db.RecurringExpenses.Single(r => r.Id == id).AmountOriginal);
+    }
+
+    /// And when the price really has changed for good, one answer does both.
+    [Fact]
+    public async Task A_correction_can_become_the_new_price()
+    {
+        using var mem = new SqliteInMemory();
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var id = await SubscriptionAsync(mem, 100m, today);
+
+        var charge = Assert.Single((await TestSummary.Sut(mem).GetSafeToSpendAsync()).PendingCharges!);
+        await Recurring(mem).ConfirmChargeAsync(
+            charge.TransactionId, new ConfirmChargeRequest(180m, Always: true));
+
+        Assert.Equal(180m, mem.Db.RecurringExpenses.Single(r => r.Id == id).AmountOriginal);
+        Assert.Equal(180m, mem.Db.Transactions.Single(t => t.Id == charge.TransactionId).AmountOriginal);
+    }
+
+    /// Confirming without a correction is still the common case and must stay a bare tap.
+    [Fact]
+    public async Task Confirming_with_no_correction_changes_only_the_status()
+    {
+        using var mem = new SqliteInMemory();
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        await SubscriptionAsync(mem, 100m, today);
+
+        var charge = Assert.Single((await TestSummary.Sut(mem).GetSafeToSpendAsync()).PendingCharges!);
+        await Recurring(mem).ConfirmChargeAsync(charge.TransactionId);
+
+        var tx = mem.Db.Transactions.Single(t => t.Id == charge.TransactionId);
+        Assert.Equal(100m, tx.AmountOriginal);
+        Assert.Equal(TxStatus.Posted, tx.Status);
+    }
+
+    [Fact]
+    public async Task A_correction_to_nothing_is_refused()
+    {
+        using var mem = new SqliteInMemory();
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        await SubscriptionAsync(mem, 100m, today);
+
+        var charge = Assert.Single((await TestSummary.Sut(mem).GetSafeToSpendAsync()).PendingCharges!);
+        var done = await Recurring(mem).ConfirmChargeAsync(
+            charge.TransactionId, new ConfirmChargeRequest(0m));
+
+        Assert.False(done.IsSuccess);
+        Assert.Equal(TxStatus.Pending,
+            mem.Db.Transactions.Single(t => t.Id == charge.TransactionId).Status);
     }
 }

@@ -740,4 +740,18 @@ public record DebtsResponse(
     IReadOnlyList<DebtResponse> IOwe,
     IReadOnlyList<DebtResponse> TheyOweMe);
 
+/// «Оплачено ✓», optionally for a different amount than the schedule expected.
+///
+/// A standing charge is not always the same size — a therapist takes a double session, a
+/// utility bill swings with the season, a shop adds a one-off fee. Until this the only ways
+/// out were to confirm a figure that was wrong or to delete the charge and type the expense by
+/// hand, and the second one loses the link to the subscription.
+/// <param name="Always">Also make this the subscription's price from now on. Without it the
+/// correction touches THIS charge only, which is the common case: one odd month should not
+/// rewrite what the app expects every month after.</param>
+public record ConfirmChargeRequest(
+    decimal? Amount = null,
+    string? Currency = null,
+    bool Always = false);
+
 public record CloseDebtRequest(bool Closed);

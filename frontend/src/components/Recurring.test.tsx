@@ -143,6 +143,8 @@ describe('Recurring — editing', () => {
     const paused = item({ id: 4, active: false, kind: 'Income', note: 'Зарплата', amountOriginal: 20000 })
     render(<Recurring {...props({ items: [paused], onUpdate })} />)
 
+    // Paused ones are an archive rather than part of the period, so their section folds.
+    await user.click(screen.getByText(/На паузі/))
     await user.click(screen.getByText('Зарплата'))
     await user.clear(screen.getByPlaceholderText('0'))
     await user.type(screen.getByPlaceholderText('0'), '21000')
@@ -193,7 +195,7 @@ describe('Recurring — the monthly cost', () => {
 describe('Recurring — when it next goes out', () => {
   /// "Кожного 5-го" is equally true the day before the charge and the day after, and the
   /// money has already gone by then.
-  it('says when the next charge lands and whether this period already paid', () => {
+  it('says when the next charge lands and whether this period already paid', async () => {
     render(<Recurring {...props({ items: [
       item({ id: 1, note: 'Netflix', nextChargeOn: '2099-01-05', chargedThisPeriod: true }),
       item({ id: 2, note: 'Оренда', nextChargeOn: '2099-01-10', chargedThisPeriod: false }),
@@ -203,7 +205,10 @@ describe('Recurring — when it next goes out', () => {
     // The row itself says only WHEN. What this period did with it is the status line below,
     // which is the one that can be acted on.
     expect(screen.getAllByText(/5 січня/).length).toBeGreaterThan(0)
+    await userEvent.click(screen.getByText(/На паузі/))
     expect(screen.getByText(/на паузі/)).toBeInTheDocument()
+    // "Оплачено" also names the section the row sits in, so the row's own line is matched by
+    // the date that follows it.
     expect(screen.getByText(/^Оплачено/)).toBeInTheDocument()
   })
 })
@@ -283,6 +288,8 @@ describe('what the row says about this period', () => {
 
   it('still says when a confirmed charge has gone', () => {
     render(<Recurring {...props({ items: [item({ chargedThisPeriod: true, chargeId: 9, nextChargeOn: '2026-09-05' })] })} />)
+    // "Оплачено" also names the section the row sits in, so the row's own line is matched by
+    // the date that follows it.
     expect(screen.getByText(/^Оплачено/)).toBeInTheDocument()
   })
 })
@@ -354,5 +361,56 @@ describe('Recurring — статус за період', () => {
     render(<Recurring {...props({ items: [netflix({ active: false })] })} />)
 
     expect(screen.queryByText(/Цього періоду ще не списувалось/)).not.toBeInTheDocument()
+  })
+})
+
+/// A standing charge is not always the same size — a therapist takes a double session, a
+/// utility bill swings with the season. Before this the only ways out were to confirm a figure
+/// that was wrong, or to delete the charge and type the expense by hand, which loses the link
+/// to the subscription.
+describe('Recurring — інша сума', () => {
+  const waiting = (over: Partial<RecurringType> = {}): RecurringType => ({
+    id: 1, amountOriginal: 99.16, currencyOriginal: 'PLN', categoryId: 1,
+    categoryName: 'Підписки', startsOn: '2026-01-14', unit: 'Month', interval: 1,
+    active: true, note: 'Claude', kind: 'Expense', amountIncludesVat: false,
+    nextChargeOn: '2026-10-14', chargedThisPeriod: false,
+    awaitingConfirmation: true, chargeId: 77, chargeOn: '2026-09-14', ...over,
+  })
+
+  it('confirms one charge for what actually went through', async () => {
+    const onConfirmCharge = vi.fn()
+    const user = userEvent.setup()
+    render(<Recurring {...props({ items: [waiting()], onConfirmCharge })} />)
+
+    await user.click(screen.getByRole('button', { name: 'Інша сума' }))
+    await user.type(screen.getByLabelText('Скільки списалось насправді'), '502.67')
+    await user.click(screen.getByRole('button', { name: 'Записати' }))
+
+    expect(onConfirmCharge).toHaveBeenCalledWith(77, {
+      amount: 502.67, currency: 'PLN', always: false,
+    })
+  })
+
+  /// Off by default: one odd month must not rewrite what the app expects every month after.
+  it('does not touch the price unless told to', async () => {
+    const onConfirmCharge = vi.fn()
+    const user = userEvent.setup()
+    render(<Recurring {...props({ items: [waiting()], onConfirmCharge })} />)
+
+    await user.click(screen.getByRole('button', { name: 'Інша сума' }))
+    expect(screen.getByRole('checkbox', { name: /І надалі/ })).not.toBeChecked()
+  })
+
+  /// The three sections are the question this screen answers, in the order it gets asked.
+  it('sorts the list by what this period did with each one', () => {
+    render(<Recurring {...props({ items: [
+      waiting({ id: 1, note: 'Claude' }),
+      waiting({ id: 2, note: 'LuxMed', awaitingConfirmation: false, chargedThisPeriod: true }),
+      waiting({ id: 3, note: 'Spotify', awaitingConfirmation: false, chargedThisPeriod: false }),
+    ] })} />)
+
+    expect(screen.getByText(/Чекають на тебе/)).toBeInTheDocument()
+    expect(screen.getByText(/Ще спишеться/)).toBeInTheDocument()
+    expect(screen.getByText(/Вже оплачено/)).toBeInTheDocument()
   })
 })

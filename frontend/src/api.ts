@@ -2,7 +2,7 @@ import type {
   AuthStatus, AppSettings, CarryoverDecision, Category, Credentials, Envelope, FrequentCategory, Invite, NewInvite, Registration, EnvelopePeriod, SaveEnvelope, SaveEnvelopeTarget, SaveCategory, Recurring, SafeToSpend, SaveIncome, SaveRecurring, SaveTaxProfile, SaveTransaction,
   Allocation, SaveAllocation, IncomePreview, OpeningBalance, SaveOpeningBalance, SaveSavingsEntry, SaveSavingsPlan, Savings, SaveTransfer, Stats, TaxDefaults, TaxProfile, Transaction,
   ImportPreview, ImportResult, ImportRowToSave,
-  Debts, SaveDebt, SaveDebtPayment, MonthlyNeed, CategoryKind, RecentSpending, SpendWindow,
+  Debts, SaveDebt, SaveDebtPayment, MonthlyNeed, CategoryKind, RecentSpending, SpendWindow, ConfirmCharge,
   TaxActuals as TaxActualsType, SaveTaxActuals,
 } from './types'
 import {
@@ -206,8 +206,13 @@ export const api = {
     http<void>(`/api/recurring/${id}`, { method: 'DELETE' }),
   /// The id is one CHARGE's, not the subscription's: the same subscription can have another
   /// occurrence still waiting behind this one.
-  confirmCharge: (transactionId: number) =>
-    http<void>(`/api/recurring/charges/${transactionId}/confirm`, { method: 'POST' }),
+  /// The correction is optional: «Оплачено ✓» with no body is the common case, and a charge
+  /// that went through for a different amount says so here.
+  confirmCharge: (transactionId: number, correction?: ConfirmCharge) =>
+    http<void>(`/api/recurring/charges/${transactionId}/confirm`, {
+      method: 'POST',
+      body: JSON.stringify(correction ?? {}),
+    }),
   /// Takes «Оплачено ✓» back. The tick is one tap on a card that appears unbidden, so it gets
   /// mis-tapped — and deleting the charge says something else entirely: that it never happened.
   unconfirmCharge: (transactionId: number) =>

@@ -4,6 +4,7 @@ using FinanceApp.Application.Contracts;
 using FinanceApp.Application.Mapping;
 using FinanceApp.Domain;
 using FinanceApp.Domain.Budgeting;
+using FinanceApp.Domain.Fx;
 using FinanceApp.Domain.Common;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,8 +17,10 @@ public interface IRecurringService
     Task<Result<RecurringResponse>> UpdateAsync(int id, SaveRecurringRequest req, CancellationToken ct = default);
     Task<Result<bool>> DeleteAsync(int id, CancellationToken ct = default);
 
-    /// «Оплачено ✓» for one charge the schedule wrote and nobody had confirmed yet.
-    Task<Result<bool>> ConfirmChargeAsync(int transactionId, CancellationToken ct = default);
+    /// «Оплачено ✓» for one charge the schedule wrote and nobody had confirmed yet, optionally
+    /// for a different amount than the schedule expected.
+    Task<Result<bool>> ConfirmChargeAsync(
+        int transactionId, ConfirmChargeRequest? correction = null, CancellationToken ct = default);
 
     /// Takes «Оплачено ✓» back. The tick is one tap on a card that appears unbidden at the top
     /// of the home screen, so it gets mis-tapped — and until now the only way out was to delete
@@ -25,7 +28,8 @@ public interface IRecurringService
     Task<Result<bool>> UnconfirmChargeAsync(int transactionId, CancellationToken ct = default);
 }
 
-public sealed class RecurringService(IAppDbContext db, IBudgetPeriods periods) : IRecurringService
+public sealed class RecurringService(IAppDbContext db, IBudgetPeriods periods, IFxConverter fx)
+    : IRecurringService
 {
     public async Task<IReadOnlyList<RecurringResponse>> GetAllAsync(CancellationToken ct = default)
     {
@@ -194,17 +198,50 @@ public sealed class RecurringService(IAppDbContext db, IBudgetPeriods periods) :
     /// Confirming twice is not an error: the second tap comes from a stale screen, and the
     /// state it asks for is the state the row is already in. Failing it would show the user a
     /// problem that does not exist.
-    public async Task<Result<bool>> ConfirmChargeAsync(int transactionId, CancellationToken ct = default)
+    public async Task<Result<bool>> ConfirmChargeAsync(
+        int transactionId, ConfirmChargeRequest? correction = null, CancellationToken ct = default)
     {
         var tx = await db.Transactions
             .FirstOrDefaultAsync(t => t.Id == transactionId && t.RecurringExpenseId != null, ct);
         if (tx is null) return Error.NotFound($"Списання {transactionId} не знайдено.");
 
-        if (tx.Status == TxStatus.Pending)
+        if (correction?.Amount is { } amount)
         {
-            tx.Status = TxStatus.Posted;
-            await db.SaveChangesAsync(ct);
+            if (amount <= 0) return Error.Validation("Сума має бути більшою за нуль.");
+
+            // Converted at the CHARGE's own date, not today's: this is money that moved then,
+            // and the rest of the app fixes a rate at the moment a movement happened.
+            var currency = string.IsNullOrWhiteSpace(correction.Currency)
+                ? tx.CurrencyOriginal
+                : correction.Currency.ToUpperInvariant();
+
+            var conv = await fx.ConvertToBaseAsync(amount, currency, tx.Date, ct);
+            if (!conv.IsSuccess) return conv.Error;
+
+            tx.AmountOriginal = amount;
+            tx.CurrencyOriginal = currency;
+            tx.AmountBase = conv.Value!.AmountBase;
+            tx.FxRate = conv.Value.Rate;
+            tx.FxDate = conv.Value.RateDate;
+
+            // Only when asked. One odd month — a double session, a seasonal bill — must not
+            // rewrite what the app expects every month after.
+            if (correction.Always)
+            {
+                var rule = await db.RecurringExpenses
+                    .FirstOrDefaultAsync(r => r.Id == tx.RecurringExpenseId, ct);
+                if (rule is not null)
+                {
+                    rule.AmountOriginal = amount;
+                    rule.CurrencyOriginal = currency;
+                }
+            }
         }
+
+        // Set after the correction, so the charge is never left changed but unconfirmed — and
+        // so a Posted row cannot be rewritten by the materializer on the way past.
+        tx.Status = TxStatus.Posted;
+        await db.SaveChangesAsync(ct);
 
         return Result<bool>.Ok(true);
     }

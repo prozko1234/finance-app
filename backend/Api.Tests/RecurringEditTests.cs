@@ -1,3 +1,4 @@
+using FinanceApp.Api.Tests.Integration;
 using FinanceApp.Application.Common;
 using FinanceApp.Application.Contracts;
 using FinanceApp.Application.Recurring;
@@ -11,7 +12,7 @@ namespace FinanceApp.Api.Tests;
 public class RecurringEditTests
 {
     private static RecurringService Sut(SqliteInMemory mem) =>
-        new(mem.Db, new BudgetPeriodResolver(mem.Db));
+        new(mem.Db, new BudgetPeriodResolver(mem.Db), new FakeFxConverter());
 
     private static async Task<RecurringExpense> SalaryAsync(SqliteInMemory mem)
     {

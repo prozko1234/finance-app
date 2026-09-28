@@ -308,7 +308,7 @@ function App() {
             onGoAllocation={() => go('allocation')}
             onGoBalance={() => go('balance')}
             onDecideCarryover={(d) => decideCarryover.mutate(d)}
-            onConfirmCharge={(id) => confirmCharge.mutate(id)}
+            onConfirmCharge={(id) => confirmCharge.mutate({ id })}
             horizon={horizon}
             onHorizon={(h) => { setHorizon(h); writeLastUsed({ horizon: h }) }}
             frequent={frequentCategories.data ?? []}
@@ -464,7 +464,7 @@ function App() {
             onToggle={toggleRecurring}
             onDelete={async (id) =>
               recurringUndo.request(id, 'Підписку видалено', () => deleteRecurring.mutate(id))}
-            onConfirmCharge={(id) => confirmCharge.mutate(id)}
+            onConfirmCharge={(id, correction) => confirmCharge.mutate({ id, correction })}
             onUnconfirmCharge={(id) => unconfirmCharge.mutate(id)}
             // The same delete the home card uses: removing the charge is what records the
             // skip, and it comes with the undo bar.

@@ -29,10 +29,13 @@ public static class RecurringEndpoints
 
         // The id is a transaction's, not a subscription's: what gets confirmed is one charge
         // on one date, and the same subscription can have another still waiting behind it.
+        // The body is optional: «Оплачено ✓» with no correction is the common case, and a
+        // charge that went through for a different amount says so here.
         g.MapPost("/charges/{transactionId:int}/confirm",
-            async (int transactionId, IRecurringService svc, CancellationToken ct) =>
+            async (int transactionId, ConfirmChargeRequest? req, IRecurringService svc,
+                   CancellationToken ct) =>
         {
-            var r = await svc.ConfirmChargeAsync(transactionId, ct);
+            var r = await svc.ConfirmChargeAsync(transactionId, req, ct);
             return r.IsSuccess ? Results.NoContent() : r.Error.ToProblem();
         });
 

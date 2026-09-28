@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Category, Recurring as RecurringType, SaveRecurring } from '../types'
+import type { Category, ConfirmCharge, Recurring as RecurringType, SaveRecurring } from '../types'
 import { CURRENCIES, todayIso } from '../types'
 import { CADENCES, DEFAULT_CADENCE, monthlyTotals, sameCadence, scheduleSummary, type Cadence } from '../cadence'
 import { daysUntil, dayMonth, money, parseAmount, signedMoney, signedMoneyClass } from '../format'
@@ -17,7 +17,7 @@ interface Props {
   onDelete: (id: number) => Promise<void>
   /// «Оплачено ✓» for this period's charge, and taking that back. Both act on the charge the
   /// server nominated, never on the subscription: a rule has no status, an occurrence does.
-  onConfirmCharge: (transactionId: number) => void
+  onConfirmCharge: (transactionId: number, correction?: ConfirmCharge) => void
   onUnconfirmCharge: (transactionId: number) => void
   /// «Не пішло» — the charge is deleted, which is what records the skip.
   onSkipCharge: (transactionId: number) => void
@@ -304,8 +304,11 @@ export function Recurring({
       {items.length === 0 ? (
         <p className="text-center text-neutral-400 text-sm">Ще немає нічого регулярного.</p>
       ) : (
+        <>
+        {sections(items).map(({ title, hint, rows, fold }) => (
+        <Section key={title} title={title} hint={hint} count={rows.length} fold={fold}>
         <ul className="space-y-2">
-          {items.map((r) => (
+          {rows.map((r) => (
             <li
               key={r.id}
               className={`rounded-xl px-4 py-3 shadow-sm bg-white dark:bg-neutral-900 ${
@@ -349,9 +352,75 @@ export function Recurring({
             </li>
           ))}
         </ul>
+        </Section>
+        ))}
+        </>
       )}
 
     </Screen>
+  )
+}
+
+/// The list, split by what THIS period has done with each subscription.
+///
+/// One flat list answered "які підписки в мене є" and left "які вже пішли, а які ще ні" to be
+/// reconstructed row by row. That is the question actually being asked at the end of a month,
+/// and the order is the order it gets asked in: what wants an answer, what is still coming,
+/// what is done, and only then what is switched off.
+///
+/// Income is deliberately mixed into "ще спишеться" rather than given a section: a salary is
+/// not something one "pays", and a section of one row would be a heading for nothing.
+interface Section {
+  title: string
+  hint?: string
+  rows: RecurringType[]
+  /// Folded away by default — done and dusted, kept for the undo.
+  fold: boolean
+}
+
+function sections(items: RecurringType[]): Section[] {
+  const live = items.filter((r) => r.active)
+  const due = live.filter((r) => r.kind !== 'Income')
+
+  const waiting = due.filter((r) => r.awaitingConfirmation)
+  const paid = due.filter((r) => r.chargedThisPeriod && !r.awaitingConfirmation)
+  const ahead = live.filter((r) => !due.includes(r) || (!r.chargedThisPeriod && !r.awaitingConfirmation))
+  const paused = items.filter((r) => !r.active)
+
+  return [
+    { title: 'Чекають на тебе', hint: 'день минув, а ти ще не сказав, чи пішло', rows: waiting, fold: false },
+    { title: 'Ще спишеться', hint: 'цього періоду', rows: ahead, fold: false },
+    // "Оплачено" stays open: "які вже сплачені" is half of the question this screen answers,
+    // and folding the answer away would be the screen hiding what it was opened for. Only the
+    // paused ones fold — those are an archive, not part of the period.
+    { title: 'Вже оплачено', rows: paid, fold: false },
+    { title: 'На паузі', rows: paused, fold: true },
+  ].filter((s) => s.rows.length > 0)
+}
+
+function Section({ title, hint, count, fold, children }: {
+  title: string
+  hint?: string
+  count: number
+  fold: boolean
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(!fold)
+
+  return (
+    <div className="space-y-2">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-baseline justify-between gap-3 px-1 text-left"
+      >
+        <span className="text-sm font-medium text-neutral-400">
+          {title} <span className="tabular-nums">{count}</span>
+          {hint && open && <span className="block text-xs font-normal">{hint}</span>}
+        </span>
+        <span className="text-xs text-neutral-400">{open ? '▾' : '▸'}</span>
+      </button>
+      {open && children}
+    </div>
   )
 }
 
@@ -466,10 +535,14 @@ function ThisPeriod({ items }: { items: RecurringType[] }) {
 /// charge — that is what records the skip — and arrives with the app-wide undo bar.
 function ChargeStatus({ item, onConfirm, onUnconfirm, onSkip }: {
   item: RecurringType
-  onConfirm: (transactionId: number) => void
+  onConfirm: (transactionId: number, correction?: ConfirmCharge) => void
   onUnconfirm: (transactionId: number) => void
   onSkip: (transactionId: number) => void
 }) {
+  const [correcting, setCorrecting] = useState(false)
+  const [typed, setTyped] = useState('')
+  const [always, setAlways] = useState(false)
+
   // A paused rule has no occurrence this period, and income is not something one "pays".
   if (!item.active || item.kind === 'Income') return null
 
@@ -481,24 +554,77 @@ function ChargeStatus({ item, onConfirm, onUnconfirm, onSkip }: {
   const line = 'mt-2 flex items-center gap-2 border-t border-neutral-100 dark:border-neutral-800 pt-2'
 
   if (item.awaitingConfirmation) {
+    const corrected = parseAmount(typed)
+    const usable = Number.isFinite(corrected) && corrected > 0
+
     return (
-      <div className={line}>
-        <span className="flex-1 text-xs text-amber-600">Чекає підтвердження{on}</span>
-        {charge !== null && (
-          <>
-            <button
-              onClick={() => onSkip(charge)}
-              className="rounded-lg bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1 text-xs text-neutral-500"
-            >
-              Не пішло
-            </button>
-            <button
-              onClick={() => onConfirm(charge)}
-              className="rounded-lg bg-neutral-900 dark:bg-white px-2.5 py-1 text-xs font-medium text-white dark:text-neutral-900"
-            >
-              Оплачено ✓
-            </button>
-          </>
+      <div className="mt-2 border-t border-neutral-100 dark:border-neutral-800 pt-2 space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="flex-1 text-xs text-amber-600">Чекає підтвердження{on}</span>
+          {charge !== null && (
+            <>
+              <button
+                onClick={() => onSkip(charge)}
+                className="rounded-lg bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1 text-xs text-neutral-500"
+              >
+                Не пішло
+              </button>
+              <button
+                onClick={() => setCorrecting(!correcting)}
+                aria-pressed={correcting}
+                className="rounded-lg bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1 text-xs text-neutral-500"
+              >
+                Інша сума
+              </button>
+              <button
+                onClick={() => onConfirm(charge)}
+                className="rounded-lg bg-neutral-900 dark:bg-white px-2.5 py-1 text-xs font-medium text-white dark:text-neutral-900"
+              >
+                Оплачено ✓
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* A standing charge is not always the same size — a double session, a seasonal bill,
+            a one-off fee. Without this the only ways out were to confirm a figure that is
+            wrong, or to delete the charge and type the expense by hand, which loses the link
+            to the subscription. */}
+        {correcting && charge !== null && (
+          <div className="space-y-2 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 p-3">
+            <div className="flex gap-2">
+              <input
+                inputMode="decimal"
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+                placeholder={String(item.amountOriginal)}
+                aria-label="Скільки списалось насправді"
+                className="flex-1 min-w-0 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-transparent px-3 py-2 text-sm"
+              />
+              <button
+                onClick={() => onConfirm(charge, {
+                  amount: corrected, currency: item.currencyOriginal, always,
+                })}
+                disabled={!usable}
+                className="rounded-xl bg-neutral-900 dark:bg-white px-3 py-2 text-sm font-medium text-white dark:text-neutral-900 disabled:opacity-40"
+              >
+                {/* Not a second «Оплачено ✓»: two identical buttons on one row is the user
+                    having to work out which is which. */}
+                Записати
+              </button>
+            </div>
+            <label className="flex items-start gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={always}
+                onChange={(e) => setAlways(e.target.checked)}
+                className="mt-0.5"
+              />
+              {/* Off by default on purpose: one odd month must not rewrite what the app
+                  expects every month after. */}
+              <span>І надалі списувати стільки — змінити ціну підписки</span>
+            </label>
+          </div>
         )}
       </div>
     )
